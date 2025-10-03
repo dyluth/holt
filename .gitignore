@@ -1,0 +1,77 @@
+# macOS system files
+.DS_Store
+.DS_Store?
+._*
+.Spotlight-V100
+.Trashes
+ehthumbs.db
+Thumbs.db
+
+# Claude-specific files
+.claude-reactor
+
+# Go build artifacts
+/bin/
+*.exe
+*.exe~
+*.dll
+*.so
+*.dylib
+*.test
+*.out
+go.work
+go.work.sum
+
+# Go module cache and vendor
+/vendor/
+.env
+
+# IDE and editor files
+.vscode/
+.idea/
+*.swp
+*.swo
+*~
+\#*\#
+.#*
+
+# OS generated files
+Thumbs.db
+ehthumbs.db
+Desktop.ini
+$RECYCLE.BIN/
+
+# Temporary files
+*.tmp
+*.temp
+*.log
+*.pid
+*.seed
+*.pid.lock
+
+# Coverage reports and test files
+*.cover
+coverage.out
+coverage.html
+
+# Docker-related files (keep Dockerfiles but ignore build artifacts)
+docker-compose.override.yml
+.env.local
+.env.*.local
+
+# Development and testing
+.scratch/
+tmp/
+temp/
+
+# Agent build artifacts and runtime files
+agents/*/bin/
+agents/*/target/
+agents/*/*.log
+
+# Redis data files (if running locally)
+dump.rdb
+appendonly.aof
+
+# Makefile artifacts
+.make/
