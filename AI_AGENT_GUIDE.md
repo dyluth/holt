@@ -5,11 +5,12 @@
 **Estimated tokens**: ~500 tokens  
 **Read when**: Starting any development task, unsure which documents to consult
 
-## **Quick Start: Essential Reading**
+## **Quick Start: Core Context**
 
 **Always start here** (required for all tasks):
 1. **`PROJECT_CONTEXT.md`** (~1,500 tokens) - Project overview, philosophy, architecture concepts
 2. **This file** (~500 tokens) - Navigation guidance for specific tasks
+3. **`QUICK_REFERENCE.md`** (~800 tokens) - Key concepts, data structures, and patterns
 
 ## **Task-Specific Reading Lists**
 
@@ -38,32 +39,23 @@
 - **`design/sett-system-specification.md`** (sections 8-9) - Error handling and technical details
 - **`DEVELOPMENT_PROCESS.md`** (Stage 3) - Integration validation process
 
-## **Reading Priority Guide**
+## **Strategic Reading & Context Management**
 
-### **Essential (always read)**
-- `PROJECT_CONTEXT.md` - Required context for all development
-- `AI_AGENT_GUIDE.md` - This navigation guide
-- `QUICK_REFERENCE.md` - Key patterns and structures
+Your goal is to build the most relevant context for your task while respecting token limits. Use this strategic approach:
 
-### **Task-Specific (read as needed)**
-- Component specifications (~3,000 tokens each)
-- Feature design documents (~1,500 tokens each)  
-- Development process documentation (~2,000 tokens)
+**1. Start with the Core Context**
+Always read the documents listed in the **`Quick Start: Core Context`** section first. They provide the foundational knowledge for any task.
 
-### **Reference (consult when needed)**
-- Complete system specification (~5,700 tokens)
-- Feature design template (~3,500 tokens)
-- Phase-specific documentation
+**2. Select Task-Specific Documents**
+Use the **`Task-Specific Reading Lists`** or **`Common Navigation Patterns`** sections to identify the specific design documents needed for your objective.
 
-## **Context Window Management**
+**3. Prioritize Summaries**
+To save tokens, prefer reading `QUICK_REFERENCE.md` or component-specific documents before consulting the full `design/sett-system-specification.md`. The token estimates help you budget your context window.
 
-**Recommended approach**:
-1. **Start minimal**: Read only essential documents first
-2. **Add task-specific**: Include only documents relevant to your current task
-3. **Reference on-demand**: Consult detailed specifications only when needed
-4. **Use quick references**: Prefer summary documents over full specifications
-
-**Token estimates** are provided for each document to help manage context window usage.
+**Example Workflow (Constrained Context):**
+1.  Read `PROJECT_CONTEXT.md` and `QUICK_REFERENCE.md`.
+2.  Identify and read the most relevant component document (e.g., `design/sett-orchestrator-component.md`).
+3.  If you still need more detail, search within the full `design/sett-system-specification.md` for specific keywords rather than reading the whole file.
 
 ## **Common Navigation Patterns**
 
@@ -81,14 +73,6 @@
 
 ### **"I need to integrate/test features"**
 → `DEVELOPMENT_PROCESS.md` (Stage 3) + relevant component specifications
-
-## **When Context Window is Limited**
-
-If context window is constrained, prioritize in this order:
-1. `PROJECT_CONTEXT.md` (required context)
-2. `QUICK_REFERENCE.md` (essential patterns) 
-3. Most relevant component specification
-4. Consult full system specification only for specific details
 
 ## **Getting Help**
 

@@ -16,7 +16,7 @@ structural_type: Standard|Review|Question|Answer|Failure|Terminal
 type: user-defined string (e.g., "CodeCommit", "DesignSpec")
 payload: string (git hash, JSON, text)
 source_artefacts: JSON array of UUIDs
-produced_by_role: string
+produced_by_role: string (agent's 'role' from sett.yml or 'user')
 ```
 
 ### **Claim (Redis Hash)**
@@ -29,18 +29,17 @@ granted_parallel_agents: JSON array
 granted_exclusive_agent: string
 ```
 
-### **Bid Types**
-- `review` - Request to review the artefact
-- `claim` - Request to work in parallel
-- `exclusive` - Request exclusive access
-- `ignore` - Explicit no interest
+### **Bid (On Claim)**
+A Redis Hash (`sett:{instance_name}:claim:{uuid}:bids`) where each key-value pair is:
+- **Key**: Agent's logical name (e.g., 'go-coder-agent')
+- **Value**: Bid type (`review`, `claim`, `exclusive`, `ignore`)
 
 ## **Redis Key Patterns**
 
 ```
 sett:{instance_name}:artifact:{uuid}           # Artefact data
 sett:{instance_name}:claim:{uuid}              # Claim data
-sett:{instance_name}:claim:{uuid}:bids         # Claim bids
+sett:{instance_name}:claim:{uuid}:bids         # Bid data (see above)
 sett:{instance_name}:thread:{logical_id}       # Version tracking (ZSET)
 ```
 
@@ -66,6 +65,7 @@ pending_review → pending_parallel → pending_exclusive → complete
 ```
 
 ## **Agent Cub Operational Modes**
+*(See 'Agent scaling and concurrency' in sett-system-specification.md for details)*
 
 ### **Standard Mode (replicas: 1)**
 - Both Claim Watcher and Work Executor active
@@ -129,11 +129,11 @@ SETT_CONFIG_PATH       # Path to sett.yml
 
 ```bash
 sett init                           # Bootstrap new project
-sett up --name <instance>           # Start sett
-sett down --name <instance>         # Stop sett
+sett up [--name <instance>]         # Start sett (name defaults to 'default')
+sett down [--name <instance>]       # Stop sett (name defaults to 'default')
 sett forage --goal "description"    # Start workflow
-sett watch --name <instance>        # Live activity
-sett hoard --name <instance>        # List artefacts
+sett watch [--name <instance>]      # Live activity (name defaults to 'default')
+sett hoard [--name <instance>]      # List artefacts (name defaults to 'default')
 sett questions [--wait]             # Human Q&A
 sett answer <id> "response"         # Answer questions
 sett logs <agent-name>              # Debug logs
@@ -161,8 +161,7 @@ GET /healthz
 ## **Review Logic**
 
 ```
-Payload == "{}" || Payload == "[]"  → Approval
-Anything else                       → Feedback (claim terminated)
+Review Artefact Payload: "{}" or "[]" → Approval (Any other content implies feedback)
 ```
 
 ## **Error Handling Pattern**

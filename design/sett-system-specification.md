@@ -260,18 +260,18 @@ The sett CLI is designed to be intuitive and memorable, using the sett metaphor 
 
 ### **Sett lifecycle commands**
 
-* **`sett up --name <instance>`** - Brings a new sett online
-* **`sett down --name <instance>`** - Takes a sett offline, cleaning up all resources
+* **`sett up [--name <instance>]`** - Brings a new sett online (name defaults to 'default')
+* **`sett down [--name <instance>]`** - Takes a sett offline (name defaults to 'default')
 * **`sett list`** - Lists all active setts on the host
 
 ### **Workflow commands**
 
 * **`sett forage --goal "Your goal here"`** - The primary command to start a new task. Creates the initial GoalDefined artefact that triggers the workflow
-* **`sett watch --name <instance>`** - Provides a live view of the sett's activity log
+* **`sett watch [--name <instance>]`** - Provides a live view of the sett's activity log (name defaults to 'default')
 
 ### **Inspection commands**
 
-* **`sett hoard --name <instance>`** - Lists all artefacts produced by the agents
+* **`sett hoard [--name <instance>]`** - Lists all artefacts produced by the agents (name defaults to 'default')
 * **`sett unearth <artefact-id>`** - Retrieves the content of a specific artefact
 
 ### **Human-in-the-loop commands**
@@ -393,7 +393,7 @@ When a Failure artefact is created, the workflow for that claim stops. For V1, t
 
 ## **Professional standards**
 
-* **Comprehensive testing**: A minimum of 35% test coverage is required, with a healthy mix of unit, integration, and E2E tests.  
+* **Comprehensive testing**: A minimum of 50% test coverage is required, with a healthy mix of unit, integration, and E2E tests.  
 * **CI/CD automation**: All builds, tests, and security scans are managed via GitHub Actions.  
 * **Makefile automation**: All common development tasks (build, test, lint, clean) are available as make targets.
 

@@ -46,7 +46,7 @@ Every artifact is immutable. To handle iteration and feedback, agents create new
 The system is explicitly designed for human oversight and intervention, with Question/Answer artifacts and CLI commands for human interaction. This architecture ensures compliance with regulations requiring human review of AI decisions and provides the control mechanisms needed in high-stakes environments.
 
 ### **Git-centric workflow**
-Sett assumes and requires a clean Git repository. Code artifacts are git commit hashes, and agents are responsible for Git interactions, making the entire workflow version-controlled.
+Sett assumes and requires a clean Git repository. Code artifacts are git commit hashes, and agents are responsible for Git interactions, making the entire workflow version-controlled. The specific branching and commit strategy is detailed in `agent-cub.md`.
 
 ## **Key Architectural Concepts**
 
@@ -75,7 +75,10 @@ A lightweight binary that runs as the entrypoint in every agent container. It:
 - Operates concurrently to remain responsive
 
 ### **Full Consensus Model (V1)**
-The orchestrator waits until it receives a bid from every known agent before proceeding with the grant process. This ensures deterministic, debuggable workflows.
+The orchestrator waits until it receives a bid from every known agent before proceeding with the grant process. This V1 model prioritizes determinism and debuggability over performance, ensuring predictable workflows in early development. Future versions are planned to incorporate timeout or quorum-based mechanisms for greater scalability.
+
+### **Agent Scaling (Controller-Worker Pattern)**
+For agents that need to run multiple instances concurrently (configured with `replicas > 1` in `sett.yml`), Sett uses a **controller-worker pattern**. A single, persistent "controller" agent is responsible for bidding on claims. When a claim is won, the orchestrator launches ephemeral "worker" agents to execute the work in parallel. This avoids race conditions while enabling horizontal scaling.
 
 ## **Core Workflow**
 
@@ -112,10 +115,10 @@ sett/
 ├── agents/          # Example agent definitions
 ├── design/          # Design documents and specifications
 │   ├── features/                         # Feature design documents by phase
-│   │   ├── phase-1-heartbeat/           # Core infrastructure features
-│   │   ├── phase-2-single-agent/       # Basic execution features
-│   │   ├── phase-3-coordination/       # Multi-agent workflow features
-│   │   └── phase-4-human-loop/         # Production-ready features
+│   │   ├── phase-1-heartbeat/           # Phase 1: Core infrastructure
+│   │   ├── phase-2-single-agent/        # Phase 2: Basic execution
+│   │   ├── phase-3-coordination/        # Phase 3: Multi-agent coordination
+│   │   └── phase-4-human-loop/          # Phase 4: Human-in-the-loop
 │   ├── sett-system-specification.md      # Complete system architecture
 │   ├── sett-orchestrator-component.md    # Orchestrator component design
 │   ├── agent-cub.md                      # Agent cub component design
@@ -210,42 +213,26 @@ By combining the reliability of containerization with the flexibility of AI agen
 
 ## **For Implementation Teams**
 
-### **Development Methodology**
+### **Development Methodology & Quality Assurance**
 
-Sett uses a **systematic feature design approach** to ensure quality, consistency, and architectural alignment. Every feature must be designed using the standardized template (`design/sett-feature-design-template.md`) which provides:
+Sett uses a **systematic, template-driven feature design process** to ensure quality, consistency, and architectural alignment. This methodology *is* the core of our quality assurance strategy.
 
-- **Comprehensive analysis framework** covering all system components
-- **Error-first design** with failure mode and edge case identification
-- **Performance and resource planning** from the design phase
-- **AI-specific implementation guidance** for systematic development
-- **Principle compliance verification** to maintain architectural consistency
+Every feature **must** be designed using the standardized template (`design/sett-feature-design-template.md`). This is not optional. The template enforces a comprehensive analysis that ensures every feature:
+- **Aligns with Sett's guiding principles** (YAGNI, auditability, etc.).
+- **Considers all architectural components** (blackboard, orchestrator, cub, CLI).
+- **Is designed for failure first**, with robust handling of errors and edge cases.
+- **Maintains backward compatibility** and integration safety.
+- **Includes a comprehensive testing plan** (unit, integration, E2E).
+- **Preserves the immutable audit trail** at all costs.
 
-This template-driven approach is particularly critical for AI agent development, ensuring robust, auditable features that integrate seamlessly with Sett's architecture.
+For the complete process, see `DEVELOPMENT_PROCESS.md`.
 
-For complete process documentation, see `DEVELOPMENT_PROCESS.md`.
+### **Core Implementation Principles**
 
-### **Implementation Guidelines**
-
-When implementing Sett:
-1. **Start with the blackboard** - It's the foundation everything else builds on
-2. **Use the feature design template** - Never skip the systematic design phase
-3. **Focus on the contracts** - Well-defined interfaces between components are crucial
-4. **Design for failure first** - Error handling and edge cases are not afterthoughts
-5. **Emphasize testing** - The distributed nature requires comprehensive test coverage
-6. **Build incrementally** - Follow the phased approach to minimize risk
-7. **Document extensively** - The system's complexity demands clear documentation
-8. **Maintain auditability** - Every feature must preserve the immutable audit trail
-
-### **Quality Assurance**
-
-The systematic design template ensures that every feature:
-- **Aligns with Sett's guiding principles** (YAGNI, auditability, single-purpose components)
-- **Considers all architectural components** (blackboard, orchestrator, cub, CLI)
-- **Plans for scale and performance** from the design phase
-- **Handles errors and edge cases** robustly
-- **Maintains backward compatibility** and integration safety
-- **Includes comprehensive testing** across unit, integration, and E2E dimensions
-
-This methodology is essential for maintaining system integrity as Sett scales and evolves, particularly in regulated environments where reliability and auditability are paramount.
+When implementing features, adhere to these principles:
+1. **Contracts First**: Well-defined interfaces between components are crucial.
+2. **Start with the Blackboard**: It is the foundation of the entire system.
+3. **Build Incrementally**: Follow the phased delivery plan to minimize risk.
+4. **Document Extensively**: The system's complexity demands clarity.
 
 This project represents a unique approach to AI agent orchestration that prioritizes practicality, auditability, and real-world engineering needs over academic novelty.
