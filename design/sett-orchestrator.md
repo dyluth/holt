@@ -273,6 +273,53 @@ services:
     image: 'redis:7-alpine'
 ```
 
+## **Agent scaling and concurrency**
+
+Sett supports two distinct operational models depending on the `replicas` configuration for each agent.
+
+### **Single-instance agents (replicas: 1)**
+
+For agents with `replicas: 1` (the default), the orchestrator manages a single container instance that runs the full agent cub with both bidding and execution capabilities. This is the standard model described in the agent-cub.md document.
+
+### **Scalable agents (replicas > 1): Controller-Worker pattern**
+
+For agents configured with `replicas > 1`, Sett uses a **controller-worker pattern** to eliminate race conditions and provide clean separation of concerns. This pattern consists of two distinct components:
+
+#### **1. The Controller Cub ("bidder-only" mode)**
+
+When `sett up` is run, the orchestrator launches **one and only one** persistent container for the scalable agent (e.g., `go-coder-agent`).
+
+The cub process within this container runs in a special **"bidder-only" mode**:
+- It runs only the Claim Watcher goroutine
+- It watches for all new claims and evaluates them on behalf of its agent type
+- It submits bids to the orchestrator
+- **The Work Executor goroutine is disabled** - it never performs any work itself
+- This container remains running throughout the sett's lifecycle
+
+#### **2. The Worker Cubs ("execute-only" mode)**
+
+When the orchestrator decides to grant a claim to a scalable agent, it **cannot** assign the work to the persistent controller cub. Instead:
+
+1. **Ephemeral container creation**: The orchestrator spins up a new, ephemeral container using the same agent image
+2. **Direct work assignment**: The cub process in this new container is launched in **"execute-only" mode** with the granted `claim_id` passed as a command-line argument: `cub --execute-claim <claim_id>`
+3. **Single-purpose execution**: This "worker cub" has no Claim Watcher loop. It:
+   - Starts and sees its direct assignment
+   - Performs the work for that single claim
+   - Posts the resulting artefact to the blackboard
+   - Exits cleanly
+4. **Container cleanup**: The orchestrator is responsible for cleaning up the ephemeral container
+
+#### **Benefits of the controller-worker pattern**
+
+- **Eliminates race conditions**: Only one persistent container bids, avoiding confusion about work assignment
+- **Clean separation of concerns**: Bidding logic remains centralized while execution scales horizontally
+- **Resource efficiency**: Work containers only exist when needed
+- **Simplified orchestration**: Clear ownership of each claim and predictable container lifecycle
+
+#### **Implementation scheduling**
+
+This controller-worker pattern is fundamental to multi-agent coordination and will be implemented as part of **Phase 3: "Coordination"** of the delivery roadmap.
+
 ## **The thematic CLI**
 
 The sett CLI is designed to be intuitive and memorable, using the sett metaphor to create a cohesive user experience.

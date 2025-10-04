@@ -183,11 +183,40 @@ By combining the reliability of containerization with the flexibility of AI agen
 
 ## **For Implementation Teams**
 
+### **Development Methodology**
+
+Sett uses a **systematic feature design approach** to ensure quality, consistency, and architectural alignment. Every feature must be designed using the standardized template (`design/sett-feature-design-template.md`) which provides:
+
+- **Comprehensive analysis framework** covering all system components
+- **Error-first design** with failure mode and edge case identification
+- **Performance and resource planning** from the design phase
+- **AI-specific implementation guidance** for systematic development
+- **Principle compliance verification** to maintain architectural consistency
+
+This template-driven approach is particularly critical for AI agent development, ensuring robust, auditable features that integrate seamlessly with Sett's architecture.
+
+### **Implementation Guidelines**
+
 When implementing Sett:
 1. **Start with the blackboard** - It's the foundation everything else builds on
-2. **Focus on the contracts** - Well-defined interfaces between components are crucial
-3. **Emphasize testing** - The distributed nature requires comprehensive test coverage
-4. **Build incrementally** - Follow the phased approach to minimize risk
-5. **Document extensively** - The system's complexity demands clear documentation
+2. **Use the feature design template** - Never skip the systematic design phase
+3. **Focus on the contracts** - Well-defined interfaces between components are crucial
+4. **Design for failure first** - Error handling and edge cases are not afterthoughts
+5. **Emphasize testing** - The distributed nature requires comprehensive test coverage
+6. **Build incrementally** - Follow the phased approach to minimize risk
+7. **Document extensively** - The system's complexity demands clear documentation
+8. **Maintain auditability** - Every feature must preserve the immutable audit trail
+
+### **Quality Assurance**
+
+The systematic design template ensures that every feature:
+- **Aligns with Sett's guiding principles** (YAGNI, auditability, single-purpose components)
+- **Considers all architectural components** (blackboard, orchestrator, cub, CLI)
+- **Plans for scale and performance** from the design phase
+- **Handles errors and edge cases** robustly
+- **Maintains backward compatibility** and integration safety
+- **Includes comprehensive testing** across unit, integration, and E2E dimensions
+
+This methodology is essential for maintaining system integrity as Sett scales and evolves, particularly in regulated environments where reliability and auditability are paramount.
 
 This project represents a unique approach to AI agent orchestration that prioritizes practicality, auditability, and real-world engineering needs over academic novelty.

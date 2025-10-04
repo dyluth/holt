@@ -62,7 +62,54 @@ graph TD
     end
 ```
 
-## **4\. The context assembly algorithm**
+## **4\. Operational modes**
+
+The agent cub supports two distinct operational modes to accommodate different scaling requirements and eliminate race conditions in multi-replica scenarios.
+
+### **Standard mode (replicas: 1)**
+
+For single-instance agents (`replicas: 1`), the cub operates in **standard mode** with the full concurrent architecture described in section 3:
+
+- **Both goroutines active**: Claim Watcher and Work Executor run concurrently
+- **Full lifecycle**: The cub bids on claims and executes granted work
+- **Persistent container**: The container runs throughout the sett's lifecycle (for `strategy: reuse`) or per-claim (for `strategy: fresh_per_call`)
+
+### **Bidder-only mode (replicas > 1, Controller Cub)**
+
+For scalable agents (`replicas > 1`), one persistent container runs in **bidder-only mode**:
+
+- **Claim Watcher only**: Only the Claim Watcher goroutine is active
+- **Work Executor disabled**: The Work Executor goroutine is completely disabled
+- **Bidding responsibility**: Evaluates all claims and submits bids on behalf of the agent type
+- **No work execution**: Never performs actual work - only handles the bidding logic
+- **Persistent operation**: Container runs throughout the sett's lifecycle
+
+### **Execute-only mode (replicas > 1, Worker Cub)**
+
+For scalable agents, ephemeral containers run in **execute-only mode**:
+
+- **Command-line activation**: Launched with `cub --execute-claim <claim_id>`
+- **Claim Watcher disabled**: No claim watching or bidding occurs
+- **Direct assignment**: Receives the specific claim ID to work on
+- **Single-purpose execution**: Performs work for one claim only, then exits
+- **Ephemeral lifecycle**: Container is created, executes work, and is destroyed
+
+#### **Mode detection and initialization**
+
+The cub determines its operational mode during startup:
+
+1. **Command-line argument check**: If `--execute-claim <claim_id>` is provided, enter execute-only mode
+2. **Agent configuration check**: If the agent's `replicas > 1` and no execute-claim argument, enter bidder-only mode  
+3. **Default**: Otherwise, enter standard mode
+
+#### **Implementation implications**
+
+- **Controller Cubs** maintain all the intelligence for claim evaluation and bidding strategy
+- **Worker Cubs** focus solely on execution efficiency and quick turnaround
+- **Resource isolation**: Each mode can be optimized for its specific purpose
+- **Clean separation**: Eliminates race conditions while maintaining scalability
+
+## **5\. The context assembly algorithm**
 
 This is the core of the cub's intelligence layer. It makes the agent appear stateful by providing it with a deep historical context for any given task.
 
@@ -80,7 +127,7 @@ This is the core of the cub's intelligence layer. It makes the agent appear stat
 
 **Depth limits and safety:** The V1 implementation will have a hardcoded traversal depth limit of 10 levels as a safety valve to prevent excessive context size and potential infinite loops in malformed graphs. Future versions will include robust loop detection by tracking visited artefact IDs.
 
-## **5\. Configuration and initialisation**
+## **6\. Configuration and initialisation**
 
 The orchestrator is responsible for providing the cub with its identity and environment via standard container mechanisms.
 
@@ -100,7 +147,7 @@ The orchestrator provides the cub with its identity and environment via standard
 * **Project workspace:** The agent's container has the project's working directory (Git repository root) mounted as the default workspace. The mount mode ('ro' or 'rw') is specified in the agent's sett.yml `workspace` configuration.
 * **Prompts:** The agent's prompts (claim, execution) are passed as environment variables. The orchestrator reads the prompts from the sett.yml file and injects them into the agent container as `SETT_PROMPT_CLAIM` and `SETT_PROMPT_EXECUTION` environment variables.
 
-## **6\. Tool execution contract**
+## **7\. Tool execution contract**
 
 The cub's interaction with agent-specific tools is defined by a simple, robust contract. The cub binary is always the entrypoint of the agent container. It then acts as a generic runner that executes a **single, mandatory command** defined in the agent's sett.yml configuration. This decouples the core cub logic from the implementation details of any specific tool.
 
@@ -185,11 +232,11 @@ A script can create a Question artefact by outputting specific JSON to stdout:
 
 The cub's only job is to capture the resulting commit hash from the script's stdout and place it in the artefact's payload.
 
-## **7\. Operational policies and fault tolerance**
+## **8\. Operational policies and fault tolerance**
 
 To be a robust, usable component, the cub must adhere to a clear set of operational policies.
 
-### **7.1. Health checks and lifecycle**
+### **8.1. Health checks and lifecycle**
 
 The cub must be a good citizen within a containerised environment, compatible with orchestrators like Docker and Kubernetes.
 
@@ -197,7 +244,7 @@ The cub must be a good citizen within a containerised environment, compatible wi
 * **Health checks:** The cub exposes a `GET /healthz` endpoint that returns `200 OK` if connected to Redis, `503 Service Unavailable` otherwise. The Orchestrator (or Kubernetes) can use this for liveness and readiness probes to distinguish between a busy agent and a dead one.
 * **Work queue size:** An agent's cub can only work on one granted claim at a time. Its internal work queue has a size of one. While the Work Executor is busy, the Claim Watcher can continue to bid on new claims, but new work will be queued until the current task is complete.
 
-### **7.2. Network resilience**
+### **8.2. Network resilience**
 
 All external network calls made by the cub (to Redis or LLM APIs) must be resilient to transient failures.
 
@@ -205,7 +252,7 @@ All external network calls made by the cub (to Redis or LLM APIs) must be resili
 * **Retry policy:** A simple, exponential backoff retry policy (e.g., 3 retries) must be implemented for all external calls.  
 * **Failure state:** If a critical dependency like Redis is unreachable after all retries, the cub's health check must fail. If a non-critical call (like bidding via an LLM) fails, the cub should default to a safe state (e.g., submitting an 'ignore' bid) and log the error.
 
-### **7.3. Robust I/O handling**
+### **8.3. Robust I/O handling**
 
 The cub must robustly handle the output from the tool command it executes.
 
