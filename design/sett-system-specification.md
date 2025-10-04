@@ -1,5 +1,10 @@
 # **Sett: A container-native AI agent orchestrator**
 
+**Purpose**: Complete system architecture, shared components, and implementation details  
+**Scope**: Reference - comprehensive system specification  
+**Estimated tokens**: ~5,700 tokens  
+**Read when**: Need complete architecture understanding, implementing core components
+
 Sett is a standalone, **container-native orchestration engine** designed to manage a clan of specialised, tool-equipped AI agents. It provides a robust, scalable, and auditable platform for automating complex workflows by leveraging the power of containerisation and the familiar paradigms of DevOps. While initially focused on software engineering tasks, Sett's immutable audit trails and human-in-the-loop design make it particularly valuable for regulated industries, compliance workflows, and any environment where AI transparency and accountability are business-critical.
 
 It is not an LLM-chaining library. It is an orchestration engine for the real-world toolchains that software professionals use every day. It enables the automation of tasks that rely on compilers, CLIs, and infrastructure tools (git, docker, kubectl) by orchestrating agents whose tools are not just Python functions, but any command-line tool that can be packaged into a container.

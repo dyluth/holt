@@ -1,5 +1,10 @@
 # **Feature design: \[Feature Name\]**
 
+**Purpose**: Systematic template for designing features with comprehensive analysis  
+**Scope**: Template - use when designing any new feature  
+**Estimated tokens**: ~3,500 tokens  
+**Read when**: Starting feature design, need complete analysis framework
+
 Associated phase: \[Heartbeat | Single Agent | Coordination | Human-in-the-Loop\]  
 Status: \[Draft | In Review | Approved\]  
 ***Template purpose:*** *This* document is a blueprint for a single, implementable milestone. Its purpose is to provide an unambiguous specification for a developer (human *or AI) to build a feature that is consistent with Sett's architecture and guiding principles.*

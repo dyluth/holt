@@ -1,5 +1,10 @@
 # **The agent cub: design & specification**
 
+**Purpose**: Agent cub component architecture, operational modes, and tool contracts  
+**Scope**: Component-specific - read when implementing agent functionality  
+**Estimated tokens**: ~3,300 tokens  
+**Read when**: Implementing agent logic, container execution, bidding systems
+
 ## **1\. Core purpose**
 
 The Agent Cub is the brain and nervous system of every agent in a Sett. It is a lightweight, standalone binary that runs as the entrypoint inside the agent's container.

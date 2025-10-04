@@ -1,5 +1,10 @@
 # **The Sett Orchestrator Component: Design & Specification**
 
+**Purpose**: Orchestrator component logic, algorithms, and implementation details  
+**Scope**: Component-specific - read when implementing orchestrator features  
+**Estimated tokens**: ~3,200 tokens  
+**Read when**: Implementing orchestrator logic, claim management, event handling
+
 ## **1. Core purpose**
 
 The Orchestrator is the central coordination engine of Sett. It is a lightweight, event-driven component that serves as a non-intelligent traffic cop, managing the lifecycle of Claims and coordinating agent work without making domain-specific decisions.
