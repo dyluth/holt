@@ -15,107 +15,29 @@ Sett is an opinionated tool. Our development philosophy is guided by a clear set
 * **ARM64-first design:** Development and deployment are optimised for ARM64, with AMD64 as a fully supported, compatible target.  
 * **Principle of least privilege:** Agents run in non-root containers with the minimal set of privileges required to perform their function.
 
-## **How it works: the claim and artefact lifecycle**
+## **System architecture overview**
 
-The architecture separates concerns between the **Orchestrator** and the **Agents**. The Orchestrator watches for new **Artefacts** and creates **Claims** based on them. Agents watch for **Claims** and bid on them. This creates a robust, event-driven workflow.
+The architecture separates concerns between three primary components: the **Orchestrator**, the **Agent Cubs**, and the **CLI**. The Orchestrator watches for new **Artefacts** and creates **Claims** based on them. Agent Cubs watch for **Claims** and bid on them. This creates a robust, event-driven workflow.
 
-### **System bootstrapping**
+### **Component responsibilities**
 
-A workflow is initiated by a user via the sett CLI. The CLI is the first actor and is responsible for seeding the system with its initial state.
+* **Orchestrator**: Event-driven coordination engine that manages claim lifecycles and agent coordination (see `design/sett-orchestrator-component.md`)
+* **Agent Cub**: Lightweight binary that runs in agent containers, handling bidding, context assembly, and work execution (see `design/agent-cub.md`)  
+* **CLI**: User interface and workflow initiation tool that provides project management and human-in-the-loop commands
+* **Blackboard**: Redis-based shared state system where all components interact via well-defined data structures
 
-**Prerequisites:**
-* A clean, initialised Git repository is required. Sett will refuse to run in an unclean environment.
-* When `sett forage` is run, it performs two critical checks:
-  * Verifies that a `.git` directory exists. If not, the command fails with an error instructing the user to initialise a repository.
-  * Verifies that the Git working directory is clean (no uncommitted changes or untracked files). If dirty, the command fails.
-* The root of this verified Git repository becomes the workspace mounted into agent containers.
+### **High-level workflow**
 
-**Initial workflow:**
-1. The `sett forage --goal "Create a REST API"` command connects to the Redis instance for the specified sett.
-2. It creates the very first Artefact on the blackboard with these properties:
-   * `structural_type`: Standard
-   * `type`: GoalDefined (a special, reserved type)
-   * `payload`: The raw string from the --goal flag
-   * `produced_by_role`: user
-3. This artefact's appearance triggers the orchestrator to create the first Claim, starting the automated workflow.
+1. **Initiation**: User runs `sett forage --goal "Create a REST API"` 
+2. **Artefact creation**: CLI creates a GoalDefined artefact on the blackboard
+3. **Claim creation**: Orchestrator sees the artefact and creates a corresponding claim
+4. **Bidding**: All agents evaluate the claim and submit bids ('review', 'claim', 'exclusive', 'ignore')
+5. **Phased execution**: Orchestrator grants claims in review → parallel → exclusive phases
+6. **Work execution**: Agent cubs execute their tools and create new artefacts
+7. **Iteration**: New artefacts trigger new claims, continuing the workflow
+8. **Termination**: Workflow ends when an agent creates a Terminal artefact
 
-### **Core orchestration logic**
-
-1. **Immutability and lineage:** Artefacts are immutable. To handle iteration and feedback, agents create new artefacts that are part of a **logical thread**. This creates a clear historical chain without violating immutability.
-
-2. **Claim creation:** The orchestrator's primary loop subscribes to the `artefact_events` Redis Pub/Sub channel. When any component creates a new artefact, it also publishes the artefact_id to this channel. The orchestrator receives this immediately, reads the artefact, and creates a corresponding Claim.
-
-3. **Agent eligibility & bidding:** The orchestrator is a non-intelligent traffic cop. It announces new claims to all agents by publishing the claim_id to the `claim_events` channel. The intelligence to bid or ignore resides entirely within each agent's cub.
-
-4. **Full consensus model (V1):** The orchestrator operates in "full consensus" mode, waiting until it has received a bid (including explicit 'ignore' bids) from every known agent before beginning the phased grant process. This ensures deterministic, debuggable workflows.
-
-5. **Phased claim process:** The Claim object has a status field tracking its lifecycle:
-   * **pending_review:** All review bids are granted. The orchestrator waits for all granted agents to produce Review artefacts.
-     * **Strict feedback detection:** Any payload that is not precisely an empty JSON object (`{}`) or an empty JSON list (`[]`) is considered feedback. This includes malformed JSON, simple strings, or any other content.
-     * If any Review artefacts contain feedback, status moves to `terminated`. The claim is dead.
-     * If all reviews pass (exactly `{}` or `[]`), status moves to `pending_parallel`.
-   * **pending_parallel:** All standard claim bids are granted. The orchestrator waits for all granted agents to complete their work.
-     * Once all parallel tasks complete, status moves to `pending_exclusive`.
-   * **pending_exclusive:** The orchestrator grants the claim to one exclusive bidder using first-bid-wins policy.
-     * Once the exclusive task completes, status moves to `complete`.
-
-6. **Handling agent failures:** Failure is a first-class event. If a granted agent fails:
-   * The orchestrator posts a new Failure artefact containing error details.
-   * The corresponding Claim status is set to `terminated`.
-   * Each claim phase is atomic - if any agent in a parallel phase fails, the parent Claim is terminated.
-
-7. **Workflow termination:** A workflow concludes when no new, actionable artefacts are being produced:
-   * An agent can produce an artefact with `structural_type: Terminal`
-   * The orchestrator never creates Claims for Terminal artefacts
-   * Every Terminal artefact must reference the original GoalDefined artefact's ID
-   * A user's goal is achieved when the primary thread ends in a Terminal artefact and no active claims remain
-
-8. **Human in the loop:** The system supports human oversight and intervention:
-   * Question artefacts can be escalated for human review
-   * Users interact via `sett questions` and `sett answer` commands
-   * Answer artefacts are posted to unblock waiting agents
-
-### **Workflow sequence diagram**
-
-```mermaid
-sequenceDiagram
-    participant O as Orchestrator
-    participant B as Blackboard
-    participant Creator as Creator Agent
-    participant Reviewer as Reviewer Agent
-    participant ParallelAgent as Parallel Agent
-    participant ExclusiveAgent as Exclusive Agent
-
-    Creator->>B: 1. Creates Artefact A1 (version 1)
-    O-->>B: 2. Sees A1, creates Claim C1
-    
-    Reviewer->>O: 3. Bids 'review' on C1
-    ParallelAgent->>O: 4. Bids 'claim' on C1
-    ExclusiveAgent->>O: 5. Bids 'exclusive' on C1
-
-    O->>Reviewer: 6. Grants 'review' claim
-    Reviewer->>B: 7. Creates Review Artefact R1
-    
-    alt R1 has feedback
-        O->>B: 8a. Kills Claim C1
-        O->>Creator: 9a. Issues new goal (using A1+R1)
-        Creator->>B: 10a. Creates Artefact A2 (version 2)
-        Note over O,Creator: Cycle restarts for A2...
-    else R1 is approved
-        O->>ParallelAgent: 8b. Grants 'claim'
-        ParallelAgent->>B: 9b. Creates Artefact W1
-        O->>ExclusiveAgent: 10b. Waits for ParallelAgent, then grants 'exclusive'
-        ExclusiveAgent->>B: 11b. Creates final Artefact E1
-    end
-```
-
-## **The agent's intelligence: the cub**
-
-An agent's intelligence is not held within the container itself; the container is stateless. The intelligence is generated at runtime by an **Agent Cub**.
-
-The cub is a lightweight binary that runs as the entrypoint in every agent container. It is responsible for the entire agent lifecycle: watching for work, bidding, assembling context, executing the agent's specific tool, and posting results back to the blackboard. It operates concurrently, ensuring it can bid on new work even while executing a long-running task.
-
-For a full breakdown of its architecture, event-driven model, and the tool execution contract, see the **agent-cub.md** design document.
+For detailed orchestration logic, see `design/sett-orchestrator-component.md`.
 
 ## **Blackboard data structures**
 
@@ -279,7 +201,7 @@ Sett supports two distinct operational models depending on the `replicas` config
 
 ### **Single-instance agents (replicas: 1)**
 
-For agents with `replicas: 1` (the default), the orchestrator manages a single container instance that runs the full agent cub with both bidding and execution capabilities. This is the standard model described in the agent-cub.md document.
+For agents with `replicas: 1` (the default), the orchestrator manages a single container instance that runs the full agent cub with both bidding and execution capabilities. This is the standard model described in the `design/agent-cub.md` document.
 
 ### **Scalable agents (replicas > 1): Controller-Worker pattern**
 
@@ -357,20 +279,6 @@ The sett CLI is designed to be intuitive and memorable, using the sett metaphor 
 ### **Debug and monitoring commands**
 
 * **`sett logs <agent-logical-name>`** - Debug tool that provides a user-friendly wrapper around `docker logs`. Translates the agent's logical name into the full, namespaced container name and streams the logs using the Docker Go SDK. Works for both running `reuse` agents and stopped containers from `fresh_per_call` agents
-
-## **Error handling and resilience**
-
-### **Redis failures**
-The orchestrator and cubs implement a connection-retry policy with exponential backoff. If Redis is unreachable after retries, their health checks will fail, and the processes will exit loudly.
-
-### **Agent crashes**
-If an agent container dies, the orchestrator will post a Failure artefact and terminate the parent Claim. The work is considered lost.
-
-### **Partial failures**
-Each claim phase is an atomic, all-or-nothing transaction. If any agent in a parallel phase fails, the orchestrator will terminate the parent Claim and will not proceed to the next phase.
-
-### **Failure recovery**
-When a Failure artefact is created, the workflow for that claim stops. For V1, the only next step is manual intervention. A human operator must inspect the failure, diagnose the problem, and restart the entire workflow from the beginning with `sett forage`. Resuming or restarting a failed workflow is not supported in V1.
 
 ## **Human interaction details**
 
@@ -463,6 +371,20 @@ sett/
 **Health check endpoints:** The orchestrator and cubs expose a `GET /healthz` endpoint. Returns `200 OK` if connected to Redis, `503 Service Unavailable` otherwise.
 
 **Monitoring:** V1 uses high-quality, structured (JSON) logging to stdout.
+
+## **Error handling and resilience**
+
+### **Redis failures**
+The orchestrator and cubs implement a connection-retry policy with exponential backoff. If Redis is unreachable after retries, their health checks will fail, and the processes will exit loudly.
+
+### **Agent crashes**
+If an agent container dies, the orchestrator will post a Failure artefact and terminate the parent Claim. The work is considered lost.
+
+### **Partial failures**
+Each claim phase is an atomic, all-or-nothing transaction. If any agent in a parallel phase fails, the orchestrator will terminate the parent Claim and will not proceed to the next phase.
+
+### **Failure recovery**
+When a Failure artefact is created, the workflow for that claim stops. For V1, the only next step is manual intervention. A human operator must inspect the failure, diagnose the problem, and restart the entire workflow from the beginning with `sett forage`. Resuming or restarting a failed workflow is not supported in V1.
 
 ## **Professional standards**
 

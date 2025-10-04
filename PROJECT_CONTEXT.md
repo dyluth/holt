@@ -7,7 +7,9 @@ Sett is a **container-native AI agent orchestrator** designed to manage a clan o
 ## **Core Philosophy & Guiding Principles**
 
 ### **Pragmatism over novelty (YAGNI)**
-We prioritize using existing, battle-hardened tools rather than building our own. Sett uses Docker for containers and Redis for state because they are excellent. The core is an orchestrator, not a database or container runtime.
+We prioritise using existing, battle-hardened tools rather than building our own. This principle applies at all levels:
+* Core components: We use Docker for containers and Redis for state because they are excellent. Sett's core is an orchestrator, not a database or container runtime.
+* Internal logic: We prefer wrapping an existing, stable tool over reimplementing its functionality. For example, the sett logs command is a thin, user-friendly wrapper around docker logs, not a custom logging pipeline.
 
 ### **Zero-configuration, progressively enhanced**
 The experience must be seamless out of the box. A developer should be able to get a basic sett running with a single command. Smart defaults cover 90% of use cases, while advanced features are available for those who need them.
@@ -104,8 +106,23 @@ sett/
 ├── internal/        # Private implementation details
 ├── agents/          # Example agent definitions
 ├── design/          # Design documents and specifications
+│   ├── sett-system-specification.md      # Complete system architecture
+│   ├── sett-orchestrator-component.md    # Orchestrator component design
+│   ├── agent-cub.md                      # Agent cub component design
+│   └── sett-feature-design-template.md   # Systematic development template
 └── Makefile
 ```
+
+## **Documentation Architecture**
+
+The design documentation follows a clear component-based structure optimized for AI agent comprehension:
+
+* **`sett-system-specification.md`** - Complete system overview, architecture, and shared components (blackboard, CLI, configuration)
+* **`sett-orchestrator-component.md`** - Focused specification for the orchestrator component's logic and behavior
+* **`agent-cub.md`** - Focused specification for the agent cub component's architecture and execution model
+* **`sett-feature-design-template.md`** - Systematic template for designing new features with comprehensive analysis framework
+
+This separation ensures each document has a single, clear purpose and minimal cognitive load while maintaining necessary cross-references for component integration.
 
 ## **Development Approach: Phased Delivery**
 
