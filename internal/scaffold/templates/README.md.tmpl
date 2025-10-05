@@ -1,0 +1,48 @@
+# Example Agent
+
+This is a simple example agent demonstrating the Sett agent contract.
+
+## How It Works
+
+The agent receives JSON input via stdin from the Sett cub, containing:
+- `claim_type`: The type of claim (review, claim, exclusive)
+- `target_artefact`: The artefact being processed
+- `context_chain`: Historical context artefacts
+
+The agent processes this input and writes a JSON response to stdout:
+- `artefact_type`: The type of artefact produced
+- `artefact_payload`: The main content/result
+- `summary`: A brief description of what was done
+
+## Customizing This Agent
+
+To create your own agent:
+
+1. **Modify `run.sh`**: Replace the simple greeting logic with your own tool execution
+2. **Update `Dockerfile`**: Add any dependencies your tool needs (e.g., Python, Node.js, compilers)
+3. **Adjust `sett.yml`**: Configure resource limits, environment variables, and prompts
+
+## Testing Locally
+
+You can test this agent by building and running the container:
+
+```bash
+# Build the agent image
+cd agents/example-agent
+docker build -t example-agent .
+
+# Test with sample input
+echo '{"claim_type":"claim","target_artefact":{"payload":"test message"},"context_chain":[]}' | \
+  docker run -i --rm example-agent
+```
+
+## Real-World Examples
+
+For production agents, consider:
+- Using proper JSON parsers (jq, Python's json module, etc.)
+- Calling LLM APIs (OpenAI, Anthropic, local models)
+- Executing domain-specific tools (linters, compilers, test runners)
+- Implementing error handling and validation
+- Adding logging for debugging
+
+See the [Sett documentation](https://docs.sett.ai) for more examples and patterns.

@@ -1,0 +1,33 @@
+#!/bin/bash
+
+# Example Sett Agent - Simple Greeter
+# This demonstrates the stdin/stdout JSON contract between the cub and agent
+
+set -euo pipefail
+
+# Read the claim context from stdin (provided by the cub)
+input=$(cat)
+
+# Parse the claim type and target artefact
+# In a real agent, you'd use jq for robust JSON parsing
+# For this example, we keep it simple with grep/sed
+claim_type=$(echo "$input" | grep -o '"claim_type":"[^"]*"' | cut -d'"' -f4)
+target_payload=$(echo "$input" | grep -o '"payload":"[^"]*"' | head -1 | cut -d'"' -f4)
+
+# Simple greeter logic - responds based on the payload
+greeting_response="Hello! I received your message: '$target_payload'"
+greeting_response="$greeting_response\n\nI'm the example agent demonstrating the Sett stdin/stdout contract."
+greeting_response="$greeting_response\nClaim type: $claim_type"
+
+# Generate output artefact (JSON format expected by cub)
+# In a real LLM-driven agent, this would be the LLM's response
+cat <<EOF
+{
+  "artefact_type": "GreetingResponse",
+  "artefact_payload": "$greeting_response",
+  "summary": "Greeted user and demonstrated agent contract"
+}
+EOF
+
+# Exit successfully
+exit 0

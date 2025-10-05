@@ -1,0 +1,14 @@
+FROM alpine:3.18
+
+# Install bash and jq for JSON parsing
+RUN apk add --no-cache bash jq
+
+# Copy the agent script
+COPY run.sh /usr/bin/run.sh
+RUN chmod +x /usr/bin/run.sh
+
+# Set working directory
+WORKDIR /workspace
+
+# The cub will execute this command
+ENTRYPOINT ["/usr/bin/run.sh"]
