@@ -52,15 +52,21 @@ The blackboard is the primary API of the system and serves as a lightweight ledg
 
 All keys are namespaced to the instance to enable multiple setts on the same Redis instance:
 
+**Global keys (not instance-specific):**
+* `sett:instance_counter` - Atomic counter for instance naming
+* `sett:instances` - Redis Hash storing metadata for all active instances (workspace paths, run IDs, timestamps)
+
+**Instance-specific keys:**
 * `sett:{instance_name}:artifact:{uuid}` - Individual artefact data
-* `sett:{instance_name}:claim:{uuid}` - Individual claim data  
+* `sett:{instance_name}:claim:{uuid}` - Individual claim data
 * `sett:{instance_name}:claim:{uuid}:bids` - Bids for a specific claim
 * `sett:{instance_name}:thread:{logical_id}` - Sorted set for version tracking
+* `sett:{instance_name}:lock` - Instance lock (TTL-based, heartbeat)
 
 ### **Redis Pub/Sub channels**
 
-* `artefact_events` - For the orchestrator to watch for new artefacts
-* `claim_events` - For agents to watch for new claims
+* `sett:{instance_name}:artefact_events` - For the orchestrator to watch for new artefacts
+* `sett:{instance_name}:claim_events` - For agents to watch for new claims
 
 ### **Data structures**
 
@@ -260,8 +266,8 @@ The sett CLI is designed to be intuitive and memorable, using the sett metaphor 
 
 ### **Sett lifecycle commands**
 
-* **`sett up [--name <instance>]`** - Brings a new sett online (name defaults to 'default')
-* **`sett down [--name <instance>]`** - Takes a sett offline (name defaults to 'default')
+* **`sett up [--name <instance>] [--force]`** - Brings a new sett online. Fails if the name is in use or if another instance is active on the same workspace path (unless `--force` is used). Name defaults to an auto-incrementing value (e.g., 'default-1').
+* **`sett down [--name <instance>]`** - Takes a sett offline (name defaults to the most recently created instance)
 * **`sett list`** - Lists all active setts on the host
 
 ### **Workflow commands**
@@ -456,3 +462,30 @@ The following phased approach ensures risk-minimized delivery that builds core i
 - Complex workflows with human decision points
 - Production-ready operational features
 - Comprehensive error handling
+
+## **Future Work**
+
+### **Role-Based Access Control (RBAC)**
+
+As Sett matures and deployments grow, we anticipate the need for access control around destructive operations and sensitive data.
+
+**Scope of RBAC (Post-V1):**
+- **Authentication**: Identify users and API clients accessing Sett commands
+- **Authorization**: Control who can execute destructive operations like `sett destroy`
+- **Audit trails**: Log all administrative actions with user attribution
+- **Role definitions**: Define roles such as `admin`, `operator`, `viewer`
+- **Protected operations**: Restrict commands like:
+  - `sett destroy` - Permanent data deletion
+  - `sett down --force` - Forceful instance termination
+  - Modification of production instances
+  - Access to sensitive artifact payloads
+
+**Implementation Approach:**
+- Redis ACLs for connection-level access control
+- CLI token-based authentication (environment variable or config file)
+- Orchestrator API authentication for programmatic access
+- Integration with enterprise identity providers (LDAP, OAuth, SAML)
+
+**Priority:** Post-V1 enhancement, prioritized based on enterprise adoption and regulatory requirements.
+
+**Documentation Reference:** See `design/features/future/rbac.md` (to be created when needed)

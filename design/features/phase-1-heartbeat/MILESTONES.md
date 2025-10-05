@@ -1,0 +1,258 @@
+# **Phase 1: "Heartbeat" - Implementation Milestones**
+
+**Phase Goal**: Prove the blackboard architecture works with basic orchestrator and CLI functionality.
+
+**Phase Success Criteria**:
+- `sett forage --goal "hello world"` creates initial artifact
+- Orchestrator creates corresponding claim
+- System state visible via Redis CLI
+- All core data structures implemented and functional
+
+---
+
+## **Milestone Overview**
+
+Phase 1 is broken down into **6 implementable milestones** that build the foundation in dependency order:
+
+### **M1.1: Redis Blackboard Foundation**
+**Status**: Design Complete ✅
+**Dependencies**: None
+**Estimated Effort**: Small
+
+**Goal**: Establish core data structures and Redis schema as Go types
+
+**Scope**:
+- Go type definitions (Artifact, Claim, Bid structs)
+- Redis key pattern constants and helpers
+- JSON serialization/deserialization functions
+- Thread tracking ZSET utility functions
+- Pub/Sub channel constants
+
+**Deliverables**:
+- `pkg/blackboard/types.go` - Core data structures
+- `pkg/blackboard/schema.go` - Redis key patterns
+- `pkg/blackboard/serialization.go` - Hash conversion helpers
+- `pkg/blackboard/thread.go` - Thread tracking logic
+- Unit tests for serialization and key generation (90%+ coverage)
+
+**Design Document**: ✅ [M1.1-redis-blackboard-foundation.md](./M1.1-redis-blackboard-foundation.md)
+
+---
+
+### **M1.2: Blackboard Client Operations**
+**Status**: Not Started
+**Dependencies**: M1.1
+**Estimated Effort**: Medium
+
+**Goal**: Implement Redis client with CRUD operations for all blackboard entities
+
+**Scope**:
+- Redis connection management with retry logic
+- Pub/Sub channel setup and subscription
+- CRUD operations for Artifacts, Claims, and Bids
+- Thread tracking ZSET operations (add version, get latest)
+- Health check integration
+
+**Deliverables**:
+- `pkg/blackboard/client.go` - Redis client interface and implementation
+- `pkg/blackboard/artifacts.go` - Artifact operations
+- `pkg/blackboard/claims.go` - Claim operations
+- `pkg/blackboard/pubsub.go` - Pub/Sub helpers
+- Integration tests with Redis (using testcontainers-go)
+
+**Design Document**: `blackboard-client-operations.md`
+
+---
+
+### **M1.3: CLI Project Initialization**
+**Status**: Not Started
+**Dependencies**: None
+**Estimated Effort**: Small
+
+**Goal**: Enable developers to bootstrap new Sett projects
+
+**Scope**:
+- `sett init` command implementation
+- Project scaffolding logic (create directories, files)
+- Template generation for:
+  - `sett.yml` (with commented example agent)
+  - `agents/` directory structure
+  - `agents/example-agent/` with Dockerfile and run.sh
+
+**Deliverables**:
+- `cmd/sett/commands/init.go` - Init command
+- `internal/templates/` - Embedded templates for scaffolding
+- E2E test: Run `sett init` and verify file structure
+
+**Design Document**: `cli-project-initialization.md`
+
+---
+
+### **M1.4: CLI Lifecycle Management**
+**Status**: Not Started
+**Dependencies**: M1.2, M1.3
+**Estimated Effort**: Large
+
+**Goal**: Manage Sett instance lifecycle with workspace safety and multi-instance support
+
+**Scope**:
+- `sett up [--name <instance>] [--force]` - Start Redis + orchestrator containers
+- `sett down [--name <instance>]` - Stop and cleanup containers
+- `sett list` - List all active Sett instances
+- Docker SDK integration
+- Container naming conventions (instance-based namespacing)
+- Network and volume management
+- Parse and validate `sett.yml` configuration
+- **Implement instance name locking (`sett:{name}:lock`) to prevent duplicate active instances**
+- **Implement atomic counter (`sett:instance_counter`) for generating default instance names**
+- **Implement workspace path check using a global `sett:instances` hash**
+- **Add `--force` flag to `sett up` to override workspace path collisions**
+- **Define the `sett:instances` hash structure, including `run_id`, `workspace_path`, and `started_at` fields**
+
+**Deliverables**:
+- `cmd/sett/commands/up.go` - Up command with workspace safety
+- `cmd/sett/commands/down.go` - Down command with cleanup
+- `cmd/sett/commands/list.go` - List command
+- `internal/docker/` - Docker SDK wrapper
+- `internal/config/` - sett.yml parser and validator
+- `internal/instance/` - Instance locking, naming, and workspace tracking
+- Integration tests for full lifecycle including workspace collision detection
+
+**Design Document**: `cli-lifecycle-management.md`
+
+---
+
+### **M1.5: Orchestrator Claim Engine**
+**Status**: Not Started
+**Dependencies**: M1.2
+**Estimated Effort**: Large
+
+**Goal**: Implement basic orchestrator that watches artifacts and creates claims
+
+**Scope**:
+- Orchestrator main loop with Pub/Sub subscription
+- Artifact event handling (watch `artefact_events` channel)
+- Claim creation logic for new artifacts
+- Claim lifecycle state management (pending_review state only for Phase 1)
+- Health check endpoint (`/healthz`)
+- Graceful shutdown handling
+
+**Deliverables**:
+- `cmd/orchestrator/main.go` - Orchestrator entrypoint
+- `internal/orchestrator/engine.go` - Core orchestration logic
+- `internal/orchestrator/claims.go` - Claim creation and management
+- `internal/orchestrator/health.go` - Health check HTTP server
+- Unit tests for claim creation logic
+- Integration tests with Redis
+
+**Design Document**: `orchestrator-claim-engine.md`
+
+---
+
+### **M1.6: Workflow Initiation (Forage)**
+**Status**: Not Started
+**Dependencies**: M1.2, M1.4, M1.5
+**Estimated Effort**: Small
+
+**Goal**: Enable users to start workflows with `sett forage`
+
+**Scope**:
+- `sett forage --goal "description"` command
+- GoalDefined artifact creation with proper structure
+- Publish to `artefact_events` Pub/Sub channel
+- Verify orchestrator receives and creates claim
+
+**Deliverables**:
+- `cmd/sett/commands/forage.go` - Forage command
+- End-to-end test: Run forage, verify artifact and claim creation
+- Validation of Phase 1 success criteria
+
+**Design Document**: `workflow-initiation-forage.md`
+
+---
+
+## **Milestone Dependency Graph**
+
+```
+                    ┌─────────────────────┐
+                    │  M1.1: Blackboard   │
+                    │  Foundation (Types) │
+                    └──────────┬──────────┘
+                               │
+                               ▼
+                    ┌─────────────────────┐
+                    │  M1.2: Blackboard   │
+                    │  Client Operations  │
+                    └──────┬───────┬──────┘
+                           │       │
+              ┌────────────┘       └────────────┐
+              ▼                                 ▼
+   ┌─────────────────────┐         ┌─────────────────────┐
+   │  M1.5: Orchestrator │         │  M1.3: CLI Project  │
+   │  Claim Engine       │         │  Initialization     │
+   └──────────┬──────────┘         └──────────┬──────────┘
+              │                                 │
+              │                    ┌────────────┘
+              │                    ▼
+              │         ┌─────────────────────┐
+              │         │  M1.4: CLI Lifecycle│
+              │         │  Management (up/down)│
+              │         └──────────┬──────────┘
+              │                    │
+              └────────────────────┼─────────────┐
+                                   │             │
+                                   ▼             │
+                        ┌─────────────────────┐  │
+                        │  M1.6: Workflow     │◄─┘
+                        │  Initiation (forage)│
+                        └─────────────────────┘
+```
+
+## **Implementation Order**
+
+The milestones should be implemented in the following order to respect dependencies:
+
+**Wave 1** (Parallel):
+- **M1.1**: Redis Blackboard Foundation
+- **M1.3**: CLI Project Initialization
+
+**Wave 2**:
+- **M1.2**: Blackboard Client Operations (depends on M1.1)
+
+**Wave 3** (Parallel):
+- **M1.4**: CLI Lifecycle Management (depends on M1.2, M1.3)
+- **M1.5**: Orchestrator Claim Engine (depends on M1.2)
+
+**Wave 4** (Integration):
+- **M1.6**: Workflow Initiation (depends on M1.2, M1.4, M1.5)
+
+## **Phase 1 Completion Criteria**
+
+Phase 1 is complete when:
+- ✅ All 6 milestones have their Definition of Done satisfied
+- ✅ End-to-end test passes: `sett init && sett up && sett forage --goal "hello world"`
+- ✅ Orchestrator creates a claim for the GoalDefined artifact
+- ✅ System state is visible via Redis CLI (`redis-cli KEYS "sett:*"`)
+- ✅ All core data structures are implemented and tested
+- ✅ No regressions in tests
+- ✅ Documentation is complete
+
+## **Testing Strategy**
+
+Each milestone includes:
+- **Unit tests**: For isolated logic (serialization, key generation, parsing)
+- **Integration tests**: With real Redis instance (using testcontainers-go)
+- **E2E tests**: User-facing workflows from CLI perspective
+
+**Phase 1 E2E Test Suite**:
+1. Project initialization: `sett init` creates correct file structure
+2. Lifecycle management: `sett up` starts containers, `sett list` shows them, `sett down` cleans up
+3. Workflow initiation: `sett forage --goal "test"` creates artifact and claim
+4. State verification: Redis contains expected keys and data structures
+
+## **Next Steps**
+
+After Phase 1 completion, proceed to **Phase 2: "Single Agent"** which adds:
+- Agent cub implementation
+- Basic claim execution
+- Git workspace integration

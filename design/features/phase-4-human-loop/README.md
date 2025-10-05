@@ -9,6 +9,10 @@
 - Comprehensive error handling and monitoring
 - Complete audit trail for regulated environments
 
+## **Implementation Milestones**
+
+📋 **See [MILESTONES.md](./MILESTONES.md)** for the complete breakdown of 4 implementable milestones, including M4.3 (Instance Destruction).
+
 ## **Key Features for This Phase**
 
 1. **Question-Answer System**

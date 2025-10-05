@@ -9,6 +9,10 @@
 - System state visible via Redis CLI
 - All core data structures implemented and functional
 
+## **Implementation Milestones**
+
+📋 **See [MILESTONES.md](./MILESTONES.md)** for the complete breakdown of 6 implementable milestones, dependencies, and implementation order.
+
 ## **Key Features for This Phase**
 
 1. **Redis Blackboard Foundation**

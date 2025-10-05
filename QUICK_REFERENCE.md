@@ -37,17 +37,23 @@ A Redis Hash (`sett:{instance_name}:claim:{uuid}:bids`) where each key-value pai
 ## **Redis Key Patterns**
 
 ```
+# Global keys
+sett:instance_counter                          # Atomic counter for instance naming
+sett:instances                                 # HASH of active instance metadata (workspace path, run_id, etc.)
+
+# Instance-specific keys
 sett:{instance_name}:artifact:{uuid}           # Artefact data
 sett:{instance_name}:claim:{uuid}              # Claim data
 sett:{instance_name}:claim:{uuid}:bids         # Bid data (see above)
 sett:{instance_name}:thread:{logical_id}       # Version tracking (ZSET)
+sett:{instance_name}:lock                      # Instance lock (TTL-based, heartbeat)
 ```
 
 ## **Pub/Sub Channels**
 
 ```
-artefact_events    # Orchestrator watches for new artefacts
-claim_events       # Agents watch for new claims  
+sett:{instance_name}:artefact_events    # Orchestrator watches for new artefacts
+sett:{instance_name}:claim_events       # Agents watch for new claims
 ```
 
 ## **Component Communication Flow**
@@ -128,15 +134,16 @@ SETT_CONFIG_PATH       # Path to sett.yml
 ## **Common CLI Commands**
 
 ```bash
-sett init                           # Bootstrap new project
-sett up [--name <instance>]         # Start sett (name defaults to 'default')
-sett down [--name <instance>]       # Stop sett (name defaults to 'default')
-sett forage --goal "description"    # Start workflow
-sett watch [--name <instance>]      # Live activity (name defaults to 'default')
-sett hoard [--name <instance>]      # List artefacts (name defaults to 'default')
-sett questions [--wait]             # Human Q&A
-sett answer <id> "response"         # Answer questions
-sett logs <agent-name>              # Debug logs
+sett init                                # Bootstrap new project
+sett up [--name <instance>] [--force]    # Start sett (auto-increment name, blocks on workspace collision unless --force)
+sett down [--name <instance>]            # Stop sett (name defaults to most recent)
+sett list                                # List active instances
+sett forage --goal "description"         # Start workflow
+sett watch [--name <instance>]           # Live activity (name defaults to most recent)
+sett hoard [--name <instance>]           # List artefacts (name defaults to most recent)
+sett questions [--wait]                  # Human Q&A
+sett answer <id> "response"              # Answer questions
+sett logs <agent-name>                   # Debug logs
 ```
 
 ## **Git Integration Pattern**
