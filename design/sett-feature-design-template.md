@@ -202,7 +202,7 @@ Status: \[Draft | In Review | Approved\]
 
 \<\!-- List non-obvious scenarios that must be handled:
 * Empty or minimal inputs
-* Maximum scale scenarios (many agents, large artifacts)
+* Maximum scale scenarios (many agents, large artefacts)
 * Network partitions or timeouts
 * Resource exhaustion scenarios
   \--\>

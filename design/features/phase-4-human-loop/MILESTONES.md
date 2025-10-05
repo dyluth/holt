@@ -25,7 +25,7 @@ Phase 4 milestones focus on production readiness, human interaction, and operati
 - Question structural type handling in orchestrator
 - `sett questions [--wait]` command implementation
 - `sett answer <question-id> "response"` command
-- Answer artifact creation and claim unblocking
+- Answer artefact creation and claim unblocking
 - Timeout handling for unanswered questions
 
 **Deliverables**:
@@ -72,7 +72,7 @@ Phase 4 milestones focus on production readiness, human interaction, and operati
 - `sett destroy --name <instance> [--force]` command implementation
 - Validation that instance is stopped before destruction
 - Complete removal of all Redis keys for the instance:
-  - `sett:{instance_name}:artifact:*`
+  - `sett:{instance_name}:artefact:*`
   - `sett:{instance_name}:claim:*`
   - `sett:{instance_name}:thread:*`
   - `sett:{instance_name}:lock`
@@ -95,7 +95,7 @@ Phase 4 milestones focus on production readiness, human interaction, and operati
 - **MUST** prompt for confirmation with instance name re-entry
 - **MUST** log destruction operation with timestamp and operator
 - **SHOULD** support dry-run mode (`--dry-run` flag)
-- **SHOULD** create audit artifact before destruction (future enhancement)
+- **SHOULD** create audit artefact before destruction (future enhancement)
 
 **Example UX**:
 ```bash
@@ -103,13 +103,13 @@ Phase 4 milestones focus on production readiness, human interaction, and operati
 $ sett destroy --name myproject
 WARNING: This will permanently delete ALL data for instance 'myproject'
 This includes:
-  - All artifacts and claims
+  - All artefacts and claims
   - All thread history
   - All metadata
 
 Type the instance name to confirm: myproject
 Destroying instance 'myproject'...
-✓ Removed 1,234 artifacts
+✓ Removed 1,234 artefacts
 ✓ Removed 567 claims
 ✓ Removed 89 threads
 ✓ Removed metadata

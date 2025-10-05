@@ -4,7 +4,7 @@
 
 ## **Phase Success Criteria**
 
-- End-to-end workflow: forage → claim → execute → artifact
+- End-to-end workflow: forage → claim → execute → artefact
 - Agent can modify code and commit results
 - Full audit trail on blackboard
 - Git workspace integration functional
@@ -20,13 +20,13 @@
 2. **Git Workspace Integration**
    - Clean repository requirements
    - Workspace mounting for containers
-   - Commit workflow and artifact creation
+   - Commit workflow and artefact creation
    - Git state management
 
 3. **Basic Claim Execution**
    - Single agent bidding and execution
-   - Artifact creation and posting
-   - Error handling and failure artifacts
+   - Artefact creation and posting
+   - Error handling and failure artefacts
    - Container lifecycle management
 
 ## **Implementation Constraints**

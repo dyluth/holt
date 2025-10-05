@@ -3,7 +3,7 @@
 **Phase Goal**: Prove the blackboard architecture works with basic orchestrator and CLI functionality.
 
 **Phase Success Criteria**:
-- `sett forage --goal "hello world"` creates initial artifact
+- `sett forage --goal "hello world"` creates initial artefact
 - Orchestrator creates corresponding claim
 - System state visible via Redis CLI
 - All core data structures implemented and functional
@@ -22,7 +22,7 @@ Phase 1 is broken down into **6 implementable milestones** that build the founda
 **Goal**: Establish core data structures and Redis schema as Go types
 
 **Scope**:
-- Go type definitions (Artifact, Claim, Bid structs)
+- Go type definitions (Artefact, Claim, Bid structs)
 - Redis key pattern constants and helpers
 - JSON serialization/deserialization functions
 - Thread tracking ZSET utility functions
@@ -49,13 +49,13 @@ Phase 1 is broken down into **6 implementable milestones** that build the founda
 **Scope**:
 - Redis connection management with retry logic
 - Pub/Sub channel setup and subscription
-- CRUD operations for Artifacts, Claims, and Bids
+- CRUD operations for Artefacts, Claims, and Bids
 - Thread tracking ZSET operations (add version, get latest)
 - Health check integration
 
 **Deliverables**:
 - `pkg/blackboard/client.go` - Redis client interface and implementation
-- `pkg/blackboard/artifacts.go` - Artifact operations
+- `pkg/blackboard/artefacts.go` - Artefact operations
 - `pkg/blackboard/claims.go` - Claim operations
 - `pkg/blackboard/pubsub.go` - Pub/Sub helpers
 - Integration tests with Redis (using testcontainers-go)
@@ -127,12 +127,12 @@ Phase 1 is broken down into **6 implementable milestones** that build the founda
 **Dependencies**: M1.2
 **Estimated Effort**: Large
 
-**Goal**: Implement basic orchestrator that watches artifacts and creates claims
+**Goal**: Implement basic orchestrator that watches artefacts and creates claims
 
 **Scope**:
 - Orchestrator main loop with Pub/Sub subscription
-- Artifact event handling (watch `artefact_events` channel)
-- Claim creation logic for new artifacts
+- Artefact event handling (watch `artefact_events` channel)
+- Claim creation logic for new artefacts
 - Claim lifecycle state management (pending_review state only for Phase 1)
 - Health check endpoint (`/healthz`)
 - Graceful shutdown handling
@@ -158,13 +158,13 @@ Phase 1 is broken down into **6 implementable milestones** that build the founda
 
 **Scope**:
 - `sett forage --goal "description"` command
-- GoalDefined artifact creation with proper structure
+- GoalDefined artefact creation with proper structure
 - Publish to `artefact_events` Pub/Sub channel
 - Verify orchestrator receives and creates claim
 
 **Deliverables**:
 - `cmd/sett/commands/forage.go` - Forage command
-- End-to-end test: Run forage, verify artifact and claim creation
+- End-to-end test: Run forage, verify artefact and claim creation
 - Validation of Phase 1 success criteria
 
 **Design Document**: `workflow-initiation-forage.md`
@@ -231,7 +231,7 @@ The milestones should be implemented in the following order to respect dependenc
 Phase 1 is complete when:
 - ✅ All 6 milestones have their Definition of Done satisfied
 - ✅ End-to-end test passes: `sett init && sett up && sett forage --goal "hello world"`
-- ✅ Orchestrator creates a claim for the GoalDefined artifact
+- ✅ Orchestrator creates a claim for the GoalDefined artefact
 - ✅ System state is visible via Redis CLI (`redis-cli KEYS "sett:*"`)
 - ✅ All core data structures are implemented and tested
 - ✅ No regressions in tests
@@ -247,7 +247,7 @@ Each milestone includes:
 **Phase 1 E2E Test Suite**:
 1. Project initialization: `sett init` creates correct file structure
 2. Lifecycle management: `sett up` starts containers, `sett list` shows them, `sett down` cleans up
-3. Workflow initiation: `sett forage --goal "test"` creates artifact and claim
+3. Workflow initiation: `sett forage --goal "test"` creates artefact and claim
 4. State verification: Redis contains expected keys and data structures
 
 ## **Next Steps**

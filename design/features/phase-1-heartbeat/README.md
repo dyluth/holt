@@ -4,7 +4,7 @@
 
 ## **Phase Success Criteria**
 
-- `sett forage --goal "hello world"` creates initial artifact
+- `sett forage --goal "hello world"` creates initial artefact
 - Orchestrator creates corresponding claim
 - System state visible via Redis CLI
 - All core data structures implemented and functional
@@ -21,7 +21,7 @@
    - Thread tracking with Redis ZSET
 
 2. **Basic Orchestrator Engine** 
-   - Artifact watching via Redis Pub/Sub
+   - Artefact watching via Redis Pub/Sub
    - Claim creation and management
    - Basic event-driven architecture
 
@@ -51,6 +51,6 @@ This is the foundation phase - no external dependencies on other phases.
 ## **Deliverables**
 
 - Working Redis blackboard with complete schemas
-- Functional orchestrator watching for artifacts
+- Functional orchestrator watching for artefacts
 - CLI commands for sett lifecycle management
-- Initial artifact creation workflow
+- Initial artefact creation workflow

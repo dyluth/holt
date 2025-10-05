@@ -40,28 +40,28 @@ Unlike Python-based frameworks, Sett orchestrates agents whose tools are **any c
 The system uses Redis Pub/Sub for efficient, non-polling communication between components. Agents watch for claims and bid on them, creating a robust, event-driven workflow.
 
 ### **Immutable audit trail**
-Every artifact is immutable. To handle iteration and feedback, agents create new artifacts that are part of a logical thread, creating a clear historical chain without violating immutability.
+Every artefact is immutable. To handle iteration and feedback, agents create new artefacts that are part of a logical thread, creating a clear historical chain without violating immutability.
 
 ### **Human-in-the-loop by design**
-The system is explicitly designed for human oversight and intervention, with Question/Answer artifacts and CLI commands for human interaction. This architecture ensures compliance with regulations requiring human review of AI decisions and provides the control mechanisms needed in high-stakes environments.
+The system is explicitly designed for human oversight and intervention, with Question/Answer artefacts and CLI commands for human interaction. This architecture ensures compliance with regulations requiring human review of AI decisions and provides the control mechanisms needed in high-stakes environments.
 
 ### **Git-centric workflow**
-Sett assumes and requires a clean Git repository. Code artifacts are git commit hashes, and agents are responsible for Git interactions, making the entire workflow version-controlled. The specific branching and commit strategy is detailed in `agent-cub.md`.
+Sett assumes and requires a clean Git repository. Code artefacts are git commit hashes, and agents are responsible for Git interactions, making the entire workflow version-controlled. The specific branching and commit strategy is detailed in `agent-cub.md`.
 
 ## **Key Architectural Concepts**
 
 ### **The Blackboard**
 A Redis-based shared state system where all components interact via well-defined data structures. It serves as a lightweight ledger storing metadata and pointers, not large data blobs. **Critically for compliance**: every interaction is logged with timestamps, creating an immutable audit trail that meets regulatory requirements for AI transparency and accountability.
 
-### **Artifacts**
+### **Artefacts**
 Immutable data objects representing work products. They have:
 - **structural_type**: Role in orchestration (Standard, Review, Question, Answer, Failure, Terminal)
 - **type**: User-defined, domain-specific string (e.g., "DesignSpec", "CodeCommit")
 - **payload**: Main content (often a git commit hash for code)
-- **logical_id**: Groups versions of the same logical artifact
+- **logical_id**: Groups versions of the same logical artefact
 
 ### **Claims**
-Records of the Orchestrator's decisions about specific Artifacts. Claims go through phases:
+Records of the Orchestrator's decisions about specific Artefacts. Claims go through phases:
 1. **Review phase**: Parallel review by multiple agents
 2. **Parallel phase**: Concurrent work by multiple agents
 3. **Exclusive phase**: Single agent gets exclusive access
@@ -83,13 +83,13 @@ For agents that need to run multiple instances concurrently (configured with `re
 ## **Core Workflow**
 
 1. **Bootstrap**: User runs `sett forage --goal "Create a REST API"` 
-2. **Initial Artifact**: CLI creates a GoalDefined artifact on the blackboard
-3. **Claim Creation**: Orchestrator sees the artifact and creates a corresponding claim
+2. **Initial Artefact**: CLI creates a GoalDefined artefact on the blackboard
+3. **Claim Creation**: Orchestrator sees the artefact and creates a corresponding claim
 4. **Bidding**: All agents evaluate the claim and submit bids ('review', 'claim', 'exclusive', 'ignore')
 5. **Phased Execution**: Orchestrator grants claims in review → parallel → exclusive phases
-6. **Work Execution**: Agent cubs execute their tools and create new artifacts
-7. **Iteration**: New artifacts trigger new claims, continuing the workflow
-8. **Termination**: Workflow ends when an agent creates a Terminal artifact
+6. **Work Execution**: Agent cubs execute their tools and create new artefacts
+7. **Iteration**: New artefacts trigger new claims, continuing the workflow
+8. **Termination**: Workflow ends when an agent creates a Terminal artefact
 
 ## **Technology Stack**
 
@@ -156,7 +156,7 @@ Question/Answer system with complete operational features.
 ### **Why Redis?**
 Battle-tested, excellent Pub/Sub support, simple data structures, high performance.
 
-### **Why immutable artifacts?**
+### **Why immutable artefacts?**
 Provides complete audit trail and prevents race conditions in concurrent environments.
 
 ### **Why container-native?**

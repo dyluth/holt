@@ -42,7 +42,7 @@ sett:instance_counter                          # Atomic counter for instance nam
 sett:instances                                 # HASH of active instance metadata (workspace path, run_id, etc.)
 
 # Instance-specific keys
-sett:{instance_name}:artifact:{uuid}           # Artefact data
+sett:{instance_name}:artefact:{uuid}           # Artefact data
 sett:{instance_name}:claim:{uuid}              # Claim data
 sett:{instance_name}:claim:{uuid}:bids         # Bid data (see above)
 sett:{instance_name}:thread:{logical_id}       # Version tracking (ZSET)

@@ -11,7 +11,7 @@
 
 Multiple Sett instances must be able to coexist safely on a single shared Redis server without interfering with each other. This requires:
 
-1. **Complete data isolation** - No instance can access another instance's artifacts, claims, or bids
+1. **Complete data isolation** - No instance can access another instance's artefacts, claims, or bids
 2. **Event isolation** - Pub/Sub events must only reach the intended instance
 3. **Uniqueness enforcement** - No two instances can use the same name simultaneously
 4. **Automatic cleanup** - Crashed instances should not leave orphaned locks
@@ -31,14 +31,14 @@ sett:instance_counter                      # Atomic counter for auto-naming
 sett:instances                             # Hash of active instance metadata
 
 # Instance-Specific Keys
-sett:{instance_name}:artifact:{uuid}       # Artifact data
+sett:{instance_name}:artefact:{uuid}       # Artefact data
 sett:{instance_name}:claim:{uuid}          # Claim data
 sett:{instance_name}:claim:{uuid}:bids     # Bid data
 sett:{instance_name}:thread:{logical_id}   # Version tracking
 sett:{instance_name}:lock                  # Instance lock (TTL-based)
 
 # Instance-Specific Pub/Sub Channels
-sett:{instance_name}:artefact_events       # Artifact creation events
+sett:{instance_name}:artefact_events       # Artefact creation events
 sett:{instance_name}:claim_events          # Claim creation events
 ```
 
@@ -336,8 +336,8 @@ func ValidateInstanceName(name string) error {
 ## **Implementation Roadmap**
 
 ### **M1.1: Redis Blackboard Foundation**
-- Define core types (Artifact, Claim, Bid)
-- Define instance-specific key helpers (ArtifactKey, ClaimKey, etc.)
+- Define core types (Artefact, Claim, Bid)
+- Define instance-specific key helpers (ArtefactKey, ClaimKey, etc.)
 - Define namespaced Pub/Sub channel helpers
 - Add instance name parameter to all key/channel functions
 - **NO global key logic** (moved to M1.4)
@@ -475,7 +475,7 @@ type LockValue struct {
 
 ### **V2: Instance Metadata**
 - Store additional info in lock value
-- Expose in `sett list` (uptime, artifact count, agent status)
+- Expose in `sett list` (uptime, artefact count, agent status)
 
 ---
 

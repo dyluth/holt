@@ -57,7 +57,7 @@ All keys are namespaced to the instance to enable multiple setts on the same Red
 * `sett:instances` - Redis Hash storing metadata for all active instances (workspace paths, run IDs, timestamps)
 
 **Instance-specific keys:**
-* `sett:{instance_name}:artifact:{uuid}` - Individual artefact data
+* `sett:{instance_name}:artefact:{uuid}` - Individual artefact data
 * `sett:{instance_name}:claim:{uuid}` - Individual claim data
 * `sett:{instance_name}:claim:{uuid}:bids` - Bids for a specific claim
 * `sett:{instance_name}:thread:{logical_id}` - Sorted set for version tracking
@@ -70,7 +70,7 @@ All keys are namespaced to the instance to enable multiple setts on the same Red
 
 ### **Data structures**
 
-#### **Artefacts (sett:{instance_name}:artifact:{uuid} - Redis Hash)**
+#### **Artefacts (sett:{instance_name}:artefact:{uuid} - Redis Hash)**
 
 The central, immutable data object in Sett.
 
@@ -412,12 +412,12 @@ The following phased approach ensures risk-minimized delivery that builds core i
 
 **Deliverables:**
 - Redis blackboard with complete key schemas
-- Basic orchestrator (artifact watching, claim creation)
+- Basic orchestrator (artefact watching, claim creation)
 - CLI commands: `sett up`, `sett down`, `sett list`, `sett forage`
-- Basic artifact creation and claim lifecycle
+- Basic artefact creation and claim lifecycle
 
 **Success Criteria:**
-- `sett forage --goal "hello world"` creates initial artifact
+- `sett forage --goal "hello world"` creates initial artefact
 - Orchestrator creates corresponding claim
 - System state visible via Redis CLI
 
@@ -431,7 +431,7 @@ The following phased approach ensures risk-minimized delivery that builds core i
 - CLI commands: `sett watch`, `sett hoard`, `sett unearth`
 
 **Success Criteria:**
-- End-to-end workflow: forage → claim → execute → artifact
+- End-to-end workflow: forage → claim → execute → artefact
 - Agent can modify code and commit results
 - Full audit trail on blackboard
 
@@ -442,7 +442,7 @@ The following phased approach ensures risk-minimized delivery that builds core i
 - Full consensus bidding model
 - Review/Parallel/Exclusive phase execution
 - Multiple agent types working together
-- Failure handling and Failure artifacts
+- Failure handling and Failure artefacts
 
 **Success Criteria:**
 - Complex workflow with review feedback loop
@@ -453,7 +453,7 @@ The following phased approach ensures risk-minimized delivery that builds core i
 *Goal: Full featured system with human oversight*
 
 **Deliverables:**
-- Question/Answer artifact system
+- Question/Answer artefact system
 - CLI commands: `sett questions`, `sett answer`
 - Health checks and monitoring
 - Complete documentation
@@ -478,7 +478,7 @@ As Sett matures and deployments grow, we anticipate the need for access control 
   - `sett destroy` - Permanent data deletion
   - `sett down --force` - Forceful instance termination
   - Modification of production instances
-  - Access to sensitive artifact payloads
+  - Access to sensitive artefact payloads
 
 **Implementation Approach:**
 - Redis ACLs for connection-level access control

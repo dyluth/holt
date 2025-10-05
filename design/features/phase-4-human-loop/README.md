@@ -16,9 +16,9 @@
 ## **Key Features for This Phase**
 
 1. **Question-Answer System**
-   - Question artifact escalation
+   - Question artefact escalation
    - Human interaction via CLI commands
-   - Answer artifact creation and workflow unblocking
+   - Answer artefact creation and workflow unblocking
    - Scriptable Q&A interface
 
 2. **Monitoring and Health Checks**
