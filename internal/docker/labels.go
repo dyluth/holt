@@ -8,11 +8,12 @@ import (
 
 // Label keys used for Sett resources
 const (
-	LabelProject      = "sett.project"
-	LabelInstanceName = "sett.instance.name"
+	LabelProject       = "sett.project"
+	LabelInstanceName  = "sett.instance.name"
 	LabelInstanceRunID = "sett.instance.run_id"
 	LabelWorkspacePath = "sett.workspace.path"
-	LabelComponent    = "sett.component"
+	LabelComponent     = "sett.component"
+	LabelRedisPort     = "sett.redis.port"
 )
 
 // BuildLabels creates the standard label set for all Sett resources.

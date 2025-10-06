@@ -12,6 +12,7 @@ Thumbs.db
 
 # Go build artifacts
 /bin/
+/sett
 *.exe
 *.exe~
 *.dll

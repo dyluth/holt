@@ -92,3 +92,65 @@ func (c *Checker) ValidateGitContext() error {
 
 	return nil
 }
+
+// IsWorkspaceClean returns true if the Git working directory has no uncommitted changes.
+// This includes staged, unstaged, and untracked files.
+func (c *Checker) IsWorkspaceClean() (bool, error) {
+	cmd := exec.Command("git", "status", "--porcelain")
+	output, err := cmd.Output()
+	if err != nil {
+		return false, fmt.Errorf("failed to check Git status: %w", err)
+	}
+	return len(strings.TrimSpace(string(output))) == 0, nil
+}
+
+// GetDirtyFiles returns a formatted list of uncommitted changes for error messages.
+// Returns empty string if workspace is clean.
+func (c *Checker) GetDirtyFiles() (string, error) {
+	cmd := exec.Command("git", "status", "--porcelain")
+	output, err := cmd.Output()
+	if err != nil {
+		return "", fmt.Errorf("failed to check Git status: %w", err)
+	}
+
+	porcelain := strings.TrimSpace(string(output))
+	if porcelain == "" {
+		return "", nil
+	}
+
+	// Parse porcelain output into categorized lists
+	var modified, untracked []string
+	for _, line := range strings.Split(porcelain, "\n") {
+		if len(line) < 3 {
+			continue
+		}
+		status := line[:2]
+		file := strings.TrimSpace(line[2:])
+
+		if strings.HasPrefix(status, "??") {
+			untracked = append(untracked, file)
+		} else {
+			modified = append(modified, file)
+		}
+	}
+
+	// Format output
+	var parts []string
+	if len(modified) > 0 {
+		parts = append(parts, "Uncommitted changes:")
+		for _, file := range modified {
+			parts = append(parts, fmt.Sprintf(" M %s", file))
+		}
+	}
+	if len(untracked) > 0 {
+		if len(parts) > 0 {
+			parts = append(parts, "")
+		}
+		parts = append(parts, "Untracked files:")
+		for _, file := range untracked {
+			parts = append(parts, fmt.Sprintf("?? %s", file))
+		}
+	}
+
+	return strings.Join(parts, "\n"), nil
+}

@@ -1,13 +1,19 @@
 package commands
 
 import (
+	"archive/tar"
+	"bytes"
 	"context"
 	"fmt"
+	"io"
+	"os"
+	"path/filepath"
 
 	"github.com/docker/docker/api/types"
 	"github.com/docker/docker/api/types/container"
 	"github.com/docker/docker/api/types/filters"
 	"github.com/docker/docker/client"
+	"github.com/docker/go-connections/nat"
 	"github.com/dyluth/sett/internal/config"
 	dockerpkg "github.com/dyluth/sett/internal/docker"
 	"github.com/dyluth/sett/internal/git"
@@ -163,11 +169,19 @@ Error: %w`, err)
 }
 
 func createInstance(ctx context.Context, cli *client.Client, cfg *config.SettConfig, instanceName, runID, workspacePath string) error {
-	// Step 1: Create isolated network
+	// Step 1: Allocate Redis port
+	redisPort, err := instance.FindNextAvailablePort(ctx, cli)
+	if err != nil {
+		return fmt.Errorf("failed to allocate Redis port: %w", err)
+	}
+
+	fmt.Printf("✓ Allocated Redis port: %d\n", redisPort)
+
+	// Step 2: Create isolated network
 	networkName := dockerpkg.NetworkName(instanceName)
 	networkLabels := dockerpkg.BuildLabels(instanceName, runID, workspacePath, "")
 
-	_, err := cli.NetworkCreate(ctx, networkName, types.NetworkCreate{
+	_, err = cli.NetworkCreate(ctx, networkName, types.NetworkCreate{
 		Driver: "bridge",
 		Labels: networkLabels,
 	})
@@ -177,7 +191,7 @@ func createInstance(ctx context.Context, cli *client.Client, cfg *config.SettCon
 
 	fmt.Printf("✓ Created network: %s\n", networkName)
 
-	// Step 2: Start Redis container
+	// Step 3: Start Redis container with port mapping
 	redisImage := "redis:7-alpine"
 	if cfg.Services != nil && cfg.Services.Redis != nil && cfg.Services.Redis.Image != "" {
 		redisImage = cfg.Services.Redis.Image
@@ -185,12 +199,25 @@ func createInstance(ctx context.Context, cli *client.Client, cfg *config.SettCon
 
 	redisName := dockerpkg.RedisContainerName(instanceName)
 	redisLabels := dockerpkg.BuildLabels(instanceName, runID, workspacePath, "redis")
+	// Add Redis port label
+	redisLabels[dockerpkg.LabelRedisPort] = fmt.Sprintf("%d", redisPort)
 
 	redisResp, err := cli.ContainerCreate(ctx, &container.Config{
 		Image:  redisImage,
 		Labels: redisLabels,
+		ExposedPorts: nat.PortSet{
+			"6379/tcp": struct{}{},
+		},
 	}, &container.HostConfig{
 		NetworkMode: container.NetworkMode(networkName),
+		PortBindings: nat.PortMap{
+			"6379/tcp": []nat.PortBinding{
+				{
+					HostIP:   "127.0.0.1",
+					HostPort: fmt.Sprintf("%d", redisPort),
+				},
+			},
+		},
 	}, nil, nil, redisName)
 	if err != nil {
 		return fmt.Errorf("failed to create Redis container: %w", err)
@@ -200,16 +227,31 @@ func createInstance(ctx context.Context, cli *client.Client, cfg *config.SettCon
 		return fmt.Errorf("failed to start Redis container: %w", err)
 	}
 
-	fmt.Printf("✓ Started Redis container: %s\n", redisName)
+	fmt.Printf("✓ Started Redis container: %s (port %d)\n", redisName, redisPort)
 
-	// Step 3: Start Orchestrator container (placeholder for M1.4)
+	// Step 4: Build orchestrator image
+	orchestratorImage := "sett-orchestrator:latest"
+	fmt.Printf("Building orchestrator image...\n")
+	if err := buildOrchestratorImage(ctx, cli, orchestratorImage); err != nil {
+		return fmt.Errorf("failed to build orchestrator image: %w", err)
+	}
+
+	fmt.Printf("✓ Built orchestrator image: %s\n", orchestratorImage)
+
+	// Step 5: Start Orchestrator container with real binary
 	orchestratorName := dockerpkg.OrchestratorContainerName(instanceName)
 	orchestratorLabels := dockerpkg.BuildLabels(instanceName, runID, workspacePath, "orchestrator")
 
+	// Use Redis container name as hostname (Docker DNS)
+	redisURL := fmt.Sprintf("redis://%s:6379", redisName)
+
 	orchestratorResp, err := cli.ContainerCreate(ctx, &container.Config{
-		Image:  "busybox:latest",
-		Cmd:    []string{"sleep", "infinity"},
+		Image:  orchestratorImage,
 		Labels: orchestratorLabels,
+		Env: []string{
+			fmt.Sprintf("SETT_INSTANCE_NAME=%s", instanceName),
+			fmt.Sprintf("REDIS_URL=%s", redisURL),
+		},
 	}, &container.HostConfig{
 		NetworkMode: container.NetworkMode(networkName),
 		Binds: []string{
@@ -286,7 +328,152 @@ func printUpSuccess(instanceName, workspacePath string) {
 	fmt.Printf("Workspace: %s\n", workspacePath)
 	fmt.Printf("\n")
 	fmt.Printf("Next steps:\n")
-	fmt.Printf("  1. Agents will be managed in Phase 2\n")
+	fmt.Printf("  1. Run 'sett forage --goal \"your goal\"' to start a workflow\n")
 	fmt.Printf("  2. Run 'sett list' to view all instances\n")
 	fmt.Printf("  3. Run 'sett down --name %s' when finished\n", instanceName)
+}
+
+func buildOrchestratorImage(ctx context.Context, cli *client.Client, imageName string) error {
+	// Get the project root directory
+	projectRoot, err := os.Getwd()
+	if err != nil {
+		return fmt.Errorf("failed to get current directory: %w", err)
+	}
+
+	// Create build context as tar archive
+	buildContext, err := createBuildContext(projectRoot)
+	if err != nil {
+		return fmt.Errorf("failed to create build context: %w", err)
+	}
+
+	// Build image
+	buildOptions := types.ImageBuildOptions{
+		Tags:       []string{imageName},
+		Dockerfile: "Dockerfile.orchestrator",
+		Remove:     true,
+		Platform:   "linux/arm64", // ARM64-first design
+	}
+
+	resp, err := cli.ImageBuild(ctx, buildContext, buildOptions)
+	if err != nil {
+		return fmt.Errorf("failed to build image: %w", err)
+	}
+	defer resp.Body.Close()
+
+	// Read build output (discarding it, but checking for errors)
+	_, err = io.Copy(io.Discard, resp.Body)
+	if err != nil {
+		return fmt.Errorf("error reading build output: %w", err)
+	}
+
+	return nil
+}
+
+func createBuildContext(projectRoot string) (io.Reader, error) {
+	var buf bytes.Buffer
+	tw := tar.NewWriter(&buf)
+	defer tw.Close()
+
+	// Files and directories to include in build context
+	includes := []string{
+		"go.mod",
+		"go.sum",
+		"Dockerfile.orchestrator",
+		"cmd/",
+		"pkg/",
+		"internal/",
+	}
+
+	for _, include := range includes {
+		fullPath := filepath.Join(projectRoot, include)
+
+		// Check if path exists
+		info, err := os.Stat(fullPath)
+		if err != nil {
+			if os.IsNotExist(err) {
+				continue // Skip if doesn't exist
+			}
+			return nil, err
+		}
+
+		if info.IsDir() {
+			// Add directory recursively
+			err = filepath.Walk(fullPath, func(path string, info os.FileInfo, err error) error {
+				if err != nil {
+					return err
+				}
+
+				// Skip hidden files/directories and test files
+				if filepath.Base(path)[0] == '.' {
+					if info.IsDir() {
+						return filepath.SkipDir
+					}
+					return nil
+				}
+
+				// Get relative path for tar
+				relPath, err := filepath.Rel(projectRoot, path)
+				if err != nil {
+					return err
+				}
+
+				// Create tar header
+				header, err := tar.FileInfoHeader(info, "")
+				if err != nil {
+					return err
+				}
+				header.Name = relPath
+
+				if err := tw.WriteHeader(header); err != nil {
+					return err
+				}
+
+				// If it's a file, write its contents
+				if !info.IsDir() {
+					file, err := os.Open(path)
+					if err != nil {
+						return err
+					}
+					defer file.Close()
+
+					if _, err := io.Copy(tw, file); err != nil {
+						return err
+					}
+				}
+
+				return nil
+			})
+			if err != nil {
+				return nil, err
+			}
+		} else {
+			// Add single file
+			file, err := os.Open(fullPath)
+			if err != nil {
+				return nil, err
+			}
+			defer file.Close()
+
+			relPath, err := filepath.Rel(projectRoot, fullPath)
+			if err != nil {
+				return nil, err
+			}
+
+			header, err := tar.FileInfoHeader(info, "")
+			if err != nil {
+				return nil, err
+			}
+			header.Name = relPath
+
+			if err := tw.WriteHeader(header); err != nil {
+				return nil, err
+			}
+
+			if _, err := io.Copy(tw, file); err != nil {
+				return nil, err
+			}
+		}
+	}
+
+	return &buf, nil
 }
