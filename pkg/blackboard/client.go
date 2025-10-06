@@ -127,6 +127,7 @@ func (c *Client) ArtefactExists(ctx context.Context, artefactID string) (bool, e
 // CreateClaim writes a claim to Redis and publishes an event.
 // Validates the claim before writing.
 // Publishes full claim JSON to sett:{instance}:claim_events after successful write.
+// Also creates an index mapping artefact_id to claim_id for idempotency checks.
 func (c *Client) CreateClaim(ctx context.Context, claim *Claim) error {
 	// Validate claim
 	if err := claim.Validate(); err != nil {
@@ -143,6 +144,12 @@ func (c *Client) CreateClaim(ctx context.Context, claim *Claim) error {
 	key := ClaimKey(c.instanceName, claim.ID)
 	if err := c.rdb.HSet(ctx, key, hash).Err(); err != nil {
 		return fmt.Errorf("failed to write claim to Redis: %w", err)
+	}
+
+	// Create artefact -> claim index for idempotency checks
+	indexKey := ClaimByArtefactKey(c.instanceName, claim.ArtefactID)
+	if err := c.rdb.Set(ctx, indexKey, claim.ID, 0).Err(); err != nil {
+		return fmt.Errorf("failed to create claim index: %w", err)
 	}
 
 	// Publish event
@@ -218,6 +225,24 @@ func (c *Client) ClaimExists(ctx context.Context, claimID string) (bool, error) 
 		return false, fmt.Errorf("failed to check claim existence: %w", err)
 	}
 	return exists > 0, nil
+}
+
+// GetClaimByArtefactID retrieves a claim by its associated artefact ID.
+// Returns (nil, redis.Nil) if no claim exists for the given artefact.
+// Used for idempotency checking - ensures only one claim per artefact.
+func (c *Client) GetClaimByArtefactID(ctx context.Context, artefactID string) (*Claim, error) {
+	// Look up claim ID from index
+	indexKey := ClaimByArtefactKey(c.instanceName, artefactID)
+	claimID, err := c.rdb.Get(ctx, indexKey).Result()
+	if err != nil {
+		if errors.Is(err, redis.Nil) {
+			return nil, redis.Nil
+		}
+		return nil, fmt.Errorf("failed to lookup claim by artefact: %w", err)
+	}
+
+	// Retrieve the claim
+	return c.GetClaim(ctx, claimID)
 }
 
 // SetBid records an agent's bid on a claim.

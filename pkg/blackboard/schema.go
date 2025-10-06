@@ -28,6 +28,13 @@ func ClaimBidsKey(instanceName, claimID string) string {
 	return fmt.Sprintf("sett:%s:claim:%s:bids", instanceName, claimID)
 }
 
+// ClaimByArtefactKey returns the Redis key for the artefact->claim index.
+// This enables idempotency checking by looking up claims by artefact ID.
+// Pattern: sett:{instance_name}:claim_by_artefact:{artefact_id}
+func ClaimByArtefactKey(instanceName, artefactID string) string {
+	return fmt.Sprintf("sett:%s:claim_by_artefact:%s", instanceName, artefactID)
+}
+
 // ThreadKey returns the Redis key for a thread tracking ZSET.
 // Pattern: sett:{instance_name}:thread:{logical_id}
 func ThreadKey(instanceName, logicalID string) string {
