@@ -28,7 +28,7 @@ Use --force to reinitialize an existing project (WARNING: destroys existing conf
 }
 
 func init() {
-	initCmd.Flags().BoolVar(&forceInit, "force", false, "Force reinitialization (removes existing sett.yml and agents/)")
+	initCmd.Flags().BoolVarP(&forceInit, "force", "f", false, "Force reinitialization (removes existing sett.yml and agents/)")
 	rootCmd.AddCommand(initCmd)
 }
 

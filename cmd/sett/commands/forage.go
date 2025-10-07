@@ -8,6 +8,7 @@ import (
 	dockerpkg "github.com/dyluth/sett/internal/docker"
 	"github.com/dyluth/sett/internal/git"
 	"github.com/dyluth/sett/internal/instance"
+	"github.com/dyluth/sett/internal/printer"
 	"github.com/dyluth/sett/internal/watch"
 	"github.com/dyluth/sett/pkg/blackboard"
 	"github.com/google/uuid"
@@ -46,9 +47,9 @@ Examples:
 }
 
 func init() {
-	forageCmd.Flags().StringVar(&forageInstanceName, "name", "", "Target instance name (auto-inferred if omitted)")
-	forageCmd.Flags().BoolVar(&forageWatch, "watch", false, "Wait for orchestrator to create claim (Phase 1 validation)")
-	forageCmd.Flags().StringVar(&forageGoal, "goal", "", "Goal description (required)")
+	forageCmd.Flags().StringVarP(&forageInstanceName, "name", "n", "", "Target instance name (auto-inferred if omitted)")
+	forageCmd.Flags().BoolVarP(&forageWatch, "watch", "w", false, "Wait for orchestrator to create claim (Phase 1 validation)")
+	forageCmd.Flags().StringVarP(&forageGoal, "goal", "g", "", "Goal description (required)")
 	forageCmd.MarkFlagRequired("goal")
 	rootCmd.AddCommand(forageCmd)
 }
@@ -58,16 +59,11 @@ func runForage(cmd *cobra.Command, args []string) error {
 
 	// Phase 1: Validate goal input
 	if forageGoal == "" {
-		return fmt.Errorf(`required flag --goal not provided
-
-Usage:
-  sett forage --goal "description of what you want to build"
-
-Example:
-  sett forage --goal "Create a REST API for user management"
-
-For immediate validation:
-  sett forage --watch --goal "your goal"`)
+		return printer.Error(
+			"required flag --goal not provided",
+			"Usage:\n  sett forage --goal \"description of what you want to build\"\n\nExample:\n  sett forage --goal \"Create a REST API for user management\"",
+			[]string{"For immediate validation:\n  sett forage --watch --goal \"your goal\""},
+		)
 	}
 
 	// Phase 2: Git workspace validation
@@ -78,14 +74,11 @@ For immediate validation:
 		return err
 	}
 	if !isRepo {
-		return fmt.Errorf(`not a Git repository
-
-Sett requires a Git repository to manage workflows.
-
-Initialize Git first:
-  git init
-  sett init
-  sett up`)
+		return printer.Error(
+			"not a Git repository",
+			"Sett requires a Git repository to manage workflows.",
+			[]string{"Initialize Git first:\n  git init\n  sett init\n  sett up"},
+		)
 	}
 
 	isClean, err := checker.IsWorkspaceClean()
@@ -98,16 +91,14 @@ Initialize Git first:
 			return fmt.Errorf("failed to get dirty files: %w", err)
 		}
 
-		return fmt.Errorf(`Git workspace is not clean
-
-%s
-
-Please commit or stash changes before running sett forage:
-  git add .
-  git commit -m "your message"
-
-Or to stash temporarily:
-  git stash`, dirtyFiles)
+		return printer.Error(
+			"Git workspace is not clean",
+			dirtyFiles,
+			[]string{
+				"Commit changes:\n  git add .\n  git commit -m \"your message\"",
+				"Stash temporarily:\n  git stash",
+			},
+		)
 	}
 
 	// Phase 3: Instance discovery
@@ -122,27 +113,25 @@ Or to stash temporarily:
 		targetInstanceName, err = instance.InferInstanceFromWorkspace(ctx, cli)
 		if err != nil {
 			if err.Error() == "no Sett instances found for this workspace" {
-				return fmt.Errorf(`no Sett instances found
-
-No running instances found for workspace:
-  %s
-
-Start an instance first:
-  sett up
-
-Then retry:
-  sett forage --goal "%s"`, mustGetGitRoot(), forageGoal)
+				return printer.ErrorWithContext(
+					"no Sett instances found",
+					"No running instances found for workspace:",
+					map[string]string{"Workspace": mustGetGitRoot()},
+					[]string{
+						"Start an instance first:\n  sett up",
+						fmt.Sprintf("Then retry:\n  sett forage --goal \"%s\"", forageGoal),
+					},
+				)
 			}
 			if err.Error() == "multiple instances found for this workspace, use --name to specify which one" {
-				return fmt.Errorf(`multiple instances found
-
-Found multiple running instances for this workspace.
-
-Specify which instance to use:
-  sett forage --name <instance-name> --goal "%s"
-
-List instances:
-  sett list`, forageGoal)
+				return printer.Error(
+					"multiple instances found",
+					"Found multiple running instances for this workspace.",
+					[]string{
+						fmt.Sprintf("Specify which instance to use:\n  sett forage --name <instance-name> --goal \"%s\"", forageGoal),
+						"List instances:\n  sett list",
+					},
+				)
 			}
 			return fmt.Errorf("failed to infer instance: %w", err)
 		}
@@ -150,32 +139,29 @@ List instances:
 
 	// Phase 4: Verify instance is running
 	if err := instance.VerifyInstanceRunning(ctx, cli, targetInstanceName); err != nil {
-		return fmt.Errorf(`instance '%s' is not running
-
-Container exists but is stopped.
-
-Start the instance:
-  sett up --name %s
-
-Or if stuck, restart:
-  sett down --name %s
-  sett up --name %s`, targetInstanceName, targetInstanceName, targetInstanceName, targetInstanceName)
+		return printer.Error(
+			fmt.Sprintf("instance '%s' is not running", targetInstanceName),
+			"Container exists but is stopped.",
+			[]string{
+				fmt.Sprintf("Start the instance:\n  sett up --name %s", targetInstanceName),
+				fmt.Sprintf("Or if stuck, restart:\n  sett down --name %s\n  sett up --name %s", targetInstanceName, targetInstanceName),
+			},
+		)
 	}
 
 	// Phase 5: Get Redis port
 	redisPort, err := instance.GetInstanceRedisPort(ctx, cli, targetInstanceName)
 	if err != nil {
-		return fmt.Errorf(`Redis port not found
-
-Instance '%s' exists but Redis port label is missing.
-
-This may indicate:
-  - Instance was created with older sett version
-  - Manual container manipulation
-
-Restart the instance:
-  sett down --name %s
-  sett up --name %s`, targetInstanceName, targetInstanceName, targetInstanceName)
+		return printer.ErrorWithContext(
+			"Redis port not found",
+			fmt.Sprintf("Instance '%s' exists but Redis port label is missing.", targetInstanceName),
+			map[string]string{
+				"This may indicate": "Instance was created with older sett version\n  - Manual container manipulation",
+			},
+			[]string{
+				fmt.Sprintf("Restart the instance:\n  sett down --name %s\n  sett up --name %s", targetInstanceName, targetInstanceName),
+			},
+		)
 	}
 
 	// Phase 6: Connect to blackboard
@@ -193,16 +179,15 @@ Restart the instance:
 
 	// Verify Redis connectivity
 	if err := bbClient.Ping(ctx); err != nil {
-		return fmt.Errorf(`Redis connection failed
-
-Could not connect to Redis at %s
-
-Check Redis container status:
-  docker logs sett-redis-%s
-
-Restart if needed:
-  sett down --name %s
-  sett up --name %s`, redisURL, targetInstanceName, targetInstanceName, targetInstanceName)
+		return printer.ErrorWithContext(
+			"Redis connection failed",
+			fmt.Sprintf("Could not connect to Redis at %s", redisURL),
+			nil,
+			[]string{
+				fmt.Sprintf("Check Redis container status:\n  docker logs sett-redis-%s", targetInstanceName),
+				fmt.Sprintf("Restart if needed:\n  sett down --name %s\n  sett up --name %s", targetInstanceName, targetInstanceName),
+			},
+		)
 	}
 
 	// Phase 7: Create GoalDefined artefact
@@ -224,39 +209,31 @@ Restart if needed:
 		return fmt.Errorf("failed to create artefact: %w", err)
 	}
 
-	fmt.Printf("✓ Goal artefact created: %s\n", artefactID)
+	printer.Success("Goal artefact created: %s\n", artefactID)
 
 	// Phase 8: Optionally wait for claim (--watch)
 	if forageWatch {
-		fmt.Printf("⏳ Waiting for orchestrator to create claim...\n")
+		printer.Info("⏳ Waiting for orchestrator to create claim...\n")
 
 		claim, err := watch.PollForClaim(ctx, bbClient, artefactID, 5*time.Second)
 		if err != nil {
-			return fmt.Errorf(`timeout waiting for claim
-
-No claim created after 5 seconds.
-
-Possible causes:
-  - Orchestrator container not running
-  - Orchestrator not subscribed to artefact_events
-  - Redis Pub/Sub issue
-
-Check orchestrator status:
-  docker ps | grep orchestrator
-  docker logs sett-orchestrator-%s
-
-Check artefact was created:
-  # Connect to Redis and verify
-  redis-cli -p %d HGETALL sett:%s:artefact:%s`, targetInstanceName, redisPort, targetInstanceName, artefactID)
+			return printer.Error(
+				"timeout waiting for claim",
+				"No claim created after 5 seconds.\n\nPossible causes:\n  - Orchestrator container not running\n  - Orchestrator not subscribed to artefact_events\n  - Redis Pub/Sub issue",
+				[]string{
+					fmt.Sprintf("Check orchestrator status:\n  docker ps | grep orchestrator\n  docker logs sett-orchestrator-%s", targetInstanceName),
+					fmt.Sprintf("Check artefact was created:\n  # Connect to Redis and verify\n  redis-cli -p %d HGETALL sett:%s:artefact:%s", redisPort, targetInstanceName, artefactID),
+				},
+			)
 		}
 
-		fmt.Printf("✓ Claim created: %s (status: %s)\n", claim.ID, claim.Status)
+		printer.Success("Claim created: %s (status: %s)\n", claim.ID, claim.Status)
 	}
 
-	fmt.Printf("\nNext steps:\n")
-	fmt.Printf("  • Agents will process this goal in Phase 2+\n")
-	fmt.Printf("  • View all artefacts: sett hoard --name %s\n", targetInstanceName)
-	fmt.Printf("  • Monitor workflow: sett watch --name %s (Phase 2+)\n", targetInstanceName)
+	printer.Info("\nNext steps:\n")
+	printer.Info("  • Agents will process this goal in Phase 2+\n")
+	printer.Info("  • View all artefacts: sett hoard --name %s\n", targetInstanceName)
+	printer.Info("  • Monitor workflow: sett watch --name %s (Phase 2+)\n", targetInstanceName)
 
 	return nil
 }

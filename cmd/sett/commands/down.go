@@ -8,6 +8,7 @@ import (
 	"github.com/docker/docker/api/types/container"
 	"github.com/docker/docker/api/types/filters"
 	dockerpkg "github.com/dyluth/sett/internal/docker"
+	"github.com/dyluth/sett/internal/printer"
 	"github.com/spf13/cobra"
 )
 
@@ -29,7 +30,7 @@ The command does not prompt for confirmation and executes immediately.`,
 }
 
 func init() {
-	downCmd.Flags().StringVar(&downInstanceName, "name", "", "Instance name (required)")
+	downCmd.Flags().StringVarP(&downInstanceName, "name", "n", "", "Instance name (required)")
 	downCmd.MarkFlagRequired("name")
 	rootCmd.AddCommand(downCmd)
 }
@@ -57,28 +58,28 @@ func runDown(cmd *cobra.Command, args []string) error {
 	}
 
 	if len(containers) == 0 {
-		return fmt.Errorf(`instance '%s' not found
-
-No containers found with instance name '%s'.
-
-Run 'sett list' to see available instances.`, downInstanceName, downInstanceName)
+		return printer.Error(
+			fmt.Sprintf("instance '%s' not found", downInstanceName),
+			fmt.Sprintf("No containers found with instance name '%s'.", downInstanceName),
+			[]string{"Run 'sett list' to see available instances"},
+		)
 	}
 
 	// Stop containers (10s graceful timeout)
 	timeout := 10
 	for _, c := range containers {
 		containerName := c.Names[0]
-		fmt.Printf("Stopping %s...\n", containerName)
+		printer.Step("Stopping %s...\n", containerName)
 		if err := cli.ContainerStop(ctx, c.ID, container.StopOptions{Timeout: &timeout}); err != nil {
 			// Log but continue - container might already be stopped
-			fmt.Printf("Warning: failed to stop %s: %v\n", containerName, err)
+			printer.Warning("failed to stop %s: %v\n", containerName, err)
 		}
 	}
 
 	// Remove containers
 	for _, c := range containers {
 		containerName := c.Names[0]
-		fmt.Printf("Removing %s...\n", containerName)
+		printer.Step("Removing %s...\n", containerName)
 		if err := cli.ContainerRemove(ctx, c.ID, container.RemoveOptions{Force: true, RemoveVolumes: true}); err != nil {
 			return fmt.Errorf("failed to remove %s: %w", containerName, err)
 		}
@@ -96,13 +97,13 @@ Run 'sett list' to see available instances.`, downInstanceName, downInstanceName
 	}
 
 	for _, net := range networks {
-		fmt.Printf("Removing network %s...\n", net.Name)
+		printer.Step("Removing network %s...\n", net.Name)
 		if err := cli.NetworkRemove(ctx, net.ID); err != nil {
 			return fmt.Errorf("failed to remove network %s: %w", net.Name, err)
 		}
 	}
 
-	fmt.Printf("\n✓ Instance '%s' removed successfully\n", downInstanceName)
+	printer.Success("\nInstance '%s' removed successfully\n", downInstanceName)
 
 	return nil
 }

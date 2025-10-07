@@ -1,7 +1,6 @@
 package main
 
 import (
-	"fmt"
 	"os"
 
 	"github.com/dyluth/sett/cmd/sett/commands"
@@ -19,8 +18,8 @@ func main() {
 	commands.SetVersionInfo(version, commit, date)
 
 	// Execute root command
+	// Errors are printed directly by the printer package with color formatting
 	if err := commands.Execute(); err != nil {
-		fmt.Fprintln(os.Stderr, err)
 		os.Exit(1)
 	}
 }

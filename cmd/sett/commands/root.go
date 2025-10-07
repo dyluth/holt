@@ -28,6 +28,10 @@ enabling transparent, auditable AI workflows.`,
 // Execute adds all child commands to the root command and sets flags appropriately.
 // This is called by main.main(). It only needs to happen once to the rootCmd.
 func Execute() error {
+	// Silence Cobra's default error and usage printing
+	// We print formatted colored errors directly in the printer package
+	rootCmd.SilenceErrors = true
+	rootCmd.SilenceUsage = true
 	return rootCmd.Execute()
 }
 

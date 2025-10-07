@@ -1,8 +1,7 @@
 package commands
 
 import (
-	"fmt"
-
+	"github.com/dyluth/sett/internal/printer"
 	"github.com/spf13/cobra"
 )
 
@@ -29,16 +28,16 @@ Examples (Phase 2+):
 }
 
 func init() {
-	watchCmd.Flags().StringVar(&watchInstanceName, "name", "", "Target instance name (auto-inferred if omitted)")
+	watchCmd.Flags().StringVarP(&watchInstanceName, "name", "n", "", "Target instance name (auto-inferred if omitted)")
 	rootCmd.AddCommand(watchCmd)
 }
 
 func runWatch(cmd *cobra.Command, args []string) error {
-	fmt.Printf("The 'sett watch' command will be available in Phase 2.\n\n")
-	fmt.Printf("For Phase 1, use the --watch flag with forage:\n")
-	fmt.Printf("  sett forage --watch --goal \"your goal\"\n\n")
-	fmt.Printf("This validates the E2E pipeline:\n")
-	fmt.Printf("  CLI → Artefact → Orchestrator → Claim\n")
+	printer.Info("The 'sett watch' command will be available in Phase 2.\n\n")
+	printer.Info("For Phase 1, use the --watch flag with forage:\n")
+	printer.Info("  sett forage -w -g \"your goal\"\n\n")
+	printer.Info("This validates the E2E pipeline:\n")
+	printer.Info("  CLI → Artefact → Orchestrator → Claim\n")
 
 	return nil
 }

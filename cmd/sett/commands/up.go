@@ -13,6 +13,7 @@ import (
 	dockerpkg "github.com/dyluth/sett/internal/docker"
 	"github.com/dyluth/sett/internal/git"
 	"github.com/dyluth/sett/internal/instance"
+	"github.com/dyluth/sett/internal/printer"
 	"github.com/google/uuid"
 	"github.com/spf13/cobra"
 )
@@ -38,8 +39,8 @@ Workspace safety checks prevent multiple instances on the same directory unless 
 }
 
 func init() {
-	upCmd.Flags().StringVar(&upInstanceName, "name", "", "Instance name (auto-generated if omitted)")
-	upCmd.Flags().BoolVar(&upForce, "force", false, "Bypass workspace collision check")
+	upCmd.Flags().StringVarP(&upInstanceName, "name", "n", "", "Instance name (auto-generated if omitted)")
+	upCmd.Flags().BoolVarP(&upForce, "force", "f", false, "Bypass workspace collision check")
 	rootCmd.AddCommand(upCmd)
 }
 
@@ -54,16 +55,14 @@ func runUp(cmd *cobra.Command, args []string) error {
 	// Phase 2: Configuration Validation
 	cfg, err := config.Load("sett.yml")
 	if err != nil {
-		return fmt.Errorf(`sett.yml not found or invalid
-
-No configuration file found in the current directory.
-
-Initialize your project first:
-  sett init
-
-Then retry: sett up
-
-Error details: %w`, err)
+		return printer.Error(
+			"sett.yml not found or invalid",
+			"No configuration file found in the current directory.",
+			[]string{
+				"Initialize your project first:\n  sett init",
+				"Then retry: sett up",
+			},
+		)
 	}
 
 	// Create Docker client
@@ -94,13 +93,14 @@ Error details: %w`, err)
 		return err
 	}
 	if nameCollision {
-		return fmt.Errorf(`instance '%s' already exists
-
-Found existing containers with this instance name.
-
-Either:
-  1. Stop the existing instance: sett down --name %s
-  2. Choose a different name: sett up --name other-name`, targetInstanceName, targetInstanceName)
+		return printer.Error(
+			fmt.Sprintf("instance '%s' already exists", targetInstanceName),
+			"Found existing containers with this instance name.",
+			[]string{
+				fmt.Sprintf("Stop the existing instance: sett down --name %s", targetInstanceName),
+				"Choose a different name: sett up --name other-name",
+			},
+		)
 	}
 
 	// Phase 4: Workspace Safety Check
@@ -115,15 +115,18 @@ Either:
 			return fmt.Errorf("failed to check workspace collision: %w", err)
 		}
 		if collision != nil {
-			return fmt.Errorf(`workspace in use
-
-Another instance '%s' is already running on this workspace:
-  Workspace: %s
-  Instance:  %s
-
-Either:
-  1. Stop the other instance: sett down --name %s
-  2. Use --force to bypass this check (not recommended)`, collision.InstanceName, collision.WorkspacePath, collision.InstanceName, collision.InstanceName)
+			return printer.ErrorWithContext(
+				"workspace in use",
+				fmt.Sprintf("Another instance '%s' is already running on this workspace:", collision.InstanceName),
+				map[string]string{
+					"Workspace": collision.WorkspacePath,
+					"Instance":  collision.InstanceName,
+				},
+				[]string{
+					fmt.Sprintf("Stop the other instance: sett down --name %s", collision.InstanceName),
+					"Use --force to bypass this check (not recommended)",
+				},
+			)
 		}
 	}
 
@@ -131,9 +134,9 @@ Either:
 	runID := uuid.New().String()
 	if err := createInstance(ctx, cli, cfg, targetInstanceName, runID, workspacePath); err != nil {
 		// Attempt rollback on failure
-		fmt.Printf("\nResource creation failed. Rolling back...\n")
+		printer.Info("\nResource creation failed. Rolling back...\n")
 		if rollbackErr := rollbackInstance(ctx, cli, targetInstanceName); rollbackErr != nil {
-			fmt.Printf("Warning: rollback encountered errors: %v\n", rollbackErr)
+			printer.Warning("rollback encountered errors: %v\n", rollbackErr)
 		}
 		return fmt.Errorf("failed to create instance: %w", err)
 	}
@@ -148,16 +151,11 @@ func validateEnvironment() error {
 	// Check Git context
 	checker := git.NewChecker()
 	if err := checker.ValidateGitContext(); err != nil {
-		return fmt.Errorf(`not a Git repository
-
-Sett requires initialization from within a Git repository.
-
-Run these commands in order:
-  1. git init
-  2. sett init
-  3. sett up
-
-Error: %w`, err)
+		return printer.Error(
+			"not a Git repository",
+			"Sett requires initialization from within a Git repository.",
+			[]string{"Run these commands in order:\n  1. git init\n  2. sett init\n  3. sett up"},
+		)
 	}
 
 	return nil
@@ -170,7 +168,7 @@ func createInstance(ctx context.Context, cli *client.Client, cfg *config.SettCon
 		return fmt.Errorf("failed to allocate Redis port: %w", err)
 	}
 
-	fmt.Printf("✓ Allocated Redis port: %d\n", redisPort)
+	printer.Success("Allocated Redis port: %d\n", redisPort)
 
 	// Step 2: Create isolated network
 	networkName := dockerpkg.NetworkName(instanceName)
@@ -184,7 +182,7 @@ func createInstance(ctx context.Context, cli *client.Client, cfg *config.SettCon
 		return fmt.Errorf("failed to create network '%s': %w", networkName, err)
 	}
 
-	fmt.Printf("✓ Created network: %s\n", networkName)
+	printer.Success("Created network: %s\n", networkName)
 
 	// Step 3: Start Redis container with port mapping
 	redisImage := "redis:7-alpine"
@@ -222,7 +220,7 @@ func createInstance(ctx context.Context, cli *client.Client, cfg *config.SettCon
 		return fmt.Errorf("failed to start Redis container: %w", err)
 	}
 
-	fmt.Printf("✓ Started Redis container: %s (port %d)\n", redisName, redisPort)
+	printer.Success("Started Redis container: %s (port %d)\n", redisName, redisPort)
 
 	// Step 4: Verify orchestrator image exists
 	orchestratorImage := "sett-orchestrator:latest"
@@ -258,7 +256,7 @@ func createInstance(ctx context.Context, cli *client.Client, cfg *config.SettCon
 		return fmt.Errorf("failed to start orchestrator container: %w", err)
 	}
 
-	fmt.Printf("✓ Started orchestrator container: %s\n", orchestratorName)
+	printer.Success("Started orchestrator container: %s\n", orchestratorName)
 
 	return nil
 }
@@ -279,12 +277,12 @@ func rollbackInstance(ctx context.Context, cli *client.Client, instanceName stri
 
 	// Stop and remove containers
 	for _, c := range containers {
-		fmt.Printf("  Stopping %s...\n", c.Names[0])
+		printer.Info("  Stopping %s...\n", c.Names[0])
 		_ = cli.ContainerStop(ctx, c.ID, container.StopOptions{Timeout: &timeout})
 
-		fmt.Printf("  Removing %s...\n", c.Names[0])
+		printer.Info("  Removing %s...\n", c.Names[0])
 		if err := cli.ContainerRemove(ctx, c.ID, container.RemoveOptions{Force: true}); err != nil {
-			fmt.Printf("  Warning: failed to remove %s: %v\n", c.Names[0], err)
+			printer.Warning("failed to remove %s: %v\n", c.Names[0], err)
 		}
 	}
 
@@ -299,9 +297,9 @@ func rollbackInstance(ctx context.Context, cli *client.Client, instanceName stri
 	}
 
 	for _, net := range networks {
-		fmt.Printf("  Removing network %s...\n", net.Name)
+		printer.Info("  Removing network %s...\n", net.Name)
 		if err := cli.NetworkRemove(ctx, net.ID); err != nil {
-			fmt.Printf("  Warning: failed to remove network %s: %v\n", net.Name, err)
+			printer.Warning("failed to remove network %s: %v\n", net.Name, err)
 		}
 	}
 
@@ -309,20 +307,20 @@ func rollbackInstance(ctx context.Context, cli *client.Client, instanceName stri
 }
 
 func printUpSuccess(instanceName, workspacePath string) {
-	fmt.Printf("\n✓ Instance '%s' started successfully\n\n", instanceName)
-	fmt.Printf("Containers:\n")
-	fmt.Printf("  • %s (running)\n", dockerpkg.RedisContainerName(instanceName))
-	fmt.Printf("  • %s (running)\n", dockerpkg.OrchestratorContainerName(instanceName))
-	fmt.Printf("\n")
-	fmt.Printf("Network:\n")
-	fmt.Printf("  • %s\n", dockerpkg.NetworkName(instanceName))
-	fmt.Printf("\n")
-	fmt.Printf("Workspace: %s\n", workspacePath)
-	fmt.Printf("\n")
-	fmt.Printf("Next steps:\n")
-	fmt.Printf("  1. Run 'sett forage --goal \"your goal\"' to start a workflow\n")
-	fmt.Printf("  2. Run 'sett list' to view all instances\n")
-	fmt.Printf("  3. Run 'sett down --name %s' when finished\n", instanceName)
+	printer.Success("\nInstance '%s' started successfully\n\n", instanceName)
+	printer.Info("Containers:\n")
+	printer.Info("  • %s (running)\n", dockerpkg.RedisContainerName(instanceName))
+	printer.Info("  • %s (running)\n", dockerpkg.OrchestratorContainerName(instanceName))
+	printer.Info("\n")
+	printer.Info("Network:\n")
+	printer.Info("  • %s\n", dockerpkg.NetworkName(instanceName))
+	printer.Info("\n")
+	printer.Info("Workspace: %s\n", workspacePath)
+	printer.Info("\n")
+	printer.Info("Next steps:\n")
+	printer.Info("  1. Run 'sett forage --goal \"your goal\"' to start a workflow\n")
+	printer.Info("  2. Run 'sett list' to view all instances\n")
+	printer.Info("  3. Run 'sett down --name %s' when finished\n", instanceName)
 }
 
 func verifyOrchestratorImage(ctx context.Context, cli *client.Client, imageName string) error {
@@ -336,14 +334,16 @@ func verifyOrchestratorImage(ctx context.Context, cli *client.Client, imageName 
 	for _, image := range images {
 		for _, tag := range image.RepoTags {
 			if tag == imageName {
-				fmt.Printf("✓ Found orchestrator image: %s\n", imageName)
+				printer.Success("Found orchestrator image: %s\n", imageName)
 				return nil
 			}
 		}
 	}
 
 	// Image not found - return helpful error
-	return fmt.Errorf(`orchestrator image '%s' not found
-
-Please run 'make docker-orchestrator' to build it first.`, imageName)
+	return printer.Error(
+		fmt.Sprintf("orchestrator image '%s' not found", imageName),
+		"",
+		[]string{"Please run 'make docker-orchestrator' to build it first."},
+	)
 }

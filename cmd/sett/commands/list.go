@@ -12,6 +12,7 @@ import (
 	"github.com/docker/docker/api/types/filters"
 	dockerpkg "github.com/dyluth/sett/internal/docker"
 	"github.com/dyluth/sett/internal/instance"
+	"github.com/dyluth/sett/internal/printer"
 	"github.com/spf13/cobra"
 )
 
@@ -35,7 +36,7 @@ Use --json for machine-readable output.`,
 }
 
 func init() {
-	listCmd.Flags().BoolVar(&listJSON, "json", false, "Output in JSON format")
+	listCmd.Flags().BoolVarP(&listJSON, "json", "j", false, "Output in JSON format")
 	rootCmd.AddCommand(listCmd)
 }
 
@@ -102,11 +103,10 @@ func runList(cmd *cobra.Command, args []string) error {
 	// Output
 	if len(infos) == 0 {
 		if !listJSON {
-			fmt.Println("No Sett instances found.")
-			fmt.Println()
-			fmt.Println("Run 'sett up' to start a new instance.")
+			printer.Info("No Sett instances found.\n\n")
+			printer.Info("Run 'sett up' to start a new instance.\n")
 		} else {
-			fmt.Println("[]")
+			printer.Println("[]")
 		}
 		return nil
 	}
@@ -143,15 +143,15 @@ func formatDuration(d time.Duration) string {
 func outputJSON(infos []instance.InstanceInfo) {
 	data, err := json.MarshalIndent(infos, "", "  ")
 	if err != nil {
-		fmt.Printf("Error marshaling JSON: %v\n", err)
+		printer.Warning("Error marshaling JSON: %v\n", err)
 		return
 	}
-	fmt.Println(string(data))
+	printer.Println(string(data))
 }
 
 func outputTable(infos []instance.InstanceInfo) {
 	// Print header
-	fmt.Printf("%-15s %-10s %-30s %s\n", "INSTANCE", "STATUS", "WORKSPACE", "UPTIME")
+	printer.Printf("%-15s %-10s %-30s %s\n", "INSTANCE", "STATUS", "WORKSPACE", "UPTIME")
 
 	// Print rows
 	for _, info := range infos {
@@ -161,6 +161,6 @@ func outputTable(infos []instance.InstanceInfo) {
 			workspace = "..." + workspace[len(workspace)-27:]
 		}
 
-		fmt.Printf("%-15s %-10s %-30s %s\n", info.Name, info.Status, workspace, info.Uptime)
+		printer.Printf("%-15s %-10s %-30s %s\n", info.Name, info.Status, workspace, info.Uptime)
 	}
 }
