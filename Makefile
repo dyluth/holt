@@ -1,4 +1,4 @@
-.PHONY: help test test-verbose test-integration coverage coverage-html lint build build-orchestrator docker-orchestrator clean install
+.PHONY: help test test-verbose test-integration coverage coverage-html lint build build-orchestrator docker-orchestrator build-all clean install
 
 # Use Go 1.24 if available in /usr/local/go, otherwise use system go
 GO := $(shell [ -x /usr/local/go/bin/go ] && echo /usr/local/go/bin/go || echo go)
@@ -8,15 +8,22 @@ help:
 	@echo "Sett Development Makefile"
 	@echo ""
 	@echo "Targets:"
+	@echo ""
+	@echo "Common workflows:"
+	@echo "  build-all           - Build everything (CLI + orchestrator image)"
+	@echo "  build               - Build the sett CLI binary"
+	@echo "  docker-orchestrator - Build orchestrator Docker image (required for 'sett up')"
+	@echo ""
+	@echo "Testing:"
 	@echo "  test                - Run all unit tests"
 	@echo "  test-verbose        - Run all unit tests with verbose output"
 	@echo "  test-integration    - Run integration tests (requires Docker)"
 	@echo "  coverage            - Run tests and show coverage report"
 	@echo "  coverage-html       - Generate HTML coverage report"
 	@echo "  lint                - Run go vet and staticcheck"
-	@echo "  build               - Build the sett CLI binary"
-	@echo "  build-orchestrator  - Build the orchestrator binary"
-	@echo "  docker-orchestrator - Build orchestrator Docker image"
+	@echo ""
+	@echo "Development:"
+	@echo "  build-orchestrator  - Build orchestrator binary (for debugging only)"
 	@echo "  install             - Install sett binary to GOPATH/bin"
 	@echo "  clean               - Remove build artifacts"
 
@@ -85,6 +92,15 @@ docker-orchestrator:
 	@echo "Building orchestrator Docker image..."
 	@docker build -f Dockerfile.orchestrator -t sett-orchestrator:latest .
 	@echo "✓ Built: sett-orchestrator:latest"
+
+# Build everything (CLI + orchestrator Docker image)
+build-all: build docker-orchestrator
+	@echo ""
+	@echo "✓ Build complete!"
+	@echo "  - CLI binary: bin/sett"
+	@echo "  - Orchestrator image: sett-orchestrator:latest"
+	@echo ""
+	@echo "Ready to use: ./bin/sett up"
 
 # Install sett binary
 install:

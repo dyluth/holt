@@ -1,13 +1,8 @@
 package commands
 
 import (
-	"archive/tar"
-	"bytes"
 	"context"
 	"fmt"
-	"io"
-	"os"
-	"path/filepath"
 
 	"github.com/docker/docker/api/types"
 	"github.com/docker/docker/api/types/container"
@@ -229,16 +224,13 @@ func createInstance(ctx context.Context, cli *client.Client, cfg *config.SettCon
 
 	fmt.Printf("✓ Started Redis container: %s (port %d)\n", redisName, redisPort)
 
-	// Step 4: Build orchestrator image
+	// Step 4: Verify orchestrator image exists
 	orchestratorImage := "sett-orchestrator:latest"
-	fmt.Printf("Building orchestrator image...\n")
-	if err := buildOrchestratorImage(ctx, cli, orchestratorImage); err != nil {
-		return fmt.Errorf("failed to build orchestrator image: %w", err)
+	if err := verifyOrchestratorImage(ctx, cli, orchestratorImage); err != nil {
+		return err
 	}
 
-	fmt.Printf("✓ Built orchestrator image: %s\n", orchestratorImage)
-
-	// Step 5: Start Orchestrator container with real binary
+	// Step 5: Start Orchestrator container with pre-built image
 	orchestratorName := dockerpkg.OrchestratorContainerName(instanceName)
 	orchestratorLabels := dockerpkg.BuildLabels(instanceName, runID, workspacePath, "orchestrator")
 
@@ -333,147 +325,25 @@ func printUpSuccess(instanceName, workspacePath string) {
 	fmt.Printf("  3. Run 'sett down --name %s' when finished\n", instanceName)
 }
 
-func buildOrchestratorImage(ctx context.Context, cli *client.Client, imageName string) error {
-	// Get the project root directory
-	projectRoot, err := os.Getwd()
+func verifyOrchestratorImage(ctx context.Context, cli *client.Client, imageName string) error {
+	// Check if the image exists locally
+	images, err := cli.ImageList(ctx, types.ImageListOptions{})
 	if err != nil {
-		return fmt.Errorf("failed to get current directory: %w", err)
+		return fmt.Errorf("failed to list Docker images: %w", err)
 	}
 
-	// Create build context as tar archive
-	buildContext, err := createBuildContext(projectRoot)
-	if err != nil {
-		return fmt.Errorf("failed to create build context: %w", err)
-	}
-
-	// Build image
-	buildOptions := types.ImageBuildOptions{
-		Tags:       []string{imageName},
-		Dockerfile: "Dockerfile.orchestrator",
-		Remove:     true,
-		Platform:   "linux/arm64", // ARM64-first design
-	}
-
-	resp, err := cli.ImageBuild(ctx, buildContext, buildOptions)
-	if err != nil {
-		return fmt.Errorf("failed to build image: %w", err)
-	}
-	defer resp.Body.Close()
-
-	// Read build output (discarding it, but checking for errors)
-	_, err = io.Copy(io.Discard, resp.Body)
-	if err != nil {
-		return fmt.Errorf("error reading build output: %w", err)
-	}
-
-	return nil
-}
-
-func createBuildContext(projectRoot string) (io.Reader, error) {
-	var buf bytes.Buffer
-	tw := tar.NewWriter(&buf)
-	defer tw.Close()
-
-	// Files and directories to include in build context
-	includes := []string{
-		"go.mod",
-		"go.sum",
-		"Dockerfile.orchestrator",
-		"cmd/",
-		"pkg/",
-		"internal/",
-	}
-
-	for _, include := range includes {
-		fullPath := filepath.Join(projectRoot, include)
-
-		// Check if path exists
-		info, err := os.Stat(fullPath)
-		if err != nil {
-			if os.IsNotExist(err) {
-				continue // Skip if doesn't exist
-			}
-			return nil, err
-		}
-
-		if info.IsDir() {
-			// Add directory recursively
-			err = filepath.Walk(fullPath, func(path string, info os.FileInfo, err error) error {
-				if err != nil {
-					return err
-				}
-
-				// Skip hidden files/directories and test files
-				if filepath.Base(path)[0] == '.' {
-					if info.IsDir() {
-						return filepath.SkipDir
-					}
-					return nil
-				}
-
-				// Get relative path for tar
-				relPath, err := filepath.Rel(projectRoot, path)
-				if err != nil {
-					return err
-				}
-
-				// Create tar header
-				header, err := tar.FileInfoHeader(info, "")
-				if err != nil {
-					return err
-				}
-				header.Name = relPath
-
-				if err := tw.WriteHeader(header); err != nil {
-					return err
-				}
-
-				// If it's a file, write its contents
-				if !info.IsDir() {
-					file, err := os.Open(path)
-					if err != nil {
-						return err
-					}
-					defer file.Close()
-
-					if _, err := io.Copy(tw, file); err != nil {
-						return err
-					}
-				}
-
+	// Look for the orchestrator image
+	for _, image := range images {
+		for _, tag := range image.RepoTags {
+			if tag == imageName {
+				fmt.Printf("✓ Found orchestrator image: %s\n", imageName)
 				return nil
-			})
-			if err != nil {
-				return nil, err
-			}
-		} else {
-			// Add single file
-			file, err := os.Open(fullPath)
-			if err != nil {
-				return nil, err
-			}
-			defer file.Close()
-
-			relPath, err := filepath.Rel(projectRoot, fullPath)
-			if err != nil {
-				return nil, err
-			}
-
-			header, err := tar.FileInfoHeader(info, "")
-			if err != nil {
-				return nil, err
-			}
-			header.Name = relPath
-
-			if err := tw.WriteHeader(header); err != nil {
-				return nil, err
-			}
-
-			if _, err := io.Copy(tw, file); err != nil {
-				return nil, err
 			}
 		}
 	}
 
-	return &buf, nil
+	// Image not found - return helpful error
+	return fmt.Errorf(`orchestrator image '%s' not found
+
+Please run 'make docker-orchestrator' to build it first.`, imageName)
 }
