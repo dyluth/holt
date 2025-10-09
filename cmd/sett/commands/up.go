@@ -142,7 +142,7 @@ func runUp(cmd *cobra.Command, args []string) error {
 	}
 
 	// Success message
-	printUpSuccess(targetInstanceName, workspacePath)
+	printUpSuccess(targetInstanceName, workspacePath, cfg)
 
 	return nil
 }
@@ -162,7 +162,12 @@ func validateEnvironment() error {
 }
 
 func createInstance(ctx context.Context, cli *client.Client, cfg *config.SettConfig, instanceName, runID, workspacePath string) error {
-	// Step 1: Allocate Redis port
+	// Step 1: Validate all agent images exist
+	if err := validateAgentImages(ctx, cli, cfg); err != nil {
+		return err
+	}
+
+	// Step 2: Allocate Redis port
 	redisPort, err := instance.FindNextAvailablePort(ctx, cli)
 	if err != nil {
 		return fmt.Errorf("failed to allocate Redis port: %w", err)
@@ -258,6 +263,11 @@ func createInstance(ctx context.Context, cli *client.Client, cfg *config.SettCon
 
 	printer.Success("Started orchestrator container: %s\n", orchestratorName)
 
+	// Step 6: Launch agent containers
+	if err := launchAgentContainers(ctx, cli, cfg, instanceName, runID, workspacePath, networkName, redisName); err != nil {
+		return fmt.Errorf("failed to launch agent containers: %w", err)
+	}
+
 	return nil
 }
 
@@ -306,11 +316,17 @@ func rollbackInstance(ctx context.Context, cli *client.Client, instanceName stri
 	return nil
 }
 
-func printUpSuccess(instanceName, workspacePath string) {
+func printUpSuccess(instanceName, workspacePath string, cfg *config.SettConfig) {
 	printer.Success("\nInstance '%s' started successfully\n\n", instanceName)
 	printer.Info("Containers:\n")
 	printer.Info("  • %s (running)\n", dockerpkg.RedisContainerName(instanceName))
 	printer.Info("  • %s (running)\n", dockerpkg.OrchestratorContainerName(instanceName))
+
+	// List agent containers
+	for agentName := range cfg.Agents {
+		printer.Info("  • %s (running)\n", dockerpkg.AgentContainerName(instanceName, agentName))
+	}
+
 	printer.Info("\n")
 	printer.Info("Network:\n")
 	printer.Info("  • %s\n", dockerpkg.NetworkName(instanceName))
@@ -319,8 +335,19 @@ func printUpSuccess(instanceName, workspacePath string) {
 	printer.Info("\n")
 	printer.Info("Next steps:\n")
 	printer.Info("  1. Run 'sett forage --goal \"your goal\"' to start a workflow\n")
-	printer.Info("  2. Run 'sett list' to view all instances\n")
-	printer.Info("  3. Run 'sett down --name %s' when finished\n", instanceName)
+	if len(cfg.Agents) > 0 {
+		// Get first agent name for example
+		var firstAgent string
+		for name := range cfg.Agents {
+			firstAgent = name
+			break
+		}
+		printer.Info("  2. Run 'sett logs %s' to view agent logs\n", firstAgent)
+		printer.Info("  3. Run 'sett down --name %s' when finished\n", instanceName)
+	} else {
+		printer.Info("  2. Run 'sett list' to view all instances\n")
+		printer.Info("  3. Run 'sett down --name %s' when finished\n", instanceName)
+	}
 }
 
 func verifyOrchestratorImage(ctx context.Context, cli *client.Client, imageName string) error {
@@ -346,4 +373,114 @@ func verifyOrchestratorImage(ctx context.Context, cli *client.Client, imageName 
 		"",
 		[]string{"Please run 'make docker-orchestrator' to build it first."},
 	)
+}
+
+func validateAgentImages(ctx context.Context, cli *client.Client, cfg *config.SettConfig) error {
+	if len(cfg.Agents) == 0 {
+		return nil
+	}
+
+	// Get list of all local images
+	images, err := cli.ImageList(ctx, types.ImageListOptions{})
+	if err != nil {
+		return fmt.Errorf("failed to list Docker images: %w", err)
+	}
+
+	// Build set of available image tags
+	availableImages := make(map[string]bool)
+	for _, image := range images {
+		for _, tag := range image.RepoTags {
+			availableImages[tag] = true
+		}
+	}
+
+	// Validate each agent image exists
+	var missingImages []string
+	for agentName, agent := range cfg.Agents {
+		if !availableImages[agent.Image] {
+			missingImages = append(missingImages, fmt.Sprintf("%s (for agent '%s')", agent.Image, agentName))
+		}
+	}
+
+	if len(missingImages) > 0 {
+		return printer.Error(
+			"agent images not found",
+			fmt.Sprintf("The following agent images are not available locally:\n  - %s",
+				missingImages[0]),
+			[]string{
+				"Build the agent images first:",
+				"  cd agents/<agent-dir>",
+				"  docker build -t <image-name> .",
+				"",
+				"Then retry: sett up",
+			},
+		)
+	}
+
+	printer.Success("Validated %d agent image(s)\n", len(cfg.Agents))
+	return nil
+}
+
+func launchAgentContainers(ctx context.Context, cli *client.Client, cfg *config.SettConfig, instanceName, runID, workspacePath, networkName, redisName string) error {
+	if len(cfg.Agents) == 0 {
+		return nil
+	}
+
+	for agentName, agent := range cfg.Agents {
+		if err := launchAgentContainer(ctx, cli, instanceName, runID, workspacePath, networkName, redisName, agentName, agent); err != nil {
+			return fmt.Errorf("failed to launch agent '%s': %w", agentName, err)
+		}
+	}
+
+	return nil
+}
+
+func launchAgentContainer(ctx context.Context, cli *client.Client, instanceName, runID, workspacePath, networkName, redisName, agentName string, agent config.Agent) error {
+	containerName := dockerpkg.AgentContainerName(instanceName, agentName)
+	labels := dockerpkg.BuildLabels(instanceName, runID, workspacePath, "agent")
+	labels[dockerpkg.LabelAgentName] = agentName
+
+	// Determine workspace mode (default to ro)
+	workspaceMode := "ro"
+	if agent.Workspace != nil && agent.Workspace.Mode != "" {
+		workspaceMode = agent.Workspace.Mode
+	}
+
+	// Build environment variables
+	redisURL := fmt.Sprintf("redis://%s:6379", redisName)
+	env := []string{
+		fmt.Sprintf("SETT_INSTANCE_NAME=%s", instanceName),
+		fmt.Sprintf("SETT_AGENT_NAME=%s", agentName),
+		fmt.Sprintf("SETT_AGENT_ROLE=%s", agent.Role),
+		fmt.Sprintf("REDIS_URL=%s", redisURL),
+	}
+
+	// Add custom environment variables from config
+	if len(agent.Environment) > 0 {
+		env = append(env, agent.Environment...)
+	}
+
+	// Create container
+	resp, err := cli.ContainerCreate(ctx, &container.Config{
+		Image:  agent.Image,
+		Labels: labels,
+		Env:    env,
+		Cmd:    agent.Command,
+	}, &container.HostConfig{
+		NetworkMode: container.NetworkMode(networkName),
+		Binds: []string{
+			fmt.Sprintf("%s:/workspace:%s", workspacePath, workspaceMode),
+		},
+	}, nil, nil, containerName)
+	if err != nil {
+		return fmt.Errorf("failed to create container: %w", err)
+	}
+
+	// Start container
+	if err := cli.ContainerStart(ctx, resp.ID, container.StartOptions{}); err != nil {
+		return fmt.Errorf("failed to start container: %w", err)
+	}
+
+	printer.Success("Started agent container: %s\n", containerName)
+	return nil
 }

@@ -19,6 +19,7 @@ func TestLoad_ValidConfig(t *testing.T) {
 agents:
   example-agent:
     role: "Example Agent"
+    image: "example-agent:latest"
     command: ["./run.sh"]
 `
 	err := os.WriteFile(configPath, []byte(validConfig), 0644)
@@ -66,6 +67,7 @@ func TestValidate_UnsupportedVersion(t *testing.T) {
 		Agents: map[string]Agent{
 			"test": {
 				Role:    "Test",
+				Image:   "test:latest",
 				Command: []string{"test"},
 			},
 		},
@@ -89,6 +91,7 @@ func TestValidate_NoAgents(t *testing.T) {
 
 func TestAgentValidate_MissingRole(t *testing.T) {
 	agent := Agent{
+		Image:   "test-agent:latest",
 		Command: []string{"./run.sh"},
 	}
 
@@ -97,9 +100,21 @@ func TestAgentValidate_MissingRole(t *testing.T) {
 	assert.Contains(t, err.Error(), "role is required")
 }
 
+func TestAgentValidate_MissingImage(t *testing.T) {
+	agent := Agent{
+		Role:    "Test Agent",
+		Command: []string{"./run.sh"},
+	}
+
+	err := agent.Validate("test-agent")
+	assert.Error(t, err)
+	assert.Contains(t, err.Error(), "image is required")
+}
+
 func TestAgentValidate_MissingCommand(t *testing.T) {
 	agent := Agent{
 		Role:    "Test Agent",
+		Image:   "test-agent:latest",
 		Command: []string{},
 	}
 
@@ -111,6 +126,7 @@ func TestAgentValidate_MissingCommand(t *testing.T) {
 func TestAgentValidate_InvalidBuildContext(t *testing.T) {
 	agent := Agent{
 		Role:    "Test Agent",
+		Image:   "test-agent:latest",
 		Command: []string{"./run.sh"},
 		Build: &BuildConfig{
 			Context: "/nonexistent/path",
@@ -127,6 +143,7 @@ func TestAgentValidate_ValidBuildContext(t *testing.T) {
 
 	agent := Agent{
 		Role:    "Test Agent",
+		Image:   "test-agent:latest",
 		Command: []string{"./run.sh"},
 		Build: &BuildConfig{
 			Context: tmpDir,
@@ -140,6 +157,7 @@ func TestAgentValidate_ValidBuildContext(t *testing.T) {
 func TestAgentValidate_InvalidWorkspaceMode(t *testing.T) {
 	agent := Agent{
 		Role:    "Test Agent",
+		Image:   "test-agent:latest",
 		Command: []string{"./run.sh"},
 		Workspace: &WorkspaceConfig{
 			Mode: "invalid",
@@ -156,6 +174,7 @@ func TestAgentValidate_ValidWorkspaceModes(t *testing.T) {
 	for _, mode := range modes {
 		agent := Agent{
 			Role:    "Test Agent",
+			Image:   "test-agent:latest",
 			Command: []string{"./run.sh"},
 			Workspace: &WorkspaceConfig{
 				Mode: mode,
@@ -170,6 +189,7 @@ func TestAgentValidate_ValidWorkspaceModes(t *testing.T) {
 func TestAgentValidate_InvalidStrategy(t *testing.T) {
 	agent := Agent{
 		Role:     "Test Agent",
+		Image:    "test-agent:latest",
 		Command:  []string{"./run.sh"},
 		Strategy: "invalid_strategy",
 	}
@@ -184,6 +204,7 @@ func TestAgentValidate_ValidStrategies(t *testing.T) {
 	for _, strategy := range strategies {
 		agent := Agent{
 			Role:     "Test Agent",
+			Image:    "test-agent:latest",
 			Command:  []string{"./run.sh"},
 			Strategy: strategy,
 		}
@@ -206,6 +227,7 @@ func TestLoad_ComplexConfig(t *testing.T) {
 agents:
   designer:
     role: "Design Agent"
+    image: "designer-agent:latest"
     command: ["python", "design.py"]
     build:
       context: ` + buildContext + `
@@ -228,6 +250,7 @@ agents:
       execution: "Execute this design"
   coder:
     role: "Code Agent"
+    image: "coder-agent:latest"
     command: ["./code.sh"]
 services:
   redis:

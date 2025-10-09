@@ -506,6 +506,84 @@ func (c *Client) SubscribeClaimEvents(ctx context.Context) (*ClaimSubscription, 
 	}, nil
 }
 
+// RawSubscription represents an active Pub/Sub subscription to a raw channel.
+// Used for subscribing to custom channels like agent-specific event channels.
+// Caller must call Close() when done to clean up resources.
+type RawSubscription struct {
+	messages <-chan string
+	cancel   func()
+	once     sync.Once
+}
+
+// Messages returns the channel of raw message payloads.
+func (s *RawSubscription) Messages() <-chan string {
+	return s.messages
+}
+
+// Close stops the subscription and cleans up resources. Implements io.Closer.
+func (s *RawSubscription) Close() error {
+	s.once.Do(s.cancel)
+	return nil
+}
+
+// SubscribeRawChannel subscribes to a raw Pub/Sub channel for this instance.
+// Returns a RawSubscription that delivers message payloads as strings.
+// Caller must call subscription.Close() when done.
+//
+// This is used for subscribing to custom channels like agent-specific event channels
+// where the message format is known but not typed (e.g., grant notifications).
+func (c *Client) SubscribeRawChannel(ctx context.Context, channel string) (*RawSubscription, error) {
+	pubsub := c.rdb.Subscribe(ctx, channel)
+
+	// Create buffered channel for messages
+	messagesChan := make(chan string, 10)
+
+	// Create cancellation context
+	subCtx, cancelFunc := context.WithCancel(ctx)
+
+	// Start goroutine to process messages
+	go func() {
+		defer close(messagesChan)
+		defer pubsub.Close()
+
+		// Receive channel from pubsub
+		ch := pubsub.Channel()
+
+		for {
+			select {
+			case <-subCtx.Done():
+				return
+			case msg, ok := <-ch:
+				if !ok {
+					return
+				}
+
+				// Send raw payload on messages channel
+				select {
+				case messagesChan <- msg.Payload:
+				case <-subCtx.Done():
+					return
+				}
+			}
+		}
+	}()
+
+	return &RawSubscription{
+		messages: messagesChan,
+		cancel:   cancelFunc,
+	}, nil
+}
+
+// PublishRaw publishes a raw message to a specified Redis Pub/Sub channel.
+// This is used for publishing custom messages like grant notifications to agent-specific channels.
+// The channel name should be a full channel name (not auto-prefixed with instance).
+func (c *Client) PublishRaw(ctx context.Context, channel string, message string) error {
+	if err := c.rdb.Publish(ctx, channel, message).Err(); err != nil {
+		return fmt.Errorf("failed to publish to channel %s: %w", channel, err)
+	}
+	return nil
+}
+
 // IsNotFound returns true if the error is a Redis "key not found" error (redis.Nil).
 // Use this to check if GetArtefact, GetClaim, or GetLatestVersion returned "not found".
 func IsNotFound(err error) bool {

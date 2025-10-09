@@ -52,3 +52,10 @@ func ArtefactEventsChannel(instanceName string) string {
 func ClaimEventsChannel(instanceName string) string {
 	return fmt.Sprintf("sett:%s:claim_events", instanceName)
 }
+
+// AgentEventsChannel returns the agent-specific event channel name.
+// Used by orchestrator to publish grant notifications to individual agents.
+// Pattern: sett:{instance_name}:agent:{agent_name}:events
+func AgentEventsChannel(instanceName, agentName string) string {
+	return fmt.Sprintf("sett:%s:agent:%s:events", instanceName, agentName)
+}

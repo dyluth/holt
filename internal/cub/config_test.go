@@ -9,10 +9,12 @@ func TestLoadConfig_Success(t *testing.T) {
 	// Set up valid environment
 	os.Setenv("SETT_INSTANCE_NAME", "test-instance")
 	os.Setenv("SETT_AGENT_NAME", "test-agent")
+	os.Setenv("SETT_AGENT_ROLE", "coder")
 	os.Setenv("REDIS_URL", "redis://localhost:6379")
 	defer func() {
 		os.Unsetenv("SETT_INSTANCE_NAME")
 		os.Unsetenv("SETT_AGENT_NAME")
+		os.Unsetenv("SETT_AGENT_ROLE")
 		os.Unsetenv("REDIS_URL")
 	}()
 
@@ -29,6 +31,10 @@ func TestLoadConfig_Success(t *testing.T) {
 		t.Errorf("Expected AgentName='test-agent', got '%s'", cfg.AgentName)
 	}
 
+	if cfg.AgentRole != "coder" {
+		t.Errorf("Expected AgentRole='coder', got '%s'", cfg.AgentRole)
+	}
+
 	if cfg.RedisURL != "redis://localhost:6379" {
 		t.Errorf("Expected RedisURL='redis://localhost:6379', got '%s'", cfg.RedisURL)
 	}
@@ -38,9 +44,11 @@ func TestLoadConfig_MissingInstanceName(t *testing.T) {
 	// Set up environment with missing SETT_INSTANCE_NAME
 	os.Unsetenv("SETT_INSTANCE_NAME")
 	os.Setenv("SETT_AGENT_NAME", "test-agent")
+	os.Setenv("SETT_AGENT_ROLE", "coder")
 	os.Setenv("REDIS_URL", "redis://localhost:6379")
 	defer func() {
 		os.Unsetenv("SETT_AGENT_NAME")
+		os.Unsetenv("SETT_AGENT_ROLE")
 		os.Unsetenv("REDIS_URL")
 	}()
 
@@ -59,9 +67,11 @@ func TestLoadConfig_MissingAgentName(t *testing.T) {
 	// Set up environment with missing SETT_AGENT_NAME
 	os.Setenv("SETT_INSTANCE_NAME", "test-instance")
 	os.Unsetenv("SETT_AGENT_NAME")
+	os.Setenv("SETT_AGENT_ROLE", "coder")
 	os.Setenv("REDIS_URL", "redis://localhost:6379")
 	defer func() {
 		os.Unsetenv("SETT_INSTANCE_NAME")
+		os.Unsetenv("SETT_AGENT_ROLE")
 		os.Unsetenv("REDIS_URL")
 	}()
 
@@ -76,14 +86,39 @@ func TestLoadConfig_MissingAgentName(t *testing.T) {
 	}
 }
 
+func TestLoadConfig_MissingAgentRole(t *testing.T) {
+	// Set up environment with missing SETT_AGENT_ROLE
+	os.Setenv("SETT_INSTANCE_NAME", "test-instance")
+	os.Setenv("SETT_AGENT_NAME", "test-agent")
+	os.Unsetenv("SETT_AGENT_ROLE")
+	os.Setenv("REDIS_URL", "redis://localhost:6379")
+	defer func() {
+		os.Unsetenv("SETT_INSTANCE_NAME")
+		os.Unsetenv("SETT_AGENT_NAME")
+		os.Unsetenv("REDIS_URL")
+	}()
+
+	_, err := LoadConfig()
+	if err == nil {
+		t.Fatal("Expected error for missing SETT_AGENT_ROLE, got nil")
+	}
+
+	expected := "SETT_AGENT_ROLE environment variable is required"
+	if err.Error() != expected {
+		t.Errorf("Expected error '%s', got '%s'", expected, err.Error())
+	}
+}
+
 func TestLoadConfig_MissingRedisURL(t *testing.T) {
 	// Set up environment with missing REDIS_URL
 	os.Setenv("SETT_INSTANCE_NAME", "test-instance")
 	os.Setenv("SETT_AGENT_NAME", "test-agent")
+	os.Setenv("SETT_AGENT_ROLE", "coder")
 	os.Unsetenv("REDIS_URL")
 	defer func() {
 		os.Unsetenv("SETT_INSTANCE_NAME")
 		os.Unsetenv("SETT_AGENT_NAME")
+		os.Unsetenv("SETT_AGENT_ROLE")
 	}()
 
 	_, err := LoadConfig()
@@ -101,10 +136,12 @@ func TestLoadConfig_EmptyInstanceName(t *testing.T) {
 	// Set up environment with empty SETT_INSTANCE_NAME
 	os.Setenv("SETT_INSTANCE_NAME", "")
 	os.Setenv("SETT_AGENT_NAME", "test-agent")
+	os.Setenv("SETT_AGENT_ROLE", "coder")
 	os.Setenv("REDIS_URL", "redis://localhost:6379")
 	defer func() {
 		os.Unsetenv("SETT_INSTANCE_NAME")
 		os.Unsetenv("SETT_AGENT_NAME")
+		os.Unsetenv("SETT_AGENT_ROLE")
 		os.Unsetenv("REDIS_URL")
 	}()
 
@@ -123,10 +160,12 @@ func TestLoadConfig_EmptyAgentName(t *testing.T) {
 	// Set up environment with empty SETT_AGENT_NAME
 	os.Setenv("SETT_INSTANCE_NAME", "test-instance")
 	os.Setenv("SETT_AGENT_NAME", "")
+	os.Setenv("SETT_AGENT_ROLE", "coder")
 	os.Setenv("REDIS_URL", "redis://localhost:6379")
 	defer func() {
 		os.Unsetenv("SETT_INSTANCE_NAME")
 		os.Unsetenv("SETT_AGENT_NAME")
+		os.Unsetenv("SETT_AGENT_ROLE")
 		os.Unsetenv("REDIS_URL")
 	}()
 
@@ -141,14 +180,40 @@ func TestLoadConfig_EmptyAgentName(t *testing.T) {
 	}
 }
 
+func TestLoadConfig_EmptyAgentRole(t *testing.T) {
+	// Set up environment with empty SETT_AGENT_ROLE
+	os.Setenv("SETT_INSTANCE_NAME", "test-instance")
+	os.Setenv("SETT_AGENT_NAME", "test-agent")
+	os.Setenv("SETT_AGENT_ROLE", "")
+	os.Setenv("REDIS_URL", "redis://localhost:6379")
+	defer func() {
+		os.Unsetenv("SETT_INSTANCE_NAME")
+		os.Unsetenv("SETT_AGENT_NAME")
+		os.Unsetenv("SETT_AGENT_ROLE")
+		os.Unsetenv("REDIS_URL")
+	}()
+
+	_, err := LoadConfig()
+	if err == nil {
+		t.Fatal("Expected error for empty SETT_AGENT_ROLE, got nil")
+	}
+
+	expected := "SETT_AGENT_ROLE environment variable is required"
+	if err.Error() != expected {
+		t.Errorf("Expected error '%s', got '%s'", expected, err.Error())
+	}
+}
+
 func TestLoadConfig_EmptyRedisURL(t *testing.T) {
 	// Set up environment with empty REDIS_URL
 	os.Setenv("SETT_INSTANCE_NAME", "test-instance")
 	os.Setenv("SETT_AGENT_NAME", "test-agent")
+	os.Setenv("SETT_AGENT_ROLE", "coder")
 	os.Setenv("REDIS_URL", "")
 	defer func() {
 		os.Unsetenv("SETT_INSTANCE_NAME")
 		os.Unsetenv("SETT_AGENT_NAME")
+		os.Unsetenv("SETT_AGENT_ROLE")
 		os.Unsetenv("REDIS_URL")
 	}()
 
@@ -167,6 +232,7 @@ func TestValidate_ValidConfig(t *testing.T) {
 	cfg := &Config{
 		InstanceName: "test-instance",
 		AgentName:    "test-agent",
+		AgentRole:    "coder",
 		RedisURL:     "redis://localhost:6379",
 	}
 
@@ -187,6 +253,7 @@ func TestValidate_InvalidConfig(t *testing.T) {
 			cfg: &Config{
 				InstanceName: "",
 				AgentName:    "test-agent",
+				AgentRole:    "coder",
 				RedisURL:     "redis://localhost:6379",
 			},
 			expectedErr: "SETT_INSTANCE_NAME environment variable is required",
@@ -196,15 +263,27 @@ func TestValidate_InvalidConfig(t *testing.T) {
 			cfg: &Config{
 				InstanceName: "test-instance",
 				AgentName:    "",
+				AgentRole:    "coder",
 				RedisURL:     "redis://localhost:6379",
 			},
 			expectedErr: "SETT_AGENT_NAME environment variable is required",
+		},
+		{
+			name: "empty agent role",
+			cfg: &Config{
+				InstanceName: "test-instance",
+				AgentName:    "test-agent",
+				AgentRole:    "",
+				RedisURL:     "redis://localhost:6379",
+			},
+			expectedErr: "SETT_AGENT_ROLE environment variable is required",
 		},
 		{
 			name: "empty redis URL",
 			cfg: &Config{
 				InstanceName: "test-instance",
 				AgentName:    "test-agent",
+				AgentRole:    "coder",
 				RedisURL:     "",
 			},
 			expectedErr: "REDIS_URL environment variable is required",

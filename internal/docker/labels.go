@@ -14,6 +14,7 @@ const (
 	LabelWorkspacePath = "sett.workspace.path"
 	LabelComponent     = "sett.component"
 	LabelRedisPort     = "sett.redis.port"
+	LabelAgentName     = "sett.agent.name" // M2.2: Agent name label
 )
 
 // BuildLabels creates the standard label set for all Sett resources.
@@ -54,4 +55,9 @@ func RedisContainerName(instanceName string) string {
 // OrchestratorContainerName returns the orchestrator container name for an instance
 func OrchestratorContainerName(instanceName string) string {
 	return fmt.Sprintf("sett-orchestrator-%s", instanceName)
+}
+
+// AgentContainerName returns the agent container name for an instance and agent
+func AgentContainerName(instanceName, agentName string) string {
+	return fmt.Sprintf("sett-agent-%s-%s", instanceName, agentName)
 }

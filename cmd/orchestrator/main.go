@@ -7,6 +7,7 @@ import (
 	"os/signal"
 	"syscall"
 
+	"github.com/dyluth/sett/internal/config"
 	"github.com/dyluth/sett/internal/orchestrator"
 	"github.com/dyluth/sett/pkg/blackboard"
 	"github.com/redis/go-redis/v9"
@@ -44,25 +45,32 @@ func main() {
 		os.Exit(1)
 	}
 
-	fmt.Printf("Orchestrator starting for instance '%s'\n", instanceName)
+	// 5. Load sett.yml configuration from workspace
+	cfg, err := config.Load("/workspace/sett.yml")
+	if err != nil {
+		fmt.Fprintf(os.Stderr, "Error: Failed to load sett.yml: %v\n", err)
+		os.Exit(1)
+	}
 
-	// 5. Create orchestrator engine
-	engine := orchestrator.NewEngine(client, instanceName)
+	fmt.Printf("Orchestrator starting for instance '%s' with %d agents\n", instanceName, len(cfg.Agents))
 
-	// 6. Setup graceful shutdown
+	// 6. Create orchestrator engine with config
+	engine := orchestrator.NewEngine(client, instanceName, cfg)
+
+	// 7. Setup graceful shutdown
 	ctx, cancel := context.WithCancel(context.Background())
 	defer cancel()
 
 	sigCh := make(chan os.Signal, 1)
 	signal.Notify(sigCh, syscall.SIGTERM, syscall.SIGINT)
 
-	// 7. Start orchestrator in goroutine
+	// 8. Start orchestrator in goroutine
 	errCh := make(chan error, 1)
 	go func() {
 		errCh <- engine.Run(ctx)
 	}()
 
-	// 8. Wait for shutdown signal or error
+	// 9. Wait for shutdown signal or error
 	select {
 	case sig := <-sigCh:
 		fmt.Printf("Received signal %v, shutting down gracefully...\n", sig)

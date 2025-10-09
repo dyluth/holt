@@ -1,0 +1,27 @@
+# Example Sett configuration for M2.2 testing
+# Copy this to sett.yml and customize as needed
+
+version: "1.0"
+
+agents:
+  example-agent:
+    role: "Example Agent"
+    image: "example-agent:latest"
+    command: ["/app/run.sh"]
+    workspace:
+      mode: ro  # Read-only workspace (safe for testing)
+    # Optional: Custom environment variables
+    # environment:
+    #   - "DEBUG=true"
+    # Optional: Resource limits
+    # resources:
+    #   limits:
+    #     cpus: "1.0"
+    #     memory: "512MB"
+
+# Optional: Service overrides
+# services:
+#   redis:
+#     image: "redis:7-alpine"
+#   orchestrator:
+#     image: "sett-orchestrator:latest"

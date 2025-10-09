@@ -17,6 +17,7 @@ type SettConfig struct {
 // Agent represents a single agent configuration
 type Agent struct {
 	Role        string            `yaml:"role"`
+	Image       string            `yaml:"image"`         // Required: Docker image name for this agent
 	Build       *BuildConfig      `yaml:"build,omitempty"`
 	Command     []string          `yaml:"command"`
 	Workspace   *WorkspaceConfig  `yaml:"workspace,omitempty"`
@@ -94,6 +95,11 @@ func (a *Agent) Validate(name string) error {
 	// Required: role
 	if a.Role == "" {
 		return fmt.Errorf("agent '%s': role is required", name)
+	}
+
+	// Required: image
+	if a.Image == "" {
+		return fmt.Errorf("agent '%s': image is required", name)
 	}
 
 	// Required: command

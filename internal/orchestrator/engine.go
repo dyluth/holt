@@ -7,6 +7,7 @@ import (
 	"log"
 	"time"
 
+	"github.com/dyluth/sett/internal/config"
 	"github.com/dyluth/sett/pkg/blackboard"
 	"github.com/google/uuid"
 )
@@ -14,17 +15,28 @@ import (
 // Engine is the core orchestrator that watches for artefacts and creates claims.
 // It implements the event-driven coordination logic for Phase 1.
 type Engine struct {
-	client       *blackboard.Client
-	instanceName string
-	healthServer *HealthServer
+	client        *blackboard.Client
+	instanceName  string
+	healthServer  *HealthServer
+	agentRegistry map[string]string // agent_name -> agent_role
 }
 
 // NewEngine creates a new orchestrator engine.
-func NewEngine(client *blackboard.Client, instanceName string) *Engine {
+// Config is required in M2.2+ to build the agent registry for consensus.
+func NewEngine(client *blackboard.Client, instanceName string, cfg *config.SettConfig) *Engine {
+	// Build agent registry from config
+	agentRegistry := make(map[string]string)
+	if cfg != nil {
+		for agentName, agent := range cfg.Agents {
+			agentRegistry[agentName] = agent.Role
+		}
+	}
+
 	return &Engine{
-		client:       client,
-		instanceName: instanceName,
-		healthServer: NewHealthServer(client),
+		client:        client,
+		instanceName:  instanceName,
+		healthServer:  NewHealthServer(client),
+		agentRegistry: agentRegistry,
 	}
 }
 
@@ -134,6 +146,157 @@ func (e *Engine) processArtefact(ctx context.Context, artefact *blackboard.Artef
 		"claim_id":    claimID,
 		"status":      string(claim.Status),
 		"latency_ms":  latencyMs,
+	})
+
+	// M2.2: Wait for consensus and grant claim
+	if len(e.agentRegistry) > 0 {
+		if err := e.waitForConsensusAndGrant(ctx, claim); err != nil {
+			log.Printf("[Orchestrator] Error in consensus/granting for claim %s: %v", claimID, err)
+			// Don't return error - continue processing other artefacts
+		}
+	}
+
+	return nil
+}
+
+// waitForConsensusAndGrant implements the consensus polling and claim granting logic.
+// Polls for bids every 100ms until all known agents have submitted bids (full consensus).
+// Once consensus is reached, grants the claim to the winning agent and publishes notification.
+func (e *Engine) waitForConsensusAndGrant(ctx context.Context, claim *blackboard.Claim) error {
+	log.Printf("[Orchestrator] Waiting for consensus on claim_id=%s", claim.ID)
+
+	expectedBidCount := len(e.agentRegistry)
+	ticker := time.NewTicker(100 * time.Millisecond)
+	defer ticker.Stop()
+
+	consensusStart := time.Now()
+	var lastLogTime time.Time
+
+	for {
+		select {
+		case <-ctx.Done():
+			return fmt.Errorf("context cancelled while waiting for consensus")
+
+		case <-ticker.C:
+			// Poll for bids
+			bids, err := e.client.GetAllBids(ctx, claim.ID)
+			if err != nil {
+				return fmt.Errorf("failed to get bids: %w", err)
+			}
+
+			receivedBidCount := len(bids)
+
+			// Log warning every 10 seconds if still waiting
+			if time.Since(lastLogTime) >= 10*time.Second {
+				waitingFor := e.getAgentsStillToSubmitBids(bids)
+				log.Printf("[Orchestrator] Still waiting for bids from: %v (waited %v)",
+					waitingFor, time.Since(consensusStart).Round(time.Second))
+				lastLogTime = time.Now()
+			}
+
+			// Check if consensus achieved
+			if receivedBidCount == expectedBidCount {
+				consensusDuration := time.Since(consensusStart)
+				log.Printf("[Orchestrator] Consensus achieved for claim_id=%s: received %d/%d bids (took %v)",
+					claim.ID, receivedBidCount, expectedBidCount, consensusDuration.Round(time.Millisecond))
+
+				e.logEvent("consensus_achieved", map[string]interface{}{
+					"claim_id":           claim.ID,
+					"bid_count":          receivedBidCount,
+					"consensus_duration": consensusDuration.Milliseconds(),
+				})
+
+				// Grant claim to winner
+				return e.grantClaim(ctx, claim, bids)
+			}
+		}
+	}
+}
+
+// getAgentsStillToSubmitBids returns a list of agent names that haven't submitted bids yet.
+func (e *Engine) getAgentsStillToSubmitBids(receivedBids map[string]blackboard.BidType) []string {
+	var waiting []string
+	for agentName := range e.agentRegistry {
+		if _, hasBid := receivedBids[agentName]; !hasBid {
+			waiting = append(waiting, agentName)
+		}
+	}
+	return waiting
+}
+
+// grantClaim determines the winning agent and grants them the claim.
+// M2.2 strategy: First agent with "exclusive" bid wins.
+// Updates claim in Redis and publishes grant notification.
+func (e *Engine) grantClaim(ctx context.Context, claim *blackboard.Claim, bids map[string]blackboard.BidType) error {
+	// Find first exclusive bidder (M2.2 simple strategy)
+	var winner string
+	for agentName, bidType := range bids {
+		if bidType == blackboard.BidTypeExclusive {
+			winner = agentName
+			break
+		}
+	}
+
+	if winner == "" {
+		log.Printf("[Orchestrator] No exclusive bids for claim %s, ignoring", claim.ID)
+		e.logEvent("no_exclusive_bids", map[string]interface{}{
+			"claim_id": claim.ID,
+			"bids":     bids,
+		})
+		return nil
+	}
+
+	// Update claim with granted agent
+	claim.GrantedExclusiveAgent = winner
+	// Keep status as pending_review (M2.2 doesn't change status yet)
+
+	if err := e.client.UpdateClaim(ctx, claim); err != nil {
+		return fmt.Errorf("failed to update claim with grant: %w", err)
+	}
+
+	log.Printf("[Orchestrator] Granted claim_id=%s to agent '%s'", claim.ID, winner)
+
+	e.logEvent("claim_granted", map[string]interface{}{
+		"claim_id":   claim.ID,
+		"winner":     winner,
+		"bid_count":  len(bids),
+		"bid_types":  bids,
+	})
+
+	// Publish grant notification to agent's channel
+	if err := e.publishGrantNotification(ctx, winner, claim.ID); err != nil {
+		log.Printf("[Orchestrator] Failed to publish grant notification: %v", err)
+		// Not a fatal error - claim is still granted in Redis
+		return nil
+	}
+
+	return nil
+}
+
+// publishGrantNotification publishes a grant notification to the agent's event channel.
+func (e *Engine) publishGrantNotification(ctx context.Context, agentName, claimID string) error {
+	notification := map[string]string{
+		"event_type": "grant",
+		"claim_id":   claimID,
+	}
+
+	notificationJSON, err := json.Marshal(notification)
+	if err != nil {
+		return fmt.Errorf("failed to marshal grant notification: %w", err)
+	}
+
+	channel := blackboard.AgentEventsChannel(e.instanceName, agentName)
+
+	log.Printf("[Orchestrator] Publishing grant notification to %s: claim_id=%s", channel, claimID)
+
+	if err := e.client.PublishRaw(ctx, channel, string(notificationJSON)); err != nil {
+		return fmt.Errorf("failed to publish grant notification: %w", err)
+	}
+
+	e.logEvent("grant_notification_published", map[string]interface{}{
+		"claim_id":   claimID,
+		"agent_name": agentName,
+		"channel":    channel,
 	})
 
 	return nil

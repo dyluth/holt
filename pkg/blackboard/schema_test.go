@@ -134,6 +134,55 @@ func TestClaimEventsChannel(t *testing.T) {
 	}
 }
 
+// TestAgentEventsChannel tests agent-specific events channel name generation
+func TestAgentEventsChannel(t *testing.T) {
+	instanceName := "default-1"
+	agentName := "go-coder"
+
+	channel := AgentEventsChannel(instanceName, agentName)
+
+	expected := "sett:default-1:agent:go-coder:events"
+	if channel != expected {
+		t.Errorf("AgentEventsChannel() = %q, expected %q", channel, expected)
+	}
+
+	// Verify format
+	if !strings.HasPrefix(channel, "sett:") {
+		t.Error("agent events channel should start with 'sett:'")
+	}
+	if !strings.Contains(channel, ":agent:") {
+		t.Error("agent events channel should contain ':agent:'")
+	}
+	if !strings.HasSuffix(channel, ":events") {
+		t.Error("agent events channel should end with ':events'")
+	}
+}
+
+// TestAgentEventsChannelNamespacing tests that different instances and agents produce unique channels
+func TestAgentEventsChannelNamespacing(t *testing.T) {
+	// Different instances, same agent
+	channel1 := AgentEventsChannel("default-1", "go-coder")
+	channel2 := AgentEventsChannel("default-2", "go-coder")
+	if channel1 == channel2 {
+		t.Error("channels for different instances should be different")
+	}
+
+	// Same instance, different agents
+	channel3 := AgentEventsChannel("default-1", "go-coder")
+	channel4 := AgentEventsChannel("default-1", "reviewer")
+	if channel3 == channel4 {
+		t.Error("channels for different agents should be different")
+	}
+
+	// All should have expected format
+	channels := []string{channel1, channel2, channel3, channel4}
+	for _, ch := range channels {
+		if !strings.HasPrefix(ch, "sett:") || !strings.Contains(ch, ":agent:") || !strings.HasSuffix(ch, ":events") {
+			t.Errorf("channel %q has incorrect format", ch)
+		}
+	}
+}
+
 // TestInstanceNameNamespacing tests that different instance names produce different keys
 func TestInstanceNameNamespacing(t *testing.T) {
 	artefactID := uuid.New().String()

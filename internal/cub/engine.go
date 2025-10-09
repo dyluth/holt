@@ -2,6 +2,7 @@ package cub
 
 import (
 	"context"
+	"encoding/json"
 	"log"
 	"sync"
 	"time"
@@ -80,25 +81,41 @@ func (e *Engine) Start(ctx context.Context) error {
 	return nil
 }
 
-// claimWatcher monitors for new claims and evaluates bidding opportunities.
-// In M2.1, this is a placeholder implementation that logs periodically to demonstrate liveness.
-// Real claim watching and bidding logic will be implemented in M2.2.
+// claimWatcher monitors for new claims and grant notifications.
+// Implements dual-subscription pattern:
+//  1. Subscribes to claim_events - receives all new claims, submits bids
+//  2. Subscribes to agent:{name}:events - receives grant notifications from orchestrator
+//
+// When a claim event is received, the cub always bids "exclusive" (M2.2 hardcoded strategy).
+// When a grant notification is received, the cub validates it and pushes the claim to the work queue.
 //
 // The goroutine runs until the context is cancelled, then exits cleanly.
-// Placeholder behavior: Logs status every 30 seconds.
 func (e *Engine) claimWatcher(ctx context.Context, workQueue chan *blackboard.Claim) {
 	defer e.wg.Done()
 	defer log.Printf("[DEBUG] Claim Watcher exited cleanly")
 
 	log.Printf("[DEBUG] Claim Watcher starting")
 
-	// Create ticker for periodic logging (placeholder work)
-	ticker := time.NewTicker(30 * time.Second)
-	defer ticker.Stop()
+	// Subscribe to claim events
+	claimSub, err := e.bbClient.SubscribeClaimEvents(ctx)
+	if err != nil {
+		log.Printf("[ERROR] Failed to subscribe to claim events: %v", err)
+		return
+	}
+	defer claimSub.Close()
 
-	// Log immediately on startup
-	log.Printf("[DEBUG] Claim Watcher running (placeholder mode)")
+	// Subscribe to agent-specific grant notifications
+	agentChannel := blackboard.AgentEventsChannel(e.config.InstanceName, e.config.AgentName)
+	grantSub, err := e.bbClient.SubscribeRawChannel(ctx, agentChannel)
+	if err != nil {
+		log.Printf("[ERROR] Failed to subscribe to agent events channel: %v", err)
+		return
+	}
+	defer grantSub.Close()
 
+	log.Printf("[INFO] Claim Watcher subscribed to claim_events and %s", agentChannel)
+
+	// Dual-subscription select loop
 	for {
 		select {
 		case <-ctx.Done():
@@ -106,10 +123,97 @@ func (e *Engine) claimWatcher(ctx context.Context, workQueue chan *blackboard.Cl
 			log.Printf("[DEBUG] Claim Watcher received shutdown signal")
 			return
 
-		case <-ticker.C:
-			// Periodic heartbeat log (placeholder work in M2.1)
-			log.Printf("[DEBUG] Claim Watcher running (placeholder mode)")
+		case claim, ok := <-claimSub.Events():
+			if !ok {
+				// Claim events channel closed
+				log.Printf("[WARN] Claim events channel closed")
+				return
+			}
+			// Handle claim event - submit bid
+			e.handleClaimEvent(ctx, claim)
+
+		case grantMsg, ok := <-grantSub.Messages():
+			if !ok {
+				// Grant events channel closed
+				log.Printf("[WARN] Grant events channel closed")
+				return
+			}
+			// Handle grant notification - validate and push to work queue
+			e.handleGrantNotification(ctx, grantMsg, workQueue)
+
+		case err, ok := <-claimSub.Errors():
+			if !ok {
+				log.Printf("[WARN] Claim subscription error channel closed")
+				return
+			}
+			log.Printf("[ERROR] Claim subscription error: %v", err)
+			// Continue processing - errors are non-fatal
 		}
+	}
+}
+
+// handleClaimEvent processes a claim event by submitting an exclusive bid.
+// M2.2 strategy: always bid "exclusive" for all claims (no conditional logic yet).
+func (e *Engine) handleClaimEvent(ctx context.Context, claim *blackboard.Claim) {
+	log.Printf("[INFO] Received claim event: claim_id=%s artefact_id=%s", claim.ID, claim.ArtefactID)
+
+	// M2.2: Always bid exclusive (hardcoded strategy)
+	err := e.bbClient.SetBid(ctx, claim.ID, e.config.AgentName, blackboard.BidTypeExclusive)
+	if err != nil {
+		log.Printf("[ERROR] Failed to submit bid for claim_id=%s: %v", claim.ID, err)
+		// Continue watching - don't crash on bid failure
+		return
+	}
+
+	log.Printf("[INFO] Submitted exclusive bid for claim_id=%s", claim.ID)
+}
+
+// GrantNotification represents the JSON structure of grant notifications.
+type GrantNotification struct {
+	EventType string `json:"event_type"`
+	ClaimID   string `json:"claim_id"`
+}
+
+// handleGrantNotification processes a grant notification from the orchestrator.
+// Validates that the claim is actually granted to this agent, then pushes to work queue.
+func (e *Engine) handleGrantNotification(ctx context.Context, msgPayload string, workQueue chan *blackboard.Claim) {
+	// Parse grant notification JSON
+	var grant GrantNotification
+	if err := json.Unmarshal([]byte(msgPayload), &grant); err != nil {
+		log.Printf("[WARN] Failed to parse grant notification: %v", err)
+		return
+	}
+
+	if grant.EventType != "grant" {
+		log.Printf("[WARN] Unexpected event_type in grant notification: %s", grant.EventType)
+		return
+	}
+
+	log.Printf("[INFO] Received grant notification: claim_id=%s", grant.ClaimID)
+
+	// Fetch full claim from blackboard
+	claim, err := e.bbClient.GetClaim(ctx, grant.ClaimID)
+	if err != nil {
+		log.Printf("[ERROR] Failed to fetch claim %s: %v", grant.ClaimID, err)
+		return
+	}
+
+	// Security check: Verify claim is actually granted to this agent
+	if claim.GrantedExclusiveAgent != e.config.AgentName {
+		log.Printf("[WARN] Grant notification for claim %s not granted to this agent (granted to: %s)",
+			grant.ClaimID, claim.GrantedExclusiveAgent)
+		return
+	}
+
+	log.Printf("[INFO] Grant validated for claim_id=%s, pushing to work queue", grant.ClaimID)
+
+	// Push claim to work queue (buffered channel, may block briefly if queue full)
+	select {
+	case workQueue <- claim:
+		log.Printf("[DEBUG] Claim %s successfully queued for execution", claim.ID)
+	case <-ctx.Done():
+		log.Printf("[DEBUG] Context cancelled while queuing claim %s", claim.ID)
+		return
 	}
 }
 

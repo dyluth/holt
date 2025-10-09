@@ -14,6 +14,9 @@ type Config struct {
 	// AgentName is the logical name of this agent (from SETT_AGENT_NAME)
 	AgentName string
 
+	// AgentRole is the role of this agent (from SETT_AGENT_ROLE)
+	AgentRole string
+
 	// RedisURL is the Redis connection string (from REDIS_URL)
 	RedisURL string
 }
@@ -26,6 +29,7 @@ func LoadConfig() (*Config, error) {
 	cfg := &Config{
 		InstanceName: os.Getenv("SETT_INSTANCE_NAME"),
 		AgentName:    os.Getenv("SETT_AGENT_NAME"),
+		AgentRole:    os.Getenv("SETT_AGENT_ROLE"),
 		RedisURL:     os.Getenv("REDIS_URL"),
 	}
 
@@ -45,6 +49,10 @@ func (c *Config) Validate() error {
 
 	if c.AgentName == "" {
 		return fmt.Errorf("SETT_AGENT_NAME environment variable is required")
+	}
+
+	if c.AgentRole == "" {
+		return fmt.Errorf("SETT_AGENT_ROLE environment variable is required")
 	}
 
 	if c.RedisURL == "" {
