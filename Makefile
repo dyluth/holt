@@ -1,4 +1,4 @@
-.PHONY: help test test-verbose test-integration coverage coverage-html lint build build-orchestrator docker-orchestrator build-all clean install
+.PHONY: help test test-verbose test-integration coverage coverage-html lint build build-orchestrator build-cub docker-orchestrator build-all clean install test-cub
 
 # Use Go 1.24 if available in /usr/local/go, otherwise use system go
 GO := $(shell [ -x /usr/local/go/bin/go ] && echo /usr/local/go/bin/go || echo go)
@@ -10,7 +10,7 @@ help:
 	@echo "Targets:"
 	@echo ""
 	@echo "Common workflows:"
-	@echo "  build-all           - Build everything (CLI + orchestrator image)"
+	@echo "  build-all           - Build everything (CLI + orchestrator + cub)"
 	@echo "  build               - Build the sett CLI binary"
 	@echo "  docker-orchestrator - Build orchestrator Docker image (required for 'sett up')"
 	@echo ""
@@ -18,12 +18,14 @@ help:
 	@echo "  test                - Run all unit tests"
 	@echo "  test-verbose        - Run all unit tests with verbose output"
 	@echo "  test-integration    - Run integration tests (requires Docker)"
+	@echo "  test-cub            - Run cub unit and integration tests"
 	@echo "  coverage            - Run tests and show coverage report"
 	@echo "  coverage-html       - Generate HTML coverage report"
 	@echo "  lint                - Run go vet and staticcheck"
 	@echo ""
 	@echo "Development:"
 	@echo "  build-orchestrator  - Build orchestrator binary (for debugging only)"
+	@echo "  build-cub           - Build agent cub binary"
 	@echo "  install             - Install sett binary to GOPATH/bin"
 	@echo "  clean               - Remove build artifacts"
 
@@ -87,17 +89,32 @@ build-orchestrator:
 	@$(GO) build -o bin/sett-orchestrator ./cmd/orchestrator
 	@echo "✓ Built: bin/sett-orchestrator"
 
+# Build the agent cub binary
+build-cub:
+	@echo "Building agent cub..."
+	@mkdir -p bin
+	@$(GO) build -o bin/sett-cub ./cmd/cub
+	@echo "✓ Built: bin/sett-cub"
+
+# Run cub unit and integration tests
+test-cub:
+	@echo "Running cub tests..."
+	@$(GO) test -v -race ./internal/cub
+	@$(GO) test -v -timeout 60s ./cmd/cub
+	@echo "✓ All cub tests passed"
+
 # Build orchestrator Docker image
 docker-orchestrator:
 	@echo "Building orchestrator Docker image..."
 	@docker build -f Dockerfile.orchestrator -t sett-orchestrator:latest .
 	@echo "✓ Built: sett-orchestrator:latest"
 
-# Build everything (CLI + orchestrator Docker image)
-build-all: build docker-orchestrator
+# Build everything (CLI + orchestrator Docker image + cub)
+build-all: build build-cub docker-orchestrator
 	@echo ""
 	@echo "✓ Build complete!"
 	@echo "  - CLI binary: bin/sett"
+	@echo "  - Cub binary: bin/sett-cub"
 	@echo "  - Orchestrator image: sett-orchestrator:latest"
 	@echo ""
 	@echo "Ready to use: ./bin/sett up"
