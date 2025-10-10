@@ -1,6 +1,7 @@
 package cub
 
 import (
+	"context"
 	"encoding/json"
 	"testing"
 
@@ -9,13 +10,18 @@ import (
 )
 
 // TestPrepareToolInput verifies the tool input JSON structure
+// M2.4: This test verifies empty context_chain for root artefacts (no source_artefacts)
 func TestPrepareToolInput(t *testing.T) {
+	// Note: This is a simplified unit test. Full context assembly is tested in integration tests.
+	// For artefacts with no source_artefacts, context_chain will be empty.
+
 	engine := &Engine{
 		config: &Config{
 			InstanceName: "test-instance",
 			AgentName:    "example-agent",
 			AgentRole:    "example",
 		},
+		bbClient: nil, // Not needed for root artefact (empty source_artefacts)
 	}
 
 	claim := &blackboard.Claim{
@@ -26,16 +32,17 @@ func TestPrepareToolInput(t *testing.T) {
 	}
 
 	targetArtefact := &blackboard.Artefact{
-		ID:             "art-123",
-		LogicalID:      "log-456",
-		Version:        1,
-		StructuralType: blackboard.StructuralTypeStandard,
-		Type:           "GoalDefined",
-		Payload:        "Implement user login",
-		ProducedByRole: "user",
+		ID:              "art-123",
+		LogicalID:       "log-456",
+		Version:         1,
+		StructuralType:  blackboard.StructuralTypeStandard,
+		Type:            "GoalDefined",
+		Payload:         "Implement user login",
+		ProducedByRole:  "user",
+		SourceArtefacts: []string{}, // No sources = root artefact
 	}
 
-	jsonStr, err := engine.prepareToolInput(claim, targetArtefact)
+	jsonStr, err := engine.prepareToolInput(context.Background(), claim, targetArtefact)
 	if err != nil {
 		t.Fatalf("prepareToolInput failed: %v", err)
 	}

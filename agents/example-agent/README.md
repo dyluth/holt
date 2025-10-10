@@ -53,7 +53,7 @@ sett up
 sett logs example-agent
 ```
 
-## Tool Contract (M2.3)
+## Tool Contract (M2.4)
 
 ### Stdin JSON Format
 
@@ -64,17 +64,46 @@ The cub passes this JSON structure to the tool via stdin:
   "claim_type": "exclusive",
   "target_artefact": {
     "id": "uuid",
-    "type": "GoalDefined",
-    "payload": "Implement user login",
+    "type": "CodeCommit",
+    "payload": "abc123def",
     "structural_type": "Standard",
     "version": 1,
     "logical_id": "uuid",
-    "source_artefacts": [],
-    "produced_by_role": "user"
+    "source_artefacts": ["design-uuid"],
+    "produced_by_role": "architect"
   },
-  "context_chain": []
+  "context_chain": [
+    {
+      "id": "goal-uuid",
+      "type": "GoalDefined",
+      "payload": "Build user authentication system",
+      "structural_type": "Standard",
+      "version": 1,
+      "logical_id": "goal-uuid",
+      "source_artefacts": [],
+      "produced_by_role": "user"
+    },
+    {
+      "id": "design-uuid",
+      "type": "DesignSpec",
+      "payload": "REST API with JWT tokens...",
+      "structural_type": "Standard",
+      "version": 1,
+      "logical_id": "design-uuid",
+      "source_artefacts": ["goal-uuid"],
+      "produced_by_role": "architect"
+    }
+  ]
 }
 ```
+
+**Context Chain (M2.4)**:
+- Populated via BFS traversal of artefact dependency graph
+- Contains full artefact objects in chronological order (oldest → newest)
+- Filtered to include only Standard and Answer artefacts
+- Uses thread tracking to ensure latest versions are included
+- Empty array `[]` for root artefacts (no source_artefacts)
+- Provides agents with rich historical context for informed decisions
 
 ### Stdout JSON Format
 
@@ -101,7 +130,30 @@ Optional field: `structural_type` (defaults to "Standard")
 
 The echo agent creates derivatives: each output is a NEW work product derived from the input artefact.
 
-## Expected Behavior (M2.3)
+### Git Commit Validation (M2.4)
+
+For code-generating agents that return `CodeCommit` artefacts:
+
+- The cub validates git commit hashes before creating artefacts
+- Validation uses `git cat-file -e <hash>` to verify commit exists
+- If validation fails, a Failure artefact is created instead
+- Agent scripts should commit code changes before returning the hash
+
+**Recommended commit message format** (not enforced):
+```
+[sett-agent: {agent-role}] {summary}
+
+Claim-ID: {claim-id}
+```
+
+Example:
+```
+[sett-agent: code-generator] Implemented user authentication endpoint
+
+Claim-ID: claim-abc-123
+```
+
+## Expected Behavior (M2.4)
 
 When an artefact is created on the blackboard:
 
@@ -112,11 +164,15 @@ When an artefact is created on the blackboard:
 5. Orchestrator grants claim to agent
 6. Orchestrator publishes grant notification to agent's channel
 7. Agent cub receives grant, validates it, and queues claim for execution
-8. Work executor fetches target artefact, prepares stdin JSON
-9. Work executor runs `/app/run.sh` as subprocess with 5-minute timeout
-10. Work executor reads stdout JSON, creates derivative artefact
-11. New artefact published to artefact_events channel
-12. Orchestrator sees new artefact and creates a new claim (workflow continues)
+8. Work executor fetches target artefact
+9. **Work executor assembles context chain via BFS graph traversal**
+10. Work executor prepares stdin JSON with context_chain
+11. Work executor runs `/app/run.sh` as subprocess with 5-minute timeout
+12. Work executor reads stdout JSON
+13. **For CodeCommit artefacts: validates git commit hash exists**
+14. Work executor creates derivative artefact
+15. New artefact published to artefact_events channel
+16. Orchestrator sees new artefact and creates a new claim (workflow continues)
 
 ## Architecture
 

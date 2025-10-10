@@ -50,8 +50,8 @@ func (e *Engine) executeWork(ctx context.Context, claim *blackboard.Claim) {
 	log.Printf("[INFO] Fetched target artefact: artefact_id=%s type=%s",
 		targetArtefact.ID, targetArtefact.Type)
 
-	// Prepare tool input
-	inputJSON, err := e.prepareToolInput(claim, targetArtefact)
+	// Prepare tool input with context assembly
+	inputJSON, err := e.prepareToolInput(ctx, claim, targetArtefact)
 	if err != nil {
 		log.Printf("[ERROR] Failed to prepare tool input: %v", err)
 		e.createFailureArtefact(ctx, claim, -1, "", "", fmt.Sprintf("Failed to prepare tool input: %v", err))
@@ -115,12 +115,26 @@ func (e *Engine) fetchTargetArtefact(ctx context.Context, claim *blackboard.Clai
 }
 
 // prepareToolInput creates the JSON structure to pass to the tool via stdin.
-// M2.3: Hardcodes claim_type to "exclusive" and context_chain to empty array.
-func (e *Engine) prepareToolInput(claim *blackboard.Claim, targetArtefact *blackboard.Artefact) (string, error) {
+// M2.4: Uses context assembly to populate context_chain with historical artefacts.
+func (e *Engine) prepareToolInput(ctx context.Context, claim *blackboard.Claim, targetArtefact *blackboard.Artefact) (string, error) {
+	// Assemble context chain via BFS traversal with thread tracking
+	contextChain, err := e.assembleContext(ctx, targetArtefact)
+	if err != nil {
+		return "", fmt.Errorf("failed to assemble context: %w", err)
+	}
+
+	log.Printf("[DEBUG] Prepared context chain: %d artefacts", len(contextChain))
+
+	// Convert to []interface{} for JSON marshaling
+	contextChainInterface := make([]interface{}, len(contextChain))
+	for i, art := range contextChain {
+		contextChainInterface[i] = art
+	}
+
 	input := &ToolInput{
-		ClaimType:      "exclusive", // M2.3: hardcoded
+		ClaimType:      "exclusive", // M2.4: still hardcoded (Phase 3 will support review/parallel)
 		TargetArtefact: targetArtefact,
-		ContextChain:   []interface{}{}, // M2.3: hardcoded empty
+		ContextChain:   contextChainInterface,
 	}
 
 	jsonBytes, err := json.Marshal(input)
@@ -253,8 +267,18 @@ func (e *Engine) parseToolOutput(stdout string) (*ToolOutput, error) {
 //   - Version = 1 (first version of this new work)
 //   - source_artefacts = [claim.ArtefactID] (links back to input)
 //
-// This is the critical provenance pattern for M2.3 - all tool outputs are derivatives, not evolutions.
+// M2.4: Validates git commit hashes for CodeCommit artefacts before creating artefact.
 func (e *Engine) createResultArtefact(ctx context.Context, claim *blackboard.Claim, output *ToolOutput) (*blackboard.Artefact, error) {
+	// M2.4: Validate git commit for CodeCommit artefacts
+	if output.ArtefactType == "CodeCommit" {
+		log.Printf("[INFO] Validating git commit: hash=%s", output.ArtefactPayload)
+		if err := validateCommitExists(output.ArtefactPayload); err != nil {
+			return nil, fmt.Errorf("git commit validation failed for hash %s: %w",
+				output.ArtefactPayload, err)
+		}
+		log.Printf("[DEBUG] Git commit validation passed: hash=%s", output.ArtefactPayload)
+	}
+
 	// Generate new UUIDs for the artefact
 	artefactID := uuid.New().String()
 	logicalID := artefactID // Derivative: new logical thread
