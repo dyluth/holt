@@ -1,4 +1,4 @@
-.PHONY: help test test-verbose test-integration coverage coverage-html lint build build-orchestrator build-cub docker-orchestrator build-all clean install test-cub
+.PHONY: help test test-verbose test-integration test-e2e test-all coverage coverage-html lint build build-orchestrator build-cub docker-orchestrator build-all clean install test-cub
 
 # Use Go 1.24 if available in /usr/local/go, otherwise use system go
 GO := $(shell [ -x /usr/local/go/bin/go ] && echo /usr/local/go/bin/go || echo go)
@@ -17,8 +17,10 @@ help:
 	@echo "Testing:"
 	@echo "  test                - Run all unit tests"
 	@echo "  test-verbose        - Run all unit tests with verbose output"
-	@echo "  test-integration    - Run integration tests (requires Docker)"
 	@echo "  test-cub            - Run cub unit and integration tests"
+	@echo "  test-integration    - Run orchestrator integration tests (requires Docker)"
+	@echo "  test-e2e            - Run Phase 2 E2E test suite (requires Docker)"
+	@echo "  test-all            - Run ALL tests (unit + cub + integration + e2e)"
 	@echo "  coverage            - Run tests and show coverage report"
 	@echo "  coverage-html       - Generate HTML coverage report"
 	@echo "  lint                - Run go vet and staticcheck"
@@ -70,10 +72,56 @@ lint:
 		echo "   Install with: $(GO) install honnef.co/go/tools/cmd/staticcheck@latest"; \
 	fi
 
-# Run integration tests (requires Docker)
+# Run orchestrator integration tests (requires Docker)
 test-integration:
-	@echo "Running integration tests..."
+	@echo "Running orchestrator integration tests..."
 	@$(GO) test -v -tags=integration ./cmd/orchestrator
+
+# Run Phase 2 E2E test suite (requires Docker)
+test-e2e:
+	@echo "Running Phase 2 E2E test suite..."
+	@echo "Building example-git-agent Docker image..."
+	@docker build -q -t example-git-agent:latest -f agents/example-git-agent/Dockerfile . > /dev/null
+	@docker build -q -t example-agent:latest -f agents/example-agent/Dockerfile . > /dev/null
+	@echo "Running E2E tests..."
+	@$(GO) test -v -timeout 15m -tags=integration ./cmd/sett/commands/e2e_*
+	@echo "✓ All E2E tests passed"
+
+# Run all tests (unit + cub + integration + e2e)
+test-all:
+	@echo "========================================"
+	@echo "Running COMPLETE Test Suite"
+	@echo "========================================"
+	@echo ""
+	@echo "Phase 1: Unit Tests"
+	@echo "----------------------------------------"
+	@$(GO) test ./...
+	@echo ""
+	@echo "Phase 2: Cub Tests"
+	@echo "----------------------------------------"
+	@$(GO) test -race ./internal/cub
+	@$(GO) test -timeout 60s ./cmd/cub
+	@echo ""
+	@echo "Phase 3: Orchestrator Integration Tests"
+	@echo "----------------------------------------"
+	@$(GO) test -v -tags=integration ./cmd/orchestrator
+	@echo ""
+	@echo "Phase 4: E2E Test Suite"
+	@echo "----------------------------------------"
+	@echo "Building agent Docker images..."
+	@docker build -q -t example-git-agent:latest -f agents/example-git-agent/Dockerfile . > /dev/null || true
+	@docker build -q -t example-agent:latest -f agents/example-agent/Dockerfile . > /dev/null || true
+	@echo "Running E2E tests (this may take 5-10 minutes)..."
+	@$(GO) test -v -timeout 15m -tags=integration ./cmd/sett/commands/e2e_*
+	@echo ""
+	@echo "========================================"
+	@echo "✓ ALL TESTS PASSED"
+	@echo "========================================"
+	@echo "  Unit tests:        ✓"
+	@echo "  Cub tests:         ✓"
+	@echo "  Integration tests: ✓"
+	@echo "  E2E tests:         ✓"
+	@echo ""
 
 # Build the sett binary
 build:
