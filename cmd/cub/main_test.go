@@ -88,13 +88,18 @@ func TestCubLifecycle(t *testing.T) {
 		}
 	}()
 
-	// Give cub time to start
-	time.Sleep(500 * time.Millisecond)
-
-	// Verify health check works
-	resp, err := http.Get("http://localhost:8080/healthz")
-	require.NoError(t, err, "Health check should be accessible")
-	defer resp.Body.Close()
+	// Wait for health check to become available (with retries)
+	var resp *http.Response
+	var healthErr error
+	for i := 0; i < 20; i++ {
+		resp, healthErr = http.Get("http://localhost:8080/healthz")
+		if healthErr == nil {
+			defer resp.Body.Close()
+			break
+		}
+		time.Sleep(100 * time.Millisecond)
+	}
+	require.NoError(t, healthErr, "Health check should be accessible after startup")
 	assert.Equal(t, http.StatusOK, resp.StatusCode, "Health check should return 200")
 
 	// Send SIGTERM to cub process
@@ -253,8 +258,18 @@ func TestCubSIGINT(t *testing.T) {
 	err := cmd.Start()
 	require.NoError(t, err)
 
-	// Give cub time to start
-	time.Sleep(500 * time.Millisecond)
+	// Wait for health check to become available (with retries)
+	var healthResp *http.Response
+	var healthErr error
+	for i := 0; i < 20; i++ {
+		healthResp, healthErr = http.Get("http://localhost:8080/healthz")
+		if healthErr == nil {
+			healthResp.Body.Close()
+			break
+		}
+		time.Sleep(100 * time.Millisecond)
+	}
+	require.NoError(t, healthErr, "Health check should be accessible before sending SIGINT")
 
 	// Send SIGINT (Ctrl+C) to cub process
 	t.Logf("Sending SIGINT to cub process...")
