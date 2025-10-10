@@ -88,31 +88,7 @@ test-e2e:
 	@echo "✓ All E2E tests passed"
 
 # Run all tests (unit + cub + integration + e2e)
-test-all:
-	@echo "========================================"
-	@echo "Running COMPLETE Test Suite"
-	@echo "========================================"
-	@echo ""
-	@echo "Phase 1: Unit Tests"
-	@echo "----------------------------------------"
-	@$(GO) test ./...
-	@echo ""
-	@echo "Phase 2: Cub Tests"
-	@echo "----------------------------------------"
-	@$(GO) test -race ./internal/cub
-	@$(GO) test -timeout 60s ./cmd/cub
-	@echo ""
-	@echo "Phase 3: Orchestrator Integration Tests"
-	@echo "----------------------------------------"
-	@$(GO) test -v -tags=integration ./cmd/orchestrator
-	@echo ""
-	@echo "Phase 4: E2E Test Suite"
-	@echo "----------------------------------------"
-	@echo "Building agent Docker images..."
-	@docker build -q -t example-git-agent:latest -f agents/example-git-agent/Dockerfile . > /dev/null || true
-	@docker build -q -t example-agent:latest -f agents/example-agent/Dockerfile . > /dev/null || true
-	@echo "Running E2E tests (this may take 5-10 minutes)..."
-	@$(GO) test -v -timeout 15m -tags=integration ./cmd/sett/commands/e2e_*
+test-all: test test-cub test-integration test-e2e
 	@echo ""
 	@echo "========================================"
 	@echo "✓ ALL TESTS PASSED"
