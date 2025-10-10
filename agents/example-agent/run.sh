@@ -1,9 +1,23 @@
 #!/bin/sh
-# Example agent run script for M2.2 testing
-# This agent doesn't actually execute work - it just demonstrates the cub architecture
-# In M2.3, real agents will execute tools based on granted claims
+# Example agent tool script for M2.3
+# This is a simple echo agent that demonstrates the stdin/stdout JSON contract
 
-# For M2.2, we just sleep forever to keep the container running
-# The cub will handle claim watching, bidding, and grant reception
-echo "Example agent started (sleep mode for M2.2 testing)"
-sleep infinity
+# Read JSON input from stdin
+input=$(cat)
+
+# Log to stderr (visible in agent logs, not sent to cub)
+echo "Echo agent received claim, processing..." >&2
+echo "Input: $input" >&2
+
+# Generate timestamp for unique payload
+timestamp=$(date +%s)
+
+# Output success JSON to stdout
+# This JSON will be parsed by the cub and converted to an artefact
+cat <<EOF
+{
+  "artefact_type": "EchoSuccess",
+  "artefact_payload": "echo-$timestamp",
+  "summary": "Echo agent successfully processed the claim"
+}
+EOF

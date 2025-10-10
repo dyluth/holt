@@ -11,11 +11,13 @@ func TestLoadConfig_Success(t *testing.T) {
 	os.Setenv("SETT_AGENT_NAME", "test-agent")
 	os.Setenv("SETT_AGENT_ROLE", "coder")
 	os.Setenv("REDIS_URL", "redis://localhost:6379")
+	os.Setenv("SETT_AGENT_COMMAND", `["/app/run.sh"]`)
 	defer func() {
 		os.Unsetenv("SETT_INSTANCE_NAME")
 		os.Unsetenv("SETT_AGENT_NAME")
 		os.Unsetenv("SETT_AGENT_ROLE")
 		os.Unsetenv("REDIS_URL")
+		os.Unsetenv("SETT_AGENT_COMMAND")
 	}()
 
 	cfg, err := LoadConfig()
@@ -37,6 +39,10 @@ func TestLoadConfig_Success(t *testing.T) {
 
 	if cfg.RedisURL != "redis://localhost:6379" {
 		t.Errorf("Expected RedisURL='redis://localhost:6379', got '%s'", cfg.RedisURL)
+	}
+
+	if len(cfg.Command) != 1 || cfg.Command[0] != "/app/run.sh" {
+		t.Errorf("Expected Command=['/app/run.sh'], got %v", cfg.Command)
 	}
 }
 
@@ -234,6 +240,7 @@ func TestValidate_ValidConfig(t *testing.T) {
 		AgentName:    "test-agent",
 		AgentRole:    "coder",
 		RedisURL:     "redis://localhost:6379",
+		Command:      []string{"/app/run.sh"},
 	}
 
 	err := cfg.Validate()

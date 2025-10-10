@@ -39,6 +39,8 @@ func TestCubLifecycle(t *testing.T) {
 	env := []string{
 		"SETT_INSTANCE_NAME=test-instance",
 		"SETT_AGENT_NAME=test-agent",
+		"SETT_AGENT_ROLE=test-role",
+		`SETT_AGENT_COMMAND=["/bin/sh", "-c", "echo test"]`,
 		"REDIS_URL=redis://" + mr.Addr(),
 	}
 
@@ -236,6 +238,8 @@ func TestCubSIGINT(t *testing.T) {
 	env := []string{
 		"SETT_INSTANCE_NAME=test-instance",
 		"SETT_AGENT_NAME=test-agent",
+		"SETT_AGENT_ROLE=test-role",
+		`SETT_AGENT_COMMAND=["/bin/sh", "-c", "echo test"]`,
 		"REDIS_URL=redis://" + mr.Addr(),
 	}
 

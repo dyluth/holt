@@ -5,7 +5,6 @@ import (
 	"encoding/json"
 	"log"
 	"sync"
-	"time"
 
 	"github.com/dyluth/sett/pkg/blackboard"
 )
@@ -218,26 +217,18 @@ func (e *Engine) handleGrantNotification(ctx context.Context, msgPayload string,
 }
 
 // workExecutor receives granted claims from the work queue and executes them.
-// In M2.1, this is a placeholder implementation that logs periodically to demonstrate liveness.
-// Real work execution logic will be implemented in M2.3.
+// M2.3: Executes agent tools via subprocess, creates result artefacts.
 //
 // The goroutine runs until:
 //   - The context is cancelled (shutdown signal)
 //   - The work queue channel is closed (no more work will arrive)
 //
-// Placeholder behavior: Logs status every 30 seconds.
+// Work execution never crashes - all errors create Failure artefacts and continue processing.
 func (e *Engine) workExecutor(ctx context.Context, workQueue chan *blackboard.Claim) {
 	defer e.wg.Done()
 	defer log.Printf("[DEBUG] Work Executor exited cleanly")
 
 	log.Printf("[DEBUG] Work Executor starting")
-
-	// Create ticker for periodic logging (placeholder work)
-	ticker := time.NewTicker(30 * time.Second)
-	defer ticker.Stop()
-
-	// Log immediately on startup
-	log.Printf("[DEBUG] Work Executor ready (placeholder mode)")
 
 	for {
 		select {
@@ -253,13 +244,9 @@ func (e *Engine) workExecutor(ctx context.Context, workQueue chan *blackboard.Cl
 				return
 			}
 
-			// Placeholder work: In M2.3, this will execute the agent tool
-			// For now, just log that we received a claim (won't happen in M2.1)
-			log.Printf("[DEBUG] Work Executor received claim: %s (placeholder mode)", claim.ID)
-
-		case <-ticker.C:
-			// Periodic heartbeat log (placeholder work in M2.1)
-			log.Printf("[DEBUG] Work Executor ready (placeholder mode)")
+			// Execute work for this claim
+			// Note: executeWork handles all errors internally and never panics
+			e.executeWork(ctx, claim)
 		}
 	}
 }

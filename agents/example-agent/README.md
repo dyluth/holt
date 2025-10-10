@@ -1,19 +1,19 @@
 # Example Agent
 
-A minimal Sett agent for testing M2.2: Claim Watching & Bidding.
+A minimal Sett agent for testing M2.3: Work Execution & Tool Contract.
 
 ## Purpose
 
-This agent demonstrates the basic agent cub architecture without implementing actual work execution. It's used for testing the claim-bid-grant cycle in M2.2.
+This agent demonstrates the complete agent cub architecture including tool execution via stdin/stdout JSON contract. It's a simple "echo" agent that processes claims and creates result artefacts.
 
 ## What It Does
 
 - **Watches for claims** via the claim_events Pub/Sub channel
-- **Submits exclusive bids** for all claims (hardcoded M2.2 strategy)
+- **Submits exclusive bids** for all claims (hardcoded M2.3 strategy)
 - **Receives grant notifications** via its agent-specific event channel
-- **Pushes granted claims to work queue** (but doesn't execute them)
-
-The work executor simply sleeps - real tool execution will be implemented in M2.3.
+- **Executes tool subprocess** (`run.sh`) with JSON input on stdin
+- **Parses tool output** from stdout and creates artefacts
+- **Creates derivative artefacts** with proper provenance (new logical threads)
 
 ## Building
 
@@ -53,7 +53,55 @@ sett up
 sett logs example-agent
 ```
 
-## Expected Behavior (M2.2)
+## Tool Contract (M2.3)
+
+### Stdin JSON Format
+
+The cub passes this JSON structure to the tool via stdin:
+
+```json
+{
+  "claim_type": "exclusive",
+  "target_artefact": {
+    "id": "uuid",
+    "type": "GoalDefined",
+    "payload": "Implement user login",
+    "structural_type": "Standard",
+    "version": 1,
+    "logical_id": "uuid",
+    "source_artefacts": [],
+    "produced_by_role": "user"
+  },
+  "context_chain": []
+}
+```
+
+### Stdout JSON Format
+
+The tool must output exactly ONE JSON object to stdout:
+
+```json
+{
+  "artefact_type": "EchoSuccess",
+  "artefact_payload": "echo-1728579580",
+  "summary": "Echo agent successfully processed the claim"
+}
+```
+
+Optional field: `structural_type` (defaults to "Standard")
+
+### Derivative Relationships
+
+**CRITICAL CONCEPT**: When an agent executes work, it creates a **derivative artefact**, not an evolutionary version.
+
+- **Derivative** (M2.3 pattern): New logical_id, version=1, source_artefacts=[input]
+  - Example: GoalDefined → EchoSuccess (different work products)
+- **Evolutionary** (future): Same logical_id, incremented version
+  - Example: Design v1 → Design v2 (same work, evolved)
+
+The echo agent creates derivatives: each output is a NEW work product derived from the input artefact.
+
+## Expected Behavior (M2.3)
 
 When an artefact is created on the blackboard:
 
@@ -63,8 +111,12 @@ When an artefact is created on the blackboard:
 4. Orchestrator waits for consensus (all agents bid)
 5. Orchestrator grants claim to agent
 6. Orchestrator publishes grant notification to agent's channel
-7. Agent cub receives grant, validates it, and logs it
-8. Work executor receives claim on queue but just logs it (no execution in M2.2)
+7. Agent cub receives grant, validates it, and queues claim for execution
+8. Work executor fetches target artefact, prepares stdin JSON
+9. Work executor runs `/app/run.sh` as subprocess with 5-minute timeout
+10. Work executor reads stdout JSON, creates derivative artefact
+11. New artefact published to artefact_events channel
+12. Orchestrator sees new artefact and creates a new claim (workflow continues)
 
 ## Architecture
 
@@ -78,19 +130,28 @@ When an artefact is created on the blackboard:
 │  │  │  - Subscribe claim_events│  │  │
 │  │  │  - Subscribe agent:events│  │  │
 │  │  │  - Submit bids           │  │  │
-│  │  │  - Handle grants         │  │  │
+│  │  │  - Queue granted claims  │  │  │
 │  │  └──────────────────────────┘  │  │
 │  │  ┌──────────────────────────┐  │  │
-│  │  │  Work Executor (stubbed) │  │  │
-│  │  │  - Logs received claims  │  │  │
+│  │  │  Work Executor           │  │  │
+│  │  │  - Fetch target artefact │  │  │
+│  │  │  - Prepare stdin JSON    │  │  │
+│  │  │  - Execute subprocess    │  │  │
+│  │  │  - Parse stdout JSON     │  │  │
+│  │  │  - Create artefact       │  │  │
 │  │  └──────────────────────────┘  │  │
 │  └────────────────────────────────┘  │
 │  ┌────────────────────────────────┐  │
-│  │  run.sh (sleep infinity)       │  │
+│  │  run.sh (echo tool)            │  │
+│  │  - Read stdin JSON             │  │
+│  │  - Output stdout JSON          │  │
+│  └────────────────────────────────┘  │
+│  ┌────────────────────────────────┐  │
+│  │  /workspace (mounted Git repo) │  │
 │  └────────────────────────────────┘  │
 └──────────────────────────────────────┘
 ```
 
 ## Development
 
-This is a test agent for M2.2. For real agents, replace `run.sh` with actual tool execution logic in M2.3.
+This is a minimal echo agent for M2.3. For real agents, replace `run.sh` with actual tool logic (LLM calls, code analysis, etc.).

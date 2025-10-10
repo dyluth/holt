@@ -1,6 +1,7 @@
 package cub
 
 import (
+	"encoding/json"
 	"fmt"
 	"os"
 )
@@ -19,6 +20,10 @@ type Config struct {
 
 	// RedisURL is the Redis connection string (from REDIS_URL)
 	RedisURL string
+
+	// Command is the command array to execute for agent tools (from SETT_AGENT_COMMAND)
+	// Expected format: JSON array like ["/app/run.sh"] or ["/usr/bin/python3", "agent.py"]
+	Command []string
 }
 
 // LoadConfig reads and validates configuration from environment variables.
@@ -31,6 +36,14 @@ func LoadConfig() (*Config, error) {
 		AgentName:    os.Getenv("SETT_AGENT_NAME"),
 		AgentRole:    os.Getenv("SETT_AGENT_ROLE"),
 		RedisURL:     os.Getenv("REDIS_URL"),
+	}
+
+	// Parse command array from JSON
+	commandJSON := os.Getenv("SETT_AGENT_COMMAND")
+	if commandJSON != "" {
+		if err := json.Unmarshal([]byte(commandJSON), &cfg.Command); err != nil {
+			return nil, fmt.Errorf("failed to parse SETT_AGENT_COMMAND as JSON array: %w", err)
+		}
 	}
 
 	if err := cfg.Validate(); err != nil {
@@ -57,6 +70,10 @@ func (c *Config) Validate() error {
 
 	if c.RedisURL == "" {
 		return fmt.Errorf("REDIS_URL environment variable is required")
+	}
+
+	if len(c.Command) == 0 {
+		return fmt.Errorf("SETT_AGENT_COMMAND environment variable is required (must be a non-empty JSON array)")
 	}
 
 	return nil
