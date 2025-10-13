@@ -25,13 +25,21 @@ func TestPerformance_Startup(t *testing.T) {
 
 	t.Log("=== Performance Test: Startup ===")
 
-	// Setup environment
-	env := testutil.SetupE2EEnvironment(t, testutil.DefaultSettYML())
+	// Setup environment (need at least one agent for config validation)
+	env := testutil.SetupE2EEnvironment(t, testutil.EchoAgentSettYML())
 	defer func() {
 		downCmd := &cobra.Command{}
 		downInstanceName = env.InstanceName
 		_ = runDown(downCmd, []string{})
 	}()
+
+	// Build echo agent image for config validation
+	buildCmd := exec.Command("docker", "build",
+		"-t", "example-agent:latest",
+		"-f", "agents/example-agent/Dockerfile",
+		".")
+	buildCmd.Dir = testutil.GetProjectRoot()
+	buildCmd.Run() // Ignore errors if already built
 
 	// Measure sett up duration
 	t.Log("Measuring sett up duration...")
@@ -67,8 +75,6 @@ func TestPerformance_ClaimToExecution(t *testing.T) {
 	if testing.Short() {
 		t.Skip("Skipping performance test in short mode")
 	}
-
-	ctx := context.Background()
 
 	t.Log("=== Performance Test: Claim-to-Execution Latency ===")
 
@@ -142,13 +148,21 @@ func TestPerformance_ContextAssembly(t *testing.T) {
 
 	t.Log("=== Performance Test: Context Assembly ===")
 
-	// Setup environment
-	env := testutil.SetupE2EEnvironment(t, testutil.DefaultSettYML())
+	// Setup environment (need at least one agent for config validation)
+	env := testutil.SetupE2EEnvironment(t, testutil.EchoAgentSettYML())
 	defer func() {
 		downCmd := &cobra.Command{}
 		downInstanceName = env.InstanceName
 		_ = runDown(downCmd, []string{})
 	}()
+
+	// Build echo agent image for config validation
+	buildCmd := exec.Command("docker", "build",
+		"-t", "example-agent:latest",
+		"-f", "agents/example-agent/Dockerfile",
+		".")
+	buildCmd.Dir = testutil.GetProjectRoot()
+	buildCmd.Run() // Ignore errors if already built
 
 	// Start instance
 	upCmd := &cobra.Command{}

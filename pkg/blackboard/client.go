@@ -49,6 +49,12 @@ func (c *Client) Ping(ctx context.Context) error {
 	return c.rdb.Ping(ctx).Err()
 }
 
+// RedisClient returns the underlying Redis client for advanced operations.
+// This is primarily for testing purposes. Use the Client methods when possible.
+func (c *Client) RedisClient() *redis.Client {
+	return c.rdb
+}
+
 // CreateArtefact writes an artefact to Redis and publishes an event.
 // Validates the artefact before writing. Returns error if validation fails or Redis operation fails.
 // Publishes full artefact JSON to sett:{instance}:artefact_events after successful write.

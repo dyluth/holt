@@ -84,7 +84,7 @@ test-e2e:
 	@docker build -q -t example-git-agent:latest -f agents/example-git-agent/Dockerfile . > /dev/null
 	@docker build -q -t example-agent:latest -f agents/example-agent/Dockerfile . > /dev/null
 	@echo "Running E2E tests..."
-	@$(GO) test -v -timeout 15m -tags=integration ./cmd/sett/commands/e2e_*
+	@$(GO) test -v -timeout 15m -tags=integration -run="TestE2E|TestPerformance" ./cmd/sett/commands
 	@echo "✓ All E2E tests passed"
 
 # Run all tests (unit + cub + integration + e2e)
