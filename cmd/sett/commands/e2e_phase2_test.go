@@ -134,8 +134,8 @@ func TestE2E_Phase2_HappyPath(t *testing.T) {
 	t.Log("Step 9: Verifying audit trail...")
 	// CodeCommit should reference GoalDefined in source_artefacts
 	// (This is implicit in the agent's behavior, but we can verify via context chain)
-	require.Equal(t, "Standard", goalArtefact.StructuralType)
-	require.Equal(t, "Standard", codeCommitArtefact.StructuralType)
+	require.Equal(t, "Standard", string(goalArtefact.StructuralType))
+	require.Equal(t, "Standard", string(codeCommitArtefact.StructuralType))
 	t.Log("✓ Audit trail: GoalDefined → CodeCommit")
 
 	t.Log("=== Phase 2 Happy Path Test Complete ===")
@@ -219,14 +219,12 @@ func TestE2E_Phase2_MultipleWorkflows(t *testing.T) {
 	var commit2 *testutil.ArtefactResult
 	for i := 0; i < 60; i++ {
 		pattern := fmt.Sprintf("sett:%s:artefact:*", env.InstanceName)
-		iter := env.BBClient.Client.Scan(ctx, 0, pattern, 0).Iterator()
+		iter := env.BBClient.RedisClient().Scan(ctx, 0, pattern, 0).Iterator()
 
-		latestCodeCommit := ""
 		for iter.Next(ctx) {
 			key := iter.Val()
-			data, _ := env.BBClient.Client.HGetAll(ctx, key).Result()
+			data, _ := env.BBClient.RedisClient().HGetAll(ctx, key).Result()
 			if data["type"] == "CodeCommit" && data["payload"] != commit1.Payload {
-				latestCodeCommit = data["payload"]
 				commit2 = &testutil.ArtefactResult{
 					ID:      data["id"],
 					Type:    data["type"],
