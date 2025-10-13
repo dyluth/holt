@@ -9,7 +9,6 @@ import (
 	"testing"
 	"time"
 
-	"github.com/docker/docker/client"
 	"github.com/dyluth/sett/internal/testutil"
 	"github.com/spf13/cobra"
 	"github.com/stretchr/testify/require"
@@ -23,39 +22,30 @@ func TestE2E_DirtyGitWorkspace(t *testing.T) {
 
 	t.Log("=== Dirty Git Workspace Test ===")
 
-	// Setup environment
+	// Setup environment (this creates sett.yml and git repo)
 	env := testutil.SetupE2EEnvironment(t, testutil.DefaultSettYML())
+	t.Log("✓ Environment setup complete")
 
 	// Create uncommitted file to make workspace dirty
 	env.CreateDirtyWorkspace()
 	t.Log("✓ Created uncommitted file (workspace is dirty)")
 
-	// Attempt to run sett up
-	t.Log("Attempting sett up with dirty workspace...")
-	upCmd := &cobra.Command{}
-	upInstanceName = env.InstanceName
-	upForce = false
+	// Attempt to run sett forage (which checks for clean workspace)
+	t.Log("Attempting sett forage with dirty workspace...")
+	forageCmd := &cobra.Command{}
+	forageInstanceName = env.InstanceName
+	forageWatch = false
+	forageGoal = "test goal"
 
-	err := runUp(upCmd, []string{})
+	err := runForage(forageCmd, []string{})
 
 	// Should fail
-	require.Error(t, err, "sett up should fail with dirty workspace")
+	require.Error(t, err, "sett forage should fail with dirty workspace")
 	require.Contains(t, err.Error(), "Git workspace is not clean", "Error message should mention dirty workspace")
-	t.Logf("✓ sett up failed with expected error: %v", err)
-
-	// Verify no containers were launched
-	containers, err := env.DockerClient.ContainerList(context.Background(), client.ListContainersOptions{All: true})
-	require.NoError(t, err)
-
-	for _, container := range containers {
-		for _, name := range container.Names {
-			require.NotContains(t, name, env.InstanceName, "No containers should be created for this instance")
-		}
-	}
-	t.Log("✓ No containers launched (as expected)")
+	t.Logf("✓ sett forage failed with expected error: %v", err)
 
 	t.Log("=== Dirty Git Workspace Test Complete ===")
-	t.Log("✓ Guardrail validated: sett up rejects dirty workspace")
+	t.Log("✓ Guardrail validated: sett forage rejects dirty workspace")
 	t.Log("✓ Error message is clear and actionable")
 }
 
@@ -113,6 +103,23 @@ services:
 	err := runUp(upCmd, []string{})
 	require.NoError(t, err, "sett up should succeed")
 
+	// DEBUG: Check orchestrator container status immediately
+	t.Log("Checking orchestrator container status...")
+	orchestratorName := fmt.Sprintf("sett-orchestrator-%s", env.InstanceName)
+	inspectCmd := exec.Command("docker", "inspect", "--format", "{{.State.Status}} {{.State.ExitCode}}", orchestratorName)
+	if output, err := inspectCmd.CombinedOutput(); err == nil {
+		t.Logf("Orchestrator status: %s", string(output))
+	}
+
+	// Get orchestrator logs immediately
+	t.Log("--- Orchestrator Logs (first 50 lines) ---")
+	logsCmd := exec.Command("docker", "logs", "--tail", "50", orchestratorName)
+	if output, err := logsCmd.CombinedOutput(); err == nil {
+		t.Logf("%s", string(output))
+	} else {
+		t.Logf("Failed to get orchestrator logs: %v", err)
+	}
+
 	env.WaitForContainer("orchestrator")
 	env.WaitForContainer("agent-failing-agent")
 	env.InitializeBlackboardClient()
@@ -129,12 +136,56 @@ services:
 	require.NoError(t, err)
 	t.Log("✓ Goal submitted")
 
-	// Wait for Failure artefact
-	t.Log("Waiting for Failure artefact...")
-	failureArtefact := env.WaitForArtefactByType("Failure")
-	require.NotNil(t, failureArtefact, "Failure artefact should be created")
-	require.NotEmpty(t, failureArtefact.Payload, "Failure artefact should have error details")
-	require.Equal(t, "Failure", failureArtefact.StructuralType)
+	// Wait for ToolExecutionFailure artefact
+	t.Log("Waiting for ToolExecutionFailure artefact...")
+
+	// Wait with timeout, then dump logs if failed
+	failureArtefact := env.WaitForArtefactByType("ToolExecutionFailure")
+
+	// If we didn't get the artefact, dump logs for debugging
+	if failureArtefact == nil {
+		t.Log("=== DEBUGGING: Failure artefact not found, dumping logs ===")
+
+		// Dump orchestrator logs using docker logs
+		t.Log("--- Orchestrator Logs ---")
+		orchestratorName := fmt.Sprintf("sett-orchestrator-%s", env.InstanceName)
+		logsCmd := exec.Command("docker", "logs", "--tail", "100", orchestratorName)
+		if output, err := logsCmd.CombinedOutput(); err == nil {
+			t.Logf("%s", string(output))
+		}
+
+		// Dump agent logs
+		t.Log("--- Agent Logs ---")
+		agentName := fmt.Sprintf("sett-agent-%s-failing-agent", env.InstanceName)
+		agentLogsCmd := exec.Command("docker", "logs", "--tail", "100", agentName)
+		if output, err := agentLogsCmd.CombinedOutput(); err == nil {
+			t.Logf("%s", string(output))
+		}
+
+		// Check what artefacts DO exist
+		t.Log("--- Existing Artefacts ---")
+		pattern := fmt.Sprintf("sett:%s:artefact:*", env.InstanceName)
+		iter := env.BBClient.RedisClient().Scan(ctx, 0, pattern, 0).Iterator()
+		for iter.Next(ctx) {
+			key := iter.Val()
+			data, _ := env.BBClient.RedisClient().HGetAll(ctx, key).Result()
+			t.Logf("Artefact: type=%s id=%s", data["type"], data["id"])
+		}
+
+		// Check claims
+		t.Log("--- Existing Claims ---")
+		claimPattern := fmt.Sprintf("sett:%s:claim:*", env.InstanceName)
+		claimIter := env.BBClient.RedisClient().Scan(ctx, 0, claimPattern, 0).Iterator()
+		for claimIter.Next(ctx) {
+			key := claimIter.Val()
+			data, _ := env.BBClient.RedisClient().HGetAll(ctx, key).Result()
+			t.Logf("Claim: id=%s status=%s artefact_id=%s", data["id"], data["status"], data["artefact_id"])
+		}
+	}
+
+	require.NotNil(t, failureArtefact, "ToolExecutionFailure artefact should be created")
+	require.NotEmpty(t, failureArtefact.Payload, "ToolExecutionFailure artefact should have error details")
+	require.Equal(t, "Failure", string(failureArtefact.StructuralType))
 	t.Logf("✓ Failure artefact created: id=%s", failureArtefact.ID)
 	t.Logf("  Error details: %s", failureArtefact.Payload)
 
@@ -144,7 +195,7 @@ services:
 
 	// Count artefacts - should only have GoalDefined and Failure
 	pattern := fmt.Sprintf("sett:%s:artefact:*", env.InstanceName)
-	iter := env.BBClient.Client.Scan(ctx, 0, pattern, 0).Iterator()
+	iter := env.BBClient.RedisClient().Scan(ctx, 0, pattern, 0).Iterator()
 
 	artefactCount := 0
 	for iter.Next(ctx) {
@@ -228,12 +279,12 @@ services:
 	require.NoError(t, err)
 	t.Log("✓ Goal submitted")
 
-	// Wait for Failure artefact
-	t.Log("Waiting for Failure artefact...")
-	failureArtefact := env.WaitForArtefactByType("Failure")
+	// Wait for ToolExecutionFailure artefact
+	t.Log("Waiting for ToolExecutionFailure artefact...")
+	failureArtefact := env.WaitForArtefactByType("ToolExecutionFailure")
 	require.NotNil(t, failureArtefact)
 	require.NotEmpty(t, failureArtefact.Payload)
-	require.Equal(t, "Failure", failureArtefact.StructuralType)
+	require.Equal(t, "Failure", string(failureArtefact.StructuralType))
 
 	// Verify error message mentions JSON parsing
 	require.Contains(t, failureArtefact.Payload, "JSON", "Error should mention JSON parsing failure")
@@ -244,7 +295,7 @@ services:
 	time.Sleep(3 * time.Second)
 
 	pattern := fmt.Sprintf("sett:%s:artefact:*", env.InstanceName)
-	iter := env.BBClient.Client.Scan(ctx, 0, pattern, 0).Iterator()
+	iter := env.BBClient.RedisClient().Scan(ctx, 0, pattern, 0).Iterator()
 
 	artefactCount := 0
 	for iter.Next(ctx) {

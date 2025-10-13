@@ -96,11 +96,20 @@ func (e *Engine) Run(ctx context.Context) error {
 }
 
 // processArtefact handles a single artefact event.
-// Creates a claim if appropriate, or skips if Terminal type.
+// Creates a claim if appropriate, or skips if Terminal or Failure type.
 func (e *Engine) processArtefact(ctx context.Context, artefact *blackboard.Artefact) error {
 	// Check if this is a Terminal artefact
 	if artefact.StructuralType == blackboard.StructuralTypeTerminal {
 		e.logEvent("terminal_skipped", map[string]interface{}{
+			"artefact_id": artefact.ID,
+			"type":        artefact.Type,
+		})
+		return nil
+	}
+
+	// Check if this is a Failure artefact (terminates workflow)
+	if artefact.StructuralType == blackboard.StructuralTypeFailure {
+		e.logEvent("failure_skipped", map[string]interface{}{
 			"artefact_id": artefact.ID,
 			"type":        artefact.Type,
 		})
