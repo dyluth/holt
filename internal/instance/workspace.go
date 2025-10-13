@@ -3,6 +3,7 @@ package instance
 import (
 	"context"
 	"fmt"
+	"os"
 	"os/exec"
 	"path/filepath"
 	"strings"
@@ -15,6 +16,7 @@ import (
 
 // GetCanonicalWorkspacePath gets the absolute, canonical workspace path from the Git repository.
 // This path is used for workspace collision detection.
+// In Docker-in-Docker scenarios, this automatically translates container paths to host paths.
 func GetCanonicalWorkspacePath() (string, error) {
 	// Get Git root
 	cmd := exec.Command("git", "rev-parse", "--show-toplevel")
@@ -37,7 +39,67 @@ func GetCanonicalWorkspacePath() (string, error) {
 		return "", fmt.Errorf("failed to get absolute path: %w", err)
 	}
 
+	// Docker-in-Docker translation: if we're in a container and the path is under /app,
+	// translate to the host path for Docker bind mounts
+	absPath = translateContainerPathToHost(absPath)
+
 	return absPath, nil
+}
+
+// translateContainerPathToHost translates container paths to host paths for Docker-in-Docker scenarios.
+// If the path starts with /app and we're running in Docker, it translates /app to the host mount source.
+func translateContainerPathToHost(containerPath string) string {
+	// Only translate if path starts with /app
+	if !strings.HasPrefix(containerPath, "/app") {
+		return containerPath
+	}
+
+	// Check if we're in Docker (Docker-in-Docker scenario)
+	if _, err := os.Stat("/.dockerenv"); err != nil {
+		// Not in Docker, no translation needed
+		return containerPath
+	}
+
+	// Try to detect the host path that /app maps to
+	hostPath := detectHostPathForAppMount()
+	if hostPath == "" {
+		// Detection failed, return original path
+		return containerPath
+	}
+
+	// Replace /app with host path
+	return filepath.Join(hostPath, containerPath[len("/app"):])
+}
+
+// detectHostPathForAppMount tries to find the host path that /app is mounted from
+func detectHostPathForAppMount() string {
+	// Try to get our container hostname
+	hostname, err := os.Hostname()
+	if err != nil {
+		return ""
+	}
+
+	// Create Docker client
+	cli, err := client.NewClientWithOpts(client.FromEnv, client.WithAPIVersionNegotiation())
+	if err != nil {
+		return ""
+	}
+	defer cli.Close()
+
+	// Inspect our own container
+	inspect, err := cli.ContainerInspect(context.Background(), hostname)
+	if err != nil {
+		return ""
+	}
+
+	// Look for /app mount
+	for _, mount := range inspect.Mounts {
+		if mount.Destination == "/app" {
+			return mount.Source
+		}
+	}
+
+	return ""
 }
 
 // WorkspaceCollision represents a workspace collision with another instance

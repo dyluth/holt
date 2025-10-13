@@ -75,4 +75,4 @@ dump.rdb
 appendonly.aof
 
 # Makefile artifacts
-.make/
+.make/.test-workspaces/

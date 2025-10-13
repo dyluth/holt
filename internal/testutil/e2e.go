@@ -12,6 +12,7 @@ import (
 	"testing"
 	"time"
 
+	"github.com/docker/docker/api/types/container"
 	"github.com/docker/docker/client"
 	"github.com/dyluth/sett/internal/instance"
 	"github.com/dyluth/sett/pkg/blackboard"
@@ -29,7 +30,8 @@ type ArtefactResult struct {
 // E2EEnvironment represents an isolated E2E test environment
 type E2EEnvironment struct {
 	T            *testing.T
-	TmpDir       string
+	TmpDir       string              // Container path for file operations
+	TmpDirHost   string              // Host path for Docker bind mounts (DinD only)
 	OriginalDir  string
 	InstanceName string
 	DockerClient *client.Client
@@ -38,13 +40,106 @@ type E2EEnvironment struct {
 	Ctx          context.Context
 }
 
+// detectHostPathForApp tries to detect the host filesystem path that maps to /app
+// in the current container (for Docker-in-Docker scenarios)
+func detectHostPathForApp() string {
+	// Try to get our own container ID
+	hostname, err := os.Hostname()
+	if err != nil {
+		return ""
+	}
+
+	// Try to inspect our own container using Docker
+	cli, err := client.NewClientWithOpts(client.FromEnv, client.WithAPIVersionNegotiation())
+	if err != nil {
+		return ""
+	}
+	defer cli.Close()
+
+	inspect, err := cli.ContainerInspect(context.Background(), hostname)
+	if err != nil {
+		return ""
+	}
+
+	// Look for /app mount
+	for _, mount := range inspect.Mounts {
+		if mount.Destination == "/app" {
+			return mount.Source
+		}
+	}
+
+	return ""
+}
+
 // SetupE2EEnvironment creates a fully isolated E2E test environment
 // with temp directory, Git repo, sett.yml, and unique instance name
 func SetupE2EEnvironment(t *testing.T, settYML string) *E2EEnvironment {
 	ctx := context.Background()
 
-	// Create isolated temporary directory (auto-cleaned up)
-	tmpDir := t.TempDir()
+	// Create isolated temporary directory in a location accessible to Docker host
+	// When running in Docker-in-Docker (e.g., CI or Claude Code), we need to use
+	// a directory that's bind-mounted from the host, not in an overlay filesystem.
+
+	// Check if we're running in Docker (Docker-in-Docker scenario)
+	_, inDocker := os.LookupEnv("DOCKER_HOST")
+	if !inDocker {
+		// Also check for .dockerenv file
+		if _, err := os.Stat("/.dockerenv"); err == nil {
+			inDocker = true
+		}
+	}
+
+	var tmpDir string
+	var err error
+
+	var tmpDirHost string // Host path for Docker bind mounts
+
+	if inDocker {
+		// In DinD, use /app if available (likely mounted from host)
+		testWorkspacesDir := filepath.Join("/app", ".test-workspaces")
+		if err := os.MkdirAll(testWorkspacesDir, 0755); err == nil {
+			// Create temp directory using container path (/app/.test-workspaces)
+			tmpDir, err = os.MkdirTemp(testWorkspacesDir, fmt.Sprintf("test-e2e-%s-*", time.Now().Format("20060102-150405")))
+			if err == nil && tmpDir != "" {
+				// Detect host path for Docker bind mounts
+				hostPath := detectHostPathForApp()
+				if hostPath != "" {
+					// Translate container path to host path: /app/... -> /Users/cam/github/sett/...
+					tmpDirHost = filepath.Join(hostPath, tmpDir[len("/app"):])
+				} else {
+					// If detection fails, use container path and hope for the best
+					tmpDirHost = tmpDir
+				}
+			}
+		}
+	}
+
+	if tmpDir == "" || err != nil {
+		// Fall back to system temp directory
+		tmpDir, err = os.MkdirTemp("", fmt.Sprintf("test-e2e-%s-*", time.Now().Format("20060102-150405")))
+		tmpDirHost = tmpDir // In non-DinD, paths are the same
+	}
+	require.NoError(t, err, "Failed to create temp directory")
+
+	// Resolve symlinks to get canonical path (critical for macOS where /var -> /private/var)
+	canonicalTmpDir, err := filepath.EvalSymlinks(tmpDir)
+	require.NoError(t, err, "Failed to resolve tmpDir symlinks")
+	tmpDir = canonicalTmpDir
+
+	// Also resolve host path if different
+	if tmpDirHost != tmpDir {
+		canonicalTmpDirHost, err := filepath.EvalSymlinks(tmpDirHost)
+		if err == nil {
+			tmpDirHost = canonicalTmpDirHost
+		}
+	} else {
+		tmpDirHost = tmpDir
+	}
+
+	// Register cleanup
+	t.Cleanup(func() {
+		os.RemoveAll(tmpDir) // Clean up using container path
+	})
 
 	// Initialize Git repository
 	cmd := exec.Command("git", "init")
@@ -65,6 +160,10 @@ func SetupE2EEnvironment(t *testing.T, settYML string) *E2EEnvironment {
 	settYMLPath := filepath.Join(tmpDir, "sett.yml")
 	require.NoError(t, os.WriteFile(settYMLPath, []byte(settYML), 0644), "Failed to write sett.yml")
 
+	// Commit sett.yml so workspace is clean
+	exec.Command("git", "-C", tmpDir, "add", "sett.yml").Run()
+	exec.Command("git", "-C", tmpDir, "commit", "-m", "Add sett.yml").Run()
+
 	// Change to test directory
 	originalDir, err := os.Getwd()
 	require.NoError(t, err)
@@ -80,6 +179,7 @@ func SetupE2EEnvironment(t *testing.T, settYML string) *E2EEnvironment {
 	env := &E2EEnvironment{
 		T:            t,
 		TmpDir:       tmpDir,
+		TmpDirHost:   tmpDirHost,
 		OriginalDir:  originalDir,
 		InstanceName: instanceName,
 		DockerClient: cli,
@@ -101,29 +201,61 @@ func SetupE2EEnvironment(t *testing.T, settYML string) *E2EEnvironment {
 }
 
 // InitializeBlackboardClient connects to the blackboard for this environment
+// and waits for Redis to be ready
 func (env *E2EEnvironment) InitializeBlackboardClient() {
 	var err error
 	env.RedisPort, err = instance.GetInstanceRedisPort(env.Ctx, env.DockerClient, env.InstanceName)
 	require.NoError(env.T, err, "Failed to get Redis port")
 
+	// In Docker-in-Docker scenarios, use host.docker.internal instead of localhost
+	// because port mappings don't work between sibling containers
+	redisHost := "localhost"
+	if _, err := os.Stat("/.dockerenv"); err == nil {
+		// We're in Docker, use host.docker.internal to reach the host's published ports
+		redisHost = "host.docker.internal"
+	}
+
 	redisOpts := &redis.Options{
-		Addr: fmt.Sprintf("localhost:%d", env.RedisPort),
+		Addr: fmt.Sprintf("%s:%d", redisHost, env.RedisPort),
 	}
 
 	env.BBClient, err = blackboard.NewClient(redisOpts, env.InstanceName)
 	require.NoError(env.T, err, "Failed to create blackboard client")
+
+	// Wait for Redis to be ready (up to 10 seconds)
+	env.T.Logf("Waiting for Redis to be ready on %s:%d...", redisHost, env.RedisPort)
+	for i := 0; i < 10; i++ {
+		if err := env.BBClient.Ping(env.Ctx); err == nil {
+			env.T.Logf("✓ Redis is ready")
+			return
+		}
+		time.Sleep(1 * time.Second)
+	}
+	require.Fail(env.T, "Redis did not become ready within 10 seconds")
 }
 
 // WaitForContainer waits for a container to be running (up to 30 seconds)
+// containerNameSuffix: "orchestrator", "redis", or "agent-{agent-name}"
 func (env *E2EEnvironment) WaitForContainer(containerNameSuffix string) {
-	fullName := fmt.Sprintf("sett-%s-%s", env.InstanceName, containerNameSuffix)
+	// Container naming patterns:
+	// - orchestrator/redis: sett-{component}-{instance-name}
+	// - agents: sett-agent-{instance-name}-{agent-name}
+	var fullName string
+	if containerNameSuffix == "orchestrator" || containerNameSuffix == "redis" {
+		fullName = fmt.Sprintf("sett-%s-%s", containerNameSuffix, env.InstanceName)
+	} else {
+		// Agent pattern: containerNameSuffix is "agent-{agent-name}"
+		// Result: sett-agent-{instance-name}-{agent-name}
+		agentName := containerNameSuffix[6:] // Remove "agent-" prefix
+		fullName = fmt.Sprintf("sett-agent-%s-%s", env.InstanceName, agentName)
+	}
 
 	for i := 0; i < 30; i++ {
-		containers, err := env.DockerClient.ContainerList(env.Ctx, client.ListContainersOptions{All: true})
+		containers, err := env.DockerClient.ContainerList(env.Ctx, container.ListOptions{All: true})
 		if err == nil {
-			for _, container := range containers {
-				for _, name := range container.Names {
-					if name == "/"+fullName && container.State == "running" {
+			for _, c := range containers {
+				for _, name := range c.Names {
+					if name == "/"+fullName && c.State == "running" {
 						env.T.Logf("✓ Container %s is running", fullName)
 						return
 					}
@@ -145,13 +277,13 @@ func (env *E2EEnvironment) WaitForArtefactByType(artefactType string) *blackboar
 	for i := 0; i < 60; i++ {
 		// Scan for artefacts using Redis SCAN
 		pattern := fmt.Sprintf("sett:%s:artefact:*", env.InstanceName)
-		iter := env.BBClient.Client.Scan(env.Ctx, 0, pattern, 0).Iterator()
+		iter := env.BBClient.RedisClient().Scan(env.Ctx, 0, pattern, 0).Iterator()
 
 		for iter.Next(env.Ctx) {
 			key := iter.Val()
 
 			// Get artefact data
-			data, err := env.BBClient.Client.HGetAll(env.Ctx, key).Result()
+			data, err := env.BBClient.RedisClient().HGetAll(env.Ctx, key).Result()
 			if err != nil {
 				continue
 			}
@@ -162,7 +294,7 @@ func (env *E2EEnvironment) WaitForArtefactByType(artefactType string) *blackboar
 				artefact := &blackboard.Artefact{
 					ID:               data["id"],
 					LogicalID:        data["logical_id"],
-					StructuralType:   data["structural_type"],
+					StructuralType:   blackboard.StructuralType(data["structural_type"]),
 					Type:             data["type"],
 					Payload:          data["payload"],
 					ProducedByRole:   data["produced_by_role"],

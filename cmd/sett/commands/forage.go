@@ -165,7 +165,7 @@ func runForage(cmd *cobra.Command, args []string) error {
 	}
 
 	// Phase 6: Connect to blackboard
-	redisURL := fmt.Sprintf("redis://localhost:%d", redisPort)
+	redisURL := instance.GetRedisURL(redisPort)
 	redisOpts, err := redis.ParseURL(redisURL)
 	if err != nil {
 		return fmt.Errorf("failed to parse Redis URL: %w", err)

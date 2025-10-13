@@ -2,6 +2,7 @@ package commands
 
 import (
 	"context"
+	"encoding/json"
 	"fmt"
 
 	"github.com/docker/docker/api/types"
@@ -453,6 +454,15 @@ func launchAgentContainer(ctx context.Context, cli *client.Client, instanceName,
 		fmt.Sprintf("SETT_AGENT_NAME=%s", agentName),
 		fmt.Sprintf("SETT_AGENT_ROLE=%s", agent.Role),
 		fmt.Sprintf("REDIS_URL=%s", redisURL),
+	}
+
+	// Add SETT_AGENT_COMMAND as JSON array
+	if len(agent.Command) > 0 {
+		commandJSON, err := json.Marshal(agent.Command)
+		if err != nil {
+			return fmt.Errorf("failed to marshal agent command to JSON: %w", err)
+		}
+		env = append(env, fmt.Sprintf("SETT_AGENT_COMMAND=%s", commandJSON))
 	}
 
 	// Add custom environment variables from config
