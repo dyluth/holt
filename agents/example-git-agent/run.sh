@@ -43,7 +43,7 @@ git add "$filename"
 # Commit with descriptive message including claim ID
 git commit -m "[sett-agent: git-agent] Created $filename
 
-Claim-ID: $claim_id"
+Claim-ID: $claim_id" >&2
 
 echo "Committed, extracting hash..." >&2
 
