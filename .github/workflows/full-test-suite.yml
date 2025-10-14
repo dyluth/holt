@@ -1,0 +1,67 @@
+name: Full Test Suite
+
+on:
+  # Run on schedule (daily at 2 AM UTC)
+  schedule:
+    - cron: '0 2 * * *'
+  # Allow manual trigger
+  workflow_dispatch:
+  # Run on release tags
+  push:
+    tags:
+      - 'v*'
+
+env:
+  GO_VERSION: '1.23'
+
+jobs:
+  full-test-suite:
+    name: Complete Test Suite (make test-all)
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+
+    steps:
+    - name: Checkout code
+      uses: actions/checkout@v4
+
+    - name: Set up Go
+      uses: actions/setup-go@v5
+      with:
+        go-version: ${{ env.GO_VERSION }}
+        cache: true
+
+    - name: Set up Docker Buildx
+      uses: docker/setup-buildx-action@v3
+
+    - name: Build all prerequisites
+      run: make build-all
+
+    - name: Build Docker images
+      run: |
+        make docker-orchestrator
+        docker build -t example-agent:latest -f agents/example-agent/Dockerfile .
+        docker build -t example-git-agent:latest -f agents/example-git-agent/Dockerfile .
+
+    - name: Run complete test suite
+      run: make test-all
+      timeout-minutes: 25
+
+    - name: Clean up Docker resources
+      if: always()
+      run: |
+        # Clean up any leftover test containers
+        docker ps -a | grep "sett-" | awk '{print $1}' | xargs -r docker rm -f 2>/dev/null || true
+        # Clean up test networks
+        docker network ls | grep "sett-network" | awk '{print $1}' | xargs -r docker network rm 2>/dev/null || true
+
+    - name: Test Results Summary
+      if: success()
+      run: |
+        echo "🎉 Complete test suite passed!"
+        echo ""
+        echo "All test categories completed successfully:"
+        echo "  ✅ Unit tests"
+        echo "  ✅ Cub tests"
+        echo "  ✅ Integration tests"
+        echo "  ✅ E2E tests"
+        echo "  ✅ Performance tests"
