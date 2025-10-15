@@ -165,6 +165,10 @@ func SetupE2EEnvironment(t *testing.T, settYML string) *E2EEnvironment {
 	exec.Command("git", "-C", tmpDir, "add", "sett.yml").Run()
 	exec.Command("git", "-C", tmpDir, "commit", "-m", "Add sett.yml").Run()
 
+	// Fix permissions for Docker container access (critical for CI environments)
+	// Containers may run as different users, so we need world-readable files
+	exec.Command("chmod", "-R", "a+rX", tmpDir).Run()
+
 	// Change to test directory
 	originalDir, err := os.Getwd()
 	require.NoError(t, err)
