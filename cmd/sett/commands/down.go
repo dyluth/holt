@@ -8,6 +8,7 @@ import (
 	"github.com/docker/docker/api/types/container"
 	"github.com/docker/docker/api/types/filters"
 	dockerpkg "github.com/dyluth/sett/internal/docker"
+	"github.com/dyluth/sett/internal/instance"
 	"github.com/dyluth/sett/internal/printer"
 	"github.com/spf13/cobra"
 )
@@ -25,13 +26,20 @@ This includes:
   • All containers (Redis, orchestrator, agents)
   • Docker network
 
-The command does not prompt for confirmation and executes immediately.`,
+The instance name is auto-inferred from the current workspace if not specified.
+The command does not prompt for confirmation and executes immediately.
+
+Examples:
+  # Stop the instance for current workspace
+  sett down
+
+  # Stop a specific instance
+  sett down --name prod-instance`,
 	RunE: runDown,
 }
 
 func init() {
-	downCmd.Flags().StringVarP(&downInstanceName, "name", "n", "", "Instance name (required)")
-	downCmd.MarkFlagRequired("name")
+	downCmd.Flags().StringVarP(&downInstanceName, "name", "n", "", "Target instance name (auto-inferred if omitted)")
 	rootCmd.AddCommand(downCmd)
 }
 
@@ -45,9 +53,35 @@ func runDown(cmd *cobra.Command, args []string) error {
 	}
 	defer cli.Close()
 
+	// Phase 1: Instance discovery
+	targetInstanceName := downInstanceName
+	if targetInstanceName == "" {
+		targetInstanceName, err = instance.InferInstanceFromWorkspace(ctx, cli)
+		if err != nil {
+			if err.Error() == "no Sett instances found for this workspace" {
+				return printer.Error(
+					"no Sett instances found",
+					"No running instances found for this workspace.",
+					[]string{"Start an instance first:\n  sett up"},
+				)
+			}
+			if err.Error() == "multiple instances found for this workspace, use --name to specify which one" {
+				return printer.Error(
+					"multiple instances found",
+					"Found multiple running instances for this workspace.",
+					[]string{
+						"Specify which instance to stop:\n  sett down --name <instance-name>",
+						"List instances:\n  sett list",
+					},
+				)
+			}
+			return fmt.Errorf("failed to infer instance: %w", err)
+		}
+	}
+
 	// Find all containers for this instance
 	containerFilters := filters.NewArgs()
-	containerFilters.Add("label", fmt.Sprintf("%s=%s", dockerpkg.LabelInstanceName, downInstanceName))
+	containerFilters.Add("label", fmt.Sprintf("%s=%s", dockerpkg.LabelInstanceName, targetInstanceName))
 
 	containers, err := cli.ContainerList(ctx, container.ListOptions{
 		All:     true,
@@ -59,8 +93,8 @@ func runDown(cmd *cobra.Command, args []string) error {
 
 	if len(containers) == 0 {
 		return printer.Error(
-			fmt.Sprintf("instance '%s' not found", downInstanceName),
-			fmt.Sprintf("No containers found with instance name '%s'.", downInstanceName),
+			fmt.Sprintf("instance '%s' not found", targetInstanceName),
+			fmt.Sprintf("No containers found with instance name '%s'.", targetInstanceName),
 			[]string{"Run 'sett list' to see available instances"},
 		)
 	}
@@ -87,7 +121,7 @@ func runDown(cmd *cobra.Command, args []string) error {
 
 	// Find and remove network
 	networkFilters := filters.NewArgs()
-	networkFilters.Add("label", fmt.Sprintf("%s=%s", dockerpkg.LabelInstanceName, downInstanceName))
+	networkFilters.Add("label", fmt.Sprintf("%s=%s", dockerpkg.LabelInstanceName, targetInstanceName))
 
 	networks, err := cli.NetworkList(ctx, types.NetworkListOptions{
 		Filters: networkFilters,
@@ -103,7 +137,7 @@ func runDown(cmd *cobra.Command, args []string) error {
 		}
 	}
 
-	printer.Success("\nInstance '%s' removed successfully\n", downInstanceName)
+	printer.Success("\nInstance '%s' removed successfully\n", targetInstanceName)
 
 	return nil
 }
