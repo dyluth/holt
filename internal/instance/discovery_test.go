@@ -36,8 +36,9 @@ func TestFindInstanceByWorkspace(t *testing.T) {
 			dockerpkg.LabelComponent:     "redis",
 		}
 
+		// Use redis:7-alpine which should be cached in CI (used by other tests)
 		resp, err := cli.ContainerCreate(ctx, &container.Config{
-			Image:  "busybox:latest",
+			Image:  "redis:7-alpine",
 			Cmd:    []string{"sleep", "1"},
 			Labels: labels,
 		}, nil, nil, nil, "")
@@ -172,23 +173,42 @@ func TestVerifyInstanceRunning(t *testing.T) {
 	ctx := context.Background()
 
 	t.Run("returns nil when instance containers are running", func(t *testing.T) {
-		// Create and start container
-		labels := map[string]string{
+		// Create and start Redis container
+		redisLabels := map[string]string{
 			dockerpkg.LabelProject:      "true",
 			dockerpkg.LabelInstanceName: "running-instance",
 			dockerpkg.LabelComponent:    "redis",
 		}
 
-		resp, err := cli.ContainerCreate(ctx, &container.Config{
-			Image:  "busybox:latest",
+		redisResp, err := cli.ContainerCreate(ctx, &container.Config{
+			Image:  "redis:7-alpine",
 			Cmd:    []string{"sleep", "10"},
-			Labels: labels,
+			Labels: redisLabels,
 		}, nil, nil, nil, "")
 		require.NoError(t, err)
-		defer cli.ContainerRemove(ctx, resp.ID, container.RemoveOptions{Force: true})
+		defer cli.ContainerRemove(ctx, redisResp.ID, container.RemoveOptions{Force: true})
 
-		// Start container
-		err = cli.ContainerStart(ctx, resp.ID, container.StartOptions{})
+		// Start Redis container
+		err = cli.ContainerStart(ctx, redisResp.ID, container.StartOptions{})
+		require.NoError(t, err)
+
+		// Create and start orchestrator container
+		orchLabels := map[string]string{
+			dockerpkg.LabelProject:      "true",
+			dockerpkg.LabelInstanceName: "running-instance",
+			dockerpkg.LabelComponent:    "orchestrator",
+		}
+
+		orchResp, err := cli.ContainerCreate(ctx, &container.Config{
+			Image:  "redis:7-alpine",
+			Cmd:    []string{"sleep", "10"},
+			Labels: orchLabels,
+		}, nil, nil, nil, "")
+		require.NoError(t, err)
+		defer cli.ContainerRemove(ctx, orchResp.ID, container.RemoveOptions{Force: true})
+
+		// Start orchestrator container
+		err = cli.ContainerStart(ctx, orchResp.ID, container.StartOptions{})
 		require.NoError(t, err)
 
 		// Verify running
@@ -203,22 +223,41 @@ func TestVerifyInstanceRunning(t *testing.T) {
 	})
 
 	t.Run("returns error when container not running", func(t *testing.T) {
-		// Create but don't start container
-		labels := map[string]string{
+		// Create but don't start Redis container
+		redisLabels := map[string]string{
 			dockerpkg.LabelProject:      "true",
 			dockerpkg.LabelInstanceName: "stopped-instance",
 			dockerpkg.LabelComponent:    "redis",
 		}
 
-		resp, err := cli.ContainerCreate(ctx, &container.Config{
-			Image:  "busybox:latest",
+		redisResp, err := cli.ContainerCreate(ctx, &container.Config{
+			Image:  "redis:7-alpine",
 			Cmd:    []string{"sleep", "1"},
-			Labels: labels,
+			Labels: redisLabels,
 		}, nil, nil, nil, "")
 		require.NoError(t, err)
-		defer cli.ContainerRemove(ctx, resp.ID, container.RemoveOptions{Force: true})
+		defer cli.ContainerRemove(ctx, redisResp.ID, container.RemoveOptions{Force: true})
 
-		// Verify (should fail because not running)
+		// Create and start orchestrator container (so we have both, but Redis is stopped)
+		orchLabels := map[string]string{
+			dockerpkg.LabelProject:      "true",
+			dockerpkg.LabelInstanceName: "stopped-instance",
+			dockerpkg.LabelComponent:    "orchestrator",
+		}
+
+		orchResp, err := cli.ContainerCreate(ctx, &container.Config{
+			Image:  "redis:7-alpine",
+			Cmd:    []string{"sleep", "10"},
+			Labels: orchLabels,
+		}, nil, nil, nil, "")
+		require.NoError(t, err)
+		defer cli.ContainerRemove(ctx, orchResp.ID, container.RemoveOptions{Force: true})
+
+		// Start only orchestrator
+		err = cli.ContainerStart(ctx, orchResp.ID, container.StartOptions{})
+		require.NoError(t, err)
+
+		// Verify (should fail because Redis is not running)
 		err = VerifyInstanceRunning(ctx, cli, "stopped-instance")
 		require.Error(t, err)
 		require.Contains(t, err.Error(), "not running")
