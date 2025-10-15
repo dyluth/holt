@@ -5,6 +5,7 @@ package testutil
 import (
 	"context"
 	"fmt"
+	"io"
 	"os"
 	"os/exec"
 	"path/filepath"
@@ -271,9 +272,26 @@ func (env *E2EEnvironment) WaitForContainer(containerNameSuffix string) {
 		time.Sleep(1 * time.Second)
 	}
 
-	// Container never became running - show diagnostic info
+	// Container never became running - show diagnostic info with logs
 	if lastState != "" {
-		require.Fail(env.T, fmt.Sprintf("Container %s did not start within 30 seconds (last state: %s, status: %s)", fullName, lastState, lastStatus))
+		// Try to get container logs for debugging
+		logs, logErr := env.DockerClient.ContainerLogs(env.Ctx, fullName, container.LogsOptions{
+			ShowStdout: true,
+			ShowStderr: true,
+			Tail:       "50",
+		})
+		var logOutput string
+		if logErr == nil {
+			defer logs.Close()
+			logBytes, _ := io.ReadAll(logs)
+			logOutput = string(logBytes)
+		}
+
+		failMsg := fmt.Sprintf("Container %s did not start within 30 seconds (last state: %s, status: %s)", fullName, lastState, lastStatus)
+		if logOutput != "" {
+			failMsg += fmt.Sprintf("\n\nContainer logs:\n%s", logOutput)
+		}
+		require.Fail(env.T, failMsg)
 	} else {
 		require.Fail(env.T, fmt.Sprintf("Container %s not found", fullName))
 	}
