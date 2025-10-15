@@ -26,6 +26,13 @@ echo "Creating file: $filename" >&2
 # Navigate to workspace
 cd /workspace
 
+# Configure git if not already configured (required for commits)
+if ! git config user.name > /dev/null 2>&1; then
+  echo "Configuring git user..." >&2
+  git config user.name "Sett Agent"
+  git config user.email "agent@sett.local"
+fi
+
 # Create file with simple content
 cat > "$filename" <<EOF
 # File created by Sett example-git-agent
