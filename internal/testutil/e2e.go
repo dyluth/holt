@@ -250,14 +250,20 @@ func (env *E2EEnvironment) WaitForContainer(containerNameSuffix string) {
 		fullName = fmt.Sprintf("sett-agent-%s-%s", env.InstanceName, agentName)
 	}
 
+	var lastState string
+	var lastStatus string
 	for i := 0; i < 30; i++ {
 		containers, err := env.DockerClient.ContainerList(env.Ctx, container.ListOptions{All: true})
 		if err == nil {
 			for _, c := range containers {
 				for _, name := range c.Names {
-					if name == "/"+fullName && c.State == "running" {
-						env.T.Logf("✓ Container %s is running", fullName)
-						return
+					if name == "/"+fullName {
+						lastState = c.State
+						lastStatus = c.Status
+						if c.State == "running" {
+							env.T.Logf("✓ Container %s is running", fullName)
+							return
+						}
 					}
 				}
 			}
@@ -265,7 +271,12 @@ func (env *E2EEnvironment) WaitForContainer(containerNameSuffix string) {
 		time.Sleep(1 * time.Second)
 	}
 
-	require.Fail(env.T, fmt.Sprintf("Container %s did not start within 30 seconds", fullName))
+	// Container never became running - show diagnostic info
+	if lastState != "" {
+		require.Fail(env.T, fmt.Sprintf("Container %s did not start within 30 seconds (last state: %s, status: %s)", fullName, lastState, lastStatus))
+	} else {
+		require.Fail(env.T, fmt.Sprintf("Container %s not found", fullName))
+	}
 }
 
 // WaitForArtefactByType polls blackboard for an artefact of specific type (up to 60 seconds)

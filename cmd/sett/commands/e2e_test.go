@@ -163,8 +163,14 @@ services:
 	upInstanceName = env.InstanceName
 	require.NoError(t, runUp(upCmd, []string{}))
 
-	// Wait for instance to be fully running
-	time.Sleep(2 * time.Second)
+	// Wait for containers to be fully running (polls up to 30s each)
+	env.WaitForContainer("redis")
+	env.WaitForContainer("orchestrator")
+
+	// Final verification
+	ctx := context.Background()
+	err := instance.VerifyInstanceRunning(ctx, env.DockerClient, env.InstanceName)
+	require.NoError(t, err, "Instance containers not running")
 
 	t.Run("forage fails with dirty workspace", func(t *testing.T) {
 		// Modify README.md (created by SetupE2EEnvironment) without committing
