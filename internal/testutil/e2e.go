@@ -169,7 +169,10 @@ func SetupE2EEnvironment(t *testing.T, settYML string) *E2EEnvironment {
 	// Fix permissions for Docker container access (critical for CI environments)
 	// Containers may run as different users, so we need world-readable/writable files
 	// a+rwX means: add read+write for all users, and execute for directories
-	exec.Command("chmod", "-R", "a+rwX", tmpDir).Run()
+	chmodCmd := exec.Command("chmod", "-R", "a+rwX", tmpDir)
+	if output, err := chmodCmd.CombinedOutput(); err != nil {
+		t.Logf("Warning: chmod failed: %v\nOutput: %s", err, string(output))
+	}
 
 	// Change to test directory
 	originalDir, err := os.Getwd()
@@ -365,6 +368,22 @@ func (env *E2EEnvironment) WaitForArtefactByType(artefactType string) *blackboar
 		failMsg += fmt.Sprintf("\n\nArtefacts found: %s", strings.Join(allArtefacts, ", "))
 	} else {
 		failMsg += "\n\nNo artefacts found on blackboard"
+	}
+
+	// If we found a ToolExecutionFailure, try to extract and display its payload
+	pattern := fmt.Sprintf("sett:%s:artefact:*", env.InstanceName)
+	iter := env.BBClient.RedisClient().Scan(env.Ctx, 0, pattern, 0).Iterator()
+	for iter.Next(env.Ctx) {
+		key := iter.Val()
+		data, err := env.BBClient.RedisClient().HGetAll(env.Ctx, key).Result()
+		if err != nil {
+			continue
+		}
+
+		if data["type"] == "ToolExecutionFailure" {
+			failMsg += fmt.Sprintf("\n\nToolExecutionFailure payload:\n%s", data["payload"])
+			break
+		}
 	}
 
 	// Try to get container logs for debugging

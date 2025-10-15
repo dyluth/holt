@@ -33,13 +33,14 @@ COPY --from=builder /build/cub /app/cub
 COPY agents/example-git-agent/run.sh /app/run.sh
 RUN chmod +x /app/run.sh
 
-# Configure git (required for commits)
-RUN git config --global user.email "agent@sett.local" && \
-    git config --global user.name "Sett Git Agent"
-
 # Run as non-root user (security best practice)
 RUN adduser -D -u 1000 agent
 USER agent
+
+# Configure git (required for commits) - MUST be done AFTER switching to agent user
+# so the config is written to /home/agent/.gitconfig instead of /root/.gitconfig
+RUN git config --global user.email "agent@sett.local" && \
+    git config --global user.name "Sett Git Agent"
 
 # Entrypoint is the cub binary
 ENTRYPOINT ["/app/cub"]
