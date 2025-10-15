@@ -10,6 +10,7 @@ import (
 	"os/exec"
 	"path/filepath"
 	"strconv"
+	"strings"
 	"testing"
 	"time"
 
@@ -308,10 +309,14 @@ func (env *E2EEnvironment) WaitForArtefactByType(artefactType string) *blackboar
 
 	env.T.Logf("Waiting for artefact of type '%s'...", artefactType)
 
+	var allArtefacts []string // Track all artefacts for debugging
+
 	for i := 0; i < 60; i++ {
 		// Scan for artefacts using Redis SCAN
 		pattern := fmt.Sprintf("sett:%s:artefact:*", env.InstanceName)
 		iter := env.BBClient.RedisClient().Scan(env.Ctx, 0, pattern, 0).Iterator()
+
+		allArtefacts = allArtefacts[:0] // Reset for this iteration
 
 		for iter.Next(env.Ctx) {
 			key := iter.Val()
@@ -320,6 +325,11 @@ func (env *E2EEnvironment) WaitForArtefactByType(artefactType string) *blackboar
 			data, err := env.BBClient.RedisClient().HGetAll(env.Ctx, key).Result()
 			if err != nil {
 				continue
+			}
+
+			// Track this artefact
+			if data["type"] != "" {
+				allArtefacts = append(allArtefacts, fmt.Sprintf("%s (id=%s)", data["type"], data["id"][:8]))
 			}
 
 			// Check if type matches
@@ -349,7 +359,36 @@ func (env *E2EEnvironment) WaitForArtefactByType(artefactType string) *blackboar
 		time.Sleep(1 * time.Second)
 	}
 
-	require.Fail(env.T, fmt.Sprintf("Artefact of type '%s' not found within 60 seconds", artefactType))
+	// Timeout - show what artefacts WERE found
+	failMsg := fmt.Sprintf("Artefact of type '%s' not found within 60 seconds", artefactType)
+	if len(allArtefacts) > 0 {
+		failMsg += fmt.Sprintf("\n\nArtefacts found: %s", strings.Join(allArtefacts, ", "))
+	} else {
+		failMsg += "\n\nNo artefacts found on blackboard"
+	}
+
+	// Try to get container logs for debugging
+	for _, containerSuffix := range []string{"orchestrator", "agent-git-agent"} {
+		var fullName string
+		if containerSuffix == "orchestrator" {
+			fullName = fmt.Sprintf("sett-orchestrator-%s", env.InstanceName)
+		} else {
+			fullName = fmt.Sprintf("sett-agent-%s-git-agent", env.InstanceName)
+		}
+
+		logs, logErr := env.DockerClient.ContainerLogs(env.Ctx, fullName, container.LogsOptions{
+			ShowStdout: true,
+			ShowStderr: true,
+			Tail:       "30",
+		})
+		if logErr == nil {
+			defer logs.Close()
+			logBytes, _ := io.ReadAll(logs)
+			failMsg += fmt.Sprintf("\n\n%s logs:\n%s", containerSuffix, string(logBytes))
+		}
+	}
+
+	require.Fail(env.T, failMsg)
 	return nil
 }
 
