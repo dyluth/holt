@@ -11,8 +11,14 @@ help:
 	@echo ""
 	@echo "Common workflows:"
 	@echo "  build-all           - Build everything (CLI + orchestrator + cub)"
-	@echo "  build               - Build the sett CLI binary"
+	@echo "  build               - Build the sett CLI binary for current platform"
 	@echo "  docker-orchestrator - Build orchestrator Docker image (required for 'sett up')"
+	@echo ""
+	@echo "Cross-compilation:"
+	@echo "  build-darwin-arm64  - Build for macOS ARM64 (M1/M2/M3 Macs)"
+	@echo "  build-darwin-amd64  - Build for macOS Intel"
+	@echo "  build-linux-arm64   - Build for Linux ARM64"
+	@echo "  build-linux-amd64   - Build for Linux AMD64"
 	@echo ""
 	@echo "Testing:"
 	@echo "  test                - Run all unit tests"
@@ -105,6 +111,34 @@ build:
 	@mkdir -p bin
 	@$(GO) build -o bin/sett ./cmd/sett
 	@echo "✓ Built: bin/sett"
+
+# Cross-compile for macOS ARM64 (M1/M2/M3 Macs)
+build-darwin-arm64:
+	@echo "Building sett CLI for macOS ARM64..."
+	@mkdir -p bin
+	@GOOS=darwin GOARCH=arm64 $(GO) build -o bin/sett-darwin-arm64 ./cmd/sett
+	@echo "✓ Built: bin/sett-darwin-arm64"
+
+# Cross-compile for macOS Intel
+build-darwin-amd64:
+	@echo "Building sett CLI for macOS Intel..."
+	@mkdir -p bin
+	@GOOS=darwin GOARCH=amd64 $(GO) build -o bin/sett-darwin-amd64 ./cmd/sett
+	@echo "✓ Built: bin/sett-darwin-amd64"
+
+# Cross-compile for Linux ARM64
+build-linux-arm64:
+	@echo "Building sett CLI for Linux ARM64..."
+	@mkdir -p bin
+	@GOOS=linux GOARCH=arm64 $(GO) build -o bin/sett-linux-arm64 ./cmd/sett
+	@echo "✓ Built: bin/sett-linux-arm64"
+
+# Cross-compile for Linux AMD64
+build-linux-amd64:
+	@echo "Building sett CLI for Linux AMD64..."
+	@mkdir -p bin
+	@GOOS=linux GOARCH=amd64 $(GO) build -o bin/sett-linux-amd64 ./cmd/sett
+	@echo "✓ Built: bin/sett-linux-amd64"
 
 # Build the orchestrator binary
 build-orchestrator:
