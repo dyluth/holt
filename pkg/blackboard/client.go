@@ -251,9 +251,10 @@ func (c *Client) GetClaimByArtefactID(ctx context.Context, artefactID string) (*
 	return c.GetClaim(ctx, claimID)
 }
 
-// SetBid records an agent's bid on a claim.
+// SetBid records an agent's bid on a claim and publishes a bid_submitted event.
 // Uses HSET on sett:{instance}:claim:{claim_id}:bids with key=agentName, value=bidType.
 // Validates the bid type before writing.
+// Publishes bid_submitted event to workflow_events channel after successful write.
 func (c *Client) SetBid(ctx context.Context, claimID string, agentName string, bidType BidType) error {
 	// Validate bid type
 	if err := bidType.Validate(); err != nil {
@@ -264,6 +265,16 @@ func (c *Client) SetBid(ctx context.Context, claimID string, agentName string, b
 	key := ClaimBidsKey(c.instanceName, claimID)
 	if err := c.rdb.HSet(ctx, key, agentName, string(bidType)).Err(); err != nil {
 		return fmt.Errorf("failed to write bid to Redis: %w", err)
+	}
+
+	// Publish bid_submitted event
+	eventData := map[string]interface{}{
+		"claim_id":   claimID,
+		"agent_name": agentName,
+		"bid_type":   string(bidType),
+	}
+	if err := c.publishWorkflowEvent(ctx, "bid_submitted", eventData); err != nil {
+		return fmt.Errorf("failed to publish bid_submitted event: %w", err)
 	}
 
 	return nil
@@ -370,6 +381,22 @@ type ClaimSubscription struct {
 	once   sync.Once
 }
 
+// WorkflowEvent represents a workflow event (bid submission or claim grant).
+// These events are published for real-time monitoring via the watch command.
+type WorkflowEvent struct {
+	Event string                 `json:"event"` // "bid_submitted" or "claim_granted"
+	Data  map[string]interface{} `json:"data"`  // Event-specific data
+}
+
+// WorkflowSubscription represents an active Pub/Sub subscription to workflow events.
+// Caller must call Close() when done to clean up resources.
+type WorkflowSubscription struct {
+	events <-chan *WorkflowEvent
+	errors <-chan error
+	cancel func()
+	once   sync.Once
+}
+
 // Events returns the channel of claim events.
 func (s *ClaimSubscription) Events() <-chan *Claim {
 	return s.events
@@ -382,6 +409,22 @@ func (s *ClaimSubscription) Errors() <-chan error {
 
 // Close stops the subscription and cleans up resources. Implements io.Closer.
 func (s *ClaimSubscription) Close() error {
+	s.once.Do(s.cancel)
+	return nil
+}
+
+// Events returns the channel of workflow events.
+func (s *WorkflowSubscription) Events() <-chan *WorkflowEvent {
+	return s.events
+}
+
+// Errors returns the channel of subscription errors.
+func (s *WorkflowSubscription) Errors() <-chan error {
+	return s.errors
+}
+
+// Close stops the subscription and cleans up resources. Implements io.Closer.
+func (s *WorkflowSubscription) Close() error {
 	s.once.Do(s.cancel)
 	return nil
 }
@@ -512,6 +555,67 @@ func (c *Client) SubscribeClaimEvents(ctx context.Context) (*ClaimSubscription, 
 	}, nil
 }
 
+// SubscribeWorkflowEvents subscribes to workflow events (bid submissions and grants) for this instance.
+// Returns a WorkflowSubscription that delivers workflow event objects.
+// Caller must call subscription.Close() when done.
+func (c *Client) SubscribeWorkflowEvents(ctx context.Context) (*WorkflowSubscription, error) {
+	channel := WorkflowEventsChannel(c.instanceName)
+	pubsub := c.rdb.Subscribe(ctx, channel)
+
+	// Create buffered channels for events and errors
+	eventsChan := make(chan *WorkflowEvent, 10)
+	errorsChan := make(chan error, 10)
+
+	// Create cancellation context
+	subCtx, cancelFunc := context.WithCancel(ctx)
+
+	// Start goroutine to process messages
+	go func() {
+		defer close(eventsChan)
+		defer close(errorsChan)
+		defer pubsub.Close()
+
+		// Receive channel from pubsub
+		ch := pubsub.Channel()
+
+		for {
+			select {
+			case <-subCtx.Done():
+				return
+			case msg, ok := <-ch:
+				if !ok {
+					return
+				}
+
+				// Unmarshal workflow event from JSON
+				var event WorkflowEvent
+				if err := json.Unmarshal([]byte(msg.Payload), &event); err != nil {
+					// Send error on error channel, skip message
+					select {
+					case errorsChan <- fmt.Errorf("failed to unmarshal workflow event: %w", err):
+					case <-subCtx.Done():
+						return
+					}
+					continue
+				}
+
+				// Send event on events channel
+				select {
+				case eventsChan <- &event:
+				case <-subCtx.Done():
+					return
+				}
+			}
+		}
+	}()
+
+	return &WorkflowSubscription{
+		events: eventsChan,
+		errors: errorsChan,
+		cancel: cancelFunc,
+	}, nil
+}
+
 // RawSubscription represents an active Pub/Sub subscription to a raw channel.
 // Used for subscribing to custom channels like agent-specific event channels.
 // Caller must call Close() when done to clean up resources.
@@ -588,6 +692,35 @@ func (c *Client) PublishRaw(ctx context.Context, channel string, message string)
 		return fmt.Errorf("failed to publish to channel %s: %w", channel, err)
 	}
 	return nil
+}
+
+// publishWorkflowEvent publishes a workflow event to the workflow_events channel.
+// This is an internal helper used by SetBid and orchestrator for real-time monitoring.
+// Event types: "bid_submitted", "claim_granted"
+func (c *Client) publishWorkflowEvent(ctx context.Context, eventType string, data map[string]interface{}) error {
+	event := WorkflowEvent{
+		Event: eventType,
+		Data:  data,
+	}
+
+	eventJSON, err := json.Marshal(event)
+	if err != nil {
+		return fmt.Errorf("failed to marshal workflow event: %w", err)
+	}
+
+	channel := WorkflowEventsChannel(c.instanceName)
+	if err := c.rdb.Publish(ctx, channel, eventJSON).Err(); err != nil {
+		return fmt.Errorf("failed to publish workflow event: %w", err)
+	}
+
+	return nil
+}
+
+// PublishWorkflowEvent publishes a workflow event to the workflow_events channel.
+// This is exposed for orchestrator use when publishing claim_granted events.
+// Event types: "bid_submitted", "claim_granted"
+func (c *Client) PublishWorkflowEvent(ctx context.Context, eventType string, data map[string]interface{}) error {
+	return c.publishWorkflowEvent(ctx, eventType, data)
 }
 
 // IsNotFound returns true if the error is a Redis "key not found" error (redis.Nil).

@@ -59,3 +59,10 @@ func ClaimEventsChannel(instanceName string) string {
 func AgentEventsChannel(instanceName, agentName string) string {
 	return fmt.Sprintf("sett:%s:agent:%s:events", instanceName, agentName)
 }
+
+// WorkflowEventsChannel returns the Pub/Sub channel name for workflow events.
+// This channel carries bid submissions and claim grants for real-time monitoring.
+// Pattern: sett:{instance_name}:workflow_events
+func WorkflowEventsChannel(instanceName string) string {
+	return fmt.Sprintf("sett:%s:workflow_events", instanceName)
+}

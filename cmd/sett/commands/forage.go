@@ -3,6 +3,7 @@ package commands
 import (
 	"context"
 	"fmt"
+	"os"
 	"time"
 
 	dockerpkg "github.com/dyluth/sett/internal/docker"
@@ -215,7 +216,7 @@ func runForage(cmd *cobra.Command, args []string) error {
 	if forageWatch {
 		printer.Info("⏳ Waiting for orchestrator to create claim...\n")
 
-		claim, err := watch.PollForClaim(ctx, bbClient, artefactID, 5*time.Second)
+		_, err := watch.PollForClaim(ctx, bbClient, artefactID, 5*time.Second)
 		if err != nil {
 			return printer.Error(
 				"timeout waiting for claim",
@@ -227,13 +228,16 @@ func runForage(cmd *cobra.Command, args []string) error {
 			)
 		}
 
-		printer.Success("Claim created: %s (status: %s)\n", claim.ID, claim.Status)
+		printer.Success("✓ Claim created. Watching for activity...\n")
+
+		// Transition to streaming mode (M2.6)
+		return watch.StreamActivity(ctx, bbClient, targetInstanceName, watch.OutputFormatDefault, os.Stdout)
 	}
 
 	printer.Info("\nNext steps:\n")
 	printer.Info("  • Agents will process this goal in Phase 2+\n")
 	printer.Info("  • View all artefacts: sett hoard --name %s\n", targetInstanceName)
-	printer.Info("  • Monitor workflow: sett watch --name %s (Phase 2+)\n", targetInstanceName)
+	printer.Info("  • Monitor workflow: sett watch --name %s\n", targetInstanceName)
 
 	return nil
 }
