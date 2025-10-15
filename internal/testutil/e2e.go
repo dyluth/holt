@@ -166,8 +166,9 @@ func SetupE2EEnvironment(t *testing.T, settYML string) *E2EEnvironment {
 	exec.Command("git", "-C", tmpDir, "commit", "-m", "Add sett.yml").Run()
 
 	// Fix permissions for Docker container access (critical for CI environments)
-	// Containers may run as different users, so we need world-readable files
-	exec.Command("chmod", "-R", "a+rX", tmpDir).Run()
+	// Containers may run as different users, so we need world-readable/writable files
+	// a+rwX means: add read+write for all users, and execute for directories
+	exec.Command("chmod", "-R", "a+rwX", tmpDir).Run()
 
 	// Change to test directory
 	originalDir, err := os.Getwd()
