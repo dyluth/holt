@@ -119,7 +119,7 @@ func runHoard(cmd *cobra.Command, args []string) error {
 	if err := instance.VerifyInstanceRunning(ctx, cli, targetInstanceName); err != nil {
 		return printer.Error(
 			fmt.Sprintf("instance '%s' is not running", targetInstanceName),
-			"Container exists but is stopped.",
+			fmt.Sprintf("Error: %v", err),
 			[]string{fmt.Sprintf("Start the instance:\n  sett up --name %s", targetInstanceName)},
 		)
 	}
