@@ -41,6 +41,9 @@ func TestFindNextAvailablePort(t *testing.T) {
 	})
 
 	t.Run("skips ports used by Docker containers", func(t *testing.T) {
+		// Pull image if needed
+		pullImageIfNeeded(t, cli, ctx, "busybox:latest")
+
 		// Create a dummy container with redis port label
 		labels := map[string]string{
 			dockerpkg.LabelProject:   "true",
