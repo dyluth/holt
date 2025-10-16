@@ -41,6 +41,7 @@ func TestCubLifecycle(t *testing.T) {
 		"SETT_AGENT_NAME=test-agent",
 		"SETT_AGENT_ROLE=test-role",
 		`SETT_AGENT_COMMAND=["/bin/sh", "-c", "echo test"]`,
+		"SETT_BIDDING_STRATEGY=exclusive", // M3.1: Required
 		"REDIS_URL=redis://" + mr.Addr(),
 	}
 
@@ -245,6 +246,7 @@ func TestCubSIGINT(t *testing.T) {
 		"SETT_AGENT_NAME=test-agent",
 		"SETT_AGENT_ROLE=test-role",
 		`SETT_AGENT_COMMAND=["/bin/sh", "-c", "echo test"]`,
+		"SETT_BIDDING_STRATEGY=exclusive", // M3.1: Required
 		"REDIS_URL=redis://" + mr.Addr(),
 	}
 

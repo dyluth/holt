@@ -4,6 +4,8 @@ import (
 	"encoding/json"
 	"fmt"
 	"os"
+
+	"github.com/dyluth/sett/pkg/blackboard"
 )
 
 // Config holds the agent cub's runtime configuration loaded from environment variables.
@@ -24,6 +26,10 @@ type Config struct {
 	// Command is the command array to execute for agent tools (from SETT_AGENT_COMMAND)
 	// Expected format: JSON array like ["/app/run.sh"] or ["/usr/bin/python3", "agent.py"]
 	Command []string
+
+	// BiddingStrategy is the bid type this agent submits for claims (from SETT_BIDDING_STRATEGY)
+	// M3.1: Must be one of: review, claim, exclusive, ignore
+	BiddingStrategy blackboard.BidType
 }
 
 // LoadConfig reads and validates configuration from environment variables.
@@ -44,6 +50,12 @@ func LoadConfig() (*Config, error) {
 		if err := json.Unmarshal([]byte(commandJSON), &cfg.Command); err != nil {
 			return nil, fmt.Errorf("failed to parse SETT_AGENT_COMMAND as JSON array: %w", err)
 		}
+	}
+
+	// Parse bidding strategy (M3.1)
+	biddingStrategyStr := os.Getenv("SETT_BIDDING_STRATEGY")
+	if biddingStrategyStr != "" {
+		cfg.BiddingStrategy = blackboard.BidType(biddingStrategyStr)
 	}
 
 	if err := cfg.Validate(); err != nil {
@@ -74,6 +86,16 @@ func (c *Config) Validate() error {
 
 	if len(c.Command) == 0 {
 		return fmt.Errorf("SETT_AGENT_COMMAND environment variable is required (must be a non-empty JSON array)")
+	}
+
+	// M3.1: Validate bidding strategy
+	if c.BiddingStrategy == "" {
+		return fmt.Errorf("SETT_BIDDING_STRATEGY environment variable is required")
+	}
+
+	// Validate bidding strategy is a valid enum
+	if err := c.BiddingStrategy.Validate(); err != nil {
+		return fmt.Errorf("invalid SETT_BIDDING_STRATEGY: %w", err)
 	}
 
 	return nil

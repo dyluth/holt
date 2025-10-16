@@ -16,16 +16,17 @@ type SettConfig struct {
 
 // Agent represents a single agent configuration
 type Agent struct {
-	Role        string            `yaml:"role"`
-	Image       string            `yaml:"image"`         // Required: Docker image name for this agent
-	Build       *BuildConfig      `yaml:"build,omitempty"`
-	Command     []string          `yaml:"command"`
-	Workspace   *WorkspaceConfig  `yaml:"workspace,omitempty"`
-	Replicas    *int              `yaml:"replicas,omitempty"`
-	Strategy    string            `yaml:"strategy,omitempty"`
-	Environment []string          `yaml:"environment,omitempty"`
-	Resources   *ResourcesConfig  `yaml:"resources,omitempty"`
-	Prompts     *PromptsConfig    `yaml:"prompts,omitempty"`
+	Role            string            `yaml:"role"`
+	Image           string            `yaml:"image"`         // Required: Docker image name for this agent
+	Build           *BuildConfig      `yaml:"build,omitempty"`
+	Command         []string          `yaml:"command"`
+	Workspace       *WorkspaceConfig  `yaml:"workspace,omitempty"`
+	Replicas        *int              `yaml:"replicas,omitempty"`
+	Strategy        string            `yaml:"strategy,omitempty"`
+	BiddingStrategy string            `yaml:"bidding_strategy"` // Required: review, claim, exclusive, or ignore
+	Environment     []string          `yaml:"environment,omitempty"`
+	Resources       *ResourcesConfig  `yaml:"resources,omitempty"`
+	Prompts         *PromptsConfig    `yaml:"prompts,omitempty"`
 }
 
 // BuildConfig specifies how to build an agent's container image
@@ -105,6 +106,16 @@ func (a *Agent) Validate(name string) error {
 	// Required: command
 	if len(a.Command) == 0 {
 		return fmt.Errorf("agent '%s': command is required", name)
+	}
+
+	// Required: bidding_strategy (M3.1)
+	if a.BiddingStrategy == "" {
+		return fmt.Errorf("agent '%s': bidding_strategy is required", name)
+	}
+
+	// Validate bidding_strategy enum
+	if a.BiddingStrategy != "review" && a.BiddingStrategy != "claim" && a.BiddingStrategy != "exclusive" && a.BiddingStrategy != "ignore" {
+		return fmt.Errorf("agent '%s': invalid bidding_strategy: %s (must be 'review', 'claim', 'exclusive', or 'ignore')", name, a.BiddingStrategy)
 	}
 
 	// If build.context specified, verify path exists

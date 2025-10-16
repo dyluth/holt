@@ -21,6 +21,7 @@ agents:
     role: "Example Agent"
     image: "example-agent:latest"
     command: ["./run.sh"]
+    bidding_strategy: "exclusive"
 `
 	err := os.WriteFile(configPath, []byte(validConfig), 0644)
 	require.NoError(t, err)
@@ -66,9 +67,10 @@ func TestValidate_UnsupportedVersion(t *testing.T) {
 		Version: "2.0",
 		Agents: map[string]Agent{
 			"test": {
-				Role:    "Test",
-				Image:   "test:latest",
-				Command: []string{"test"},
+				Role:            "Test",
+				Image:           "test:latest",
+				Command:         []string{"test"},
+				BiddingStrategy: "exclusive",
 			},
 		},
 	}
@@ -125,9 +127,10 @@ func TestAgentValidate_MissingCommand(t *testing.T) {
 
 func TestAgentValidate_InvalidBuildContext(t *testing.T) {
 	agent := Agent{
-		Role:    "Test Agent",
-		Image:   "test-agent:latest",
-		Command: []string{"./run.sh"},
+		Role:            "Test Agent",
+		Image:           "test-agent:latest",
+		Command:         []string{"./run.sh"},
+		BiddingStrategy: "exclusive",
 		Build: &BuildConfig{
 			Context: "/nonexistent/path",
 		},
@@ -142,9 +145,10 @@ func TestAgentValidate_ValidBuildContext(t *testing.T) {
 	tmpDir := t.TempDir()
 
 	agent := Agent{
-		Role:    "Test Agent",
-		Image:   "test-agent:latest",
-		Command: []string{"./run.sh"},
+		Role:            "Test Agent",
+		Image:           "test-agent:latest",
+		Command:         []string{"./run.sh"},
+		BiddingStrategy: "exclusive",
 		Build: &BuildConfig{
 			Context: tmpDir,
 		},
@@ -156,9 +160,10 @@ func TestAgentValidate_ValidBuildContext(t *testing.T) {
 
 func TestAgentValidate_InvalidWorkspaceMode(t *testing.T) {
 	agent := Agent{
-		Role:    "Test Agent",
-		Image:   "test-agent:latest",
-		Command: []string{"./run.sh"},
+		Role:            "Test Agent",
+		Image:           "test-agent:latest",
+		Command:         []string{"./run.sh"},
+		BiddingStrategy: "exclusive",
 		Workspace: &WorkspaceConfig{
 			Mode: "invalid",
 		},
@@ -173,9 +178,10 @@ func TestAgentValidate_ValidWorkspaceModes(t *testing.T) {
 	modes := []string{"ro", "rw"}
 	for _, mode := range modes {
 		agent := Agent{
-			Role:    "Test Agent",
-			Image:   "test-agent:latest",
-			Command: []string{"./run.sh"},
+			Role:            "Test Agent",
+			Image:           "test-agent:latest",
+			Command:         []string{"./run.sh"},
+			BiddingStrategy: "exclusive",
 			Workspace: &WorkspaceConfig{
 				Mode: mode,
 			},
@@ -188,10 +194,11 @@ func TestAgentValidate_ValidWorkspaceModes(t *testing.T) {
 
 func TestAgentValidate_InvalidStrategy(t *testing.T) {
 	agent := Agent{
-		Role:     "Test Agent",
-		Image:    "test-agent:latest",
-		Command:  []string{"./run.sh"},
-		Strategy: "invalid_strategy",
+		Role:            "Test Agent",
+		Image:           "test-agent:latest",
+		Command:         []string{"./run.sh"},
+		BiddingStrategy: "exclusive",
+		Strategy:        "invalid_strategy",
 	}
 
 	err := agent.Validate("test-agent")
@@ -203,10 +210,11 @@ func TestAgentValidate_ValidStrategies(t *testing.T) {
 	strategies := []string{"reuse", "fresh_per_call"}
 	for _, strategy := range strategies {
 		agent := Agent{
-			Role:     "Test Agent",
-			Image:    "test-agent:latest",
-			Command:  []string{"./run.sh"},
-			Strategy: strategy,
+			Role:            "Test Agent",
+			Image:           "test-agent:latest",
+			Command:         []string{"./run.sh"},
+			BiddingStrategy: "exclusive",
+			Strategy:        strategy,
 		}
 
 		err := agent.Validate("test-agent")
@@ -229,6 +237,7 @@ agents:
     role: "Design Agent"
     image: "designer-agent:latest"
     command: ["python", "design.py"]
+    bidding_strategy: "exclusive"
     build:
       context: ` + buildContext + `
     workspace:
@@ -252,6 +261,7 @@ agents:
     role: "Code Agent"
     image: "coder-agent:latest"
     command: ["./code.sh"]
+    bidding_strategy: "exclusive"
 services:
   redis:
     image: "redis:7-alpine"

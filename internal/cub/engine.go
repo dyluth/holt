@@ -152,32 +152,14 @@ func (e *Engine) claimWatcher(ctx context.Context, workQueue chan *blackboard.Cl
 }
 
 // handleClaimEvent processes a claim event by submitting a bid.
-// Determines bid type based on artefact type to avoid infinite loops.
+// M3.1: Uses configured bidding strategy from SETT_BIDDING_STRATEGY env var.
 func (e *Engine) handleClaimEvent(ctx context.Context, claim *blackboard.Claim) {
 	log.Printf("[INFO] Received claim event: claim_id=%s artefact_id=%s", claim.ID, claim.ArtefactID)
 
-	// Fetch the artefact to determine if we're interested
-	artefact, err := e.bbClient.GetArtefact(ctx, claim.ArtefactID)
-	if err != nil {
-		log.Printf("[ERROR] Failed to fetch artefact %s for claim %s: %v", claim.ArtefactID, claim.ID, err)
-		// Bid ignore if we can't fetch the artefact
-		e.bbClient.SetBid(ctx, claim.ID, e.config.AgentName, blackboard.BidTypeIgnore)
-		return
-	}
+	// M3.1: Use configured bidding strategy
+	bidType := e.config.BiddingStrategy
 
-	// Determine bid type based on artefact type
-	var bidType blackboard.BidType
-	if artefact.Type == "GoalDefined" {
-		// We're interested in GoalDefined artefacts
-		bidType = blackboard.BidTypeExclusive
-		log.Printf("[INFO] Artefact type=GoalDefined, bidding exclusive")
-	} else {
-		// Ignore all other artefact types (including our own CodeCommit outputs)
-		bidType = blackboard.BidTypeIgnore
-		log.Printf("[INFO] Artefact type=%s, bidding ignore", artefact.Type)
-	}
-
-	err = e.bbClient.SetBid(ctx, claim.ID, e.config.AgentName, bidType)
+	err := e.bbClient.SetBid(ctx, claim.ID, e.config.AgentName, bidType)
 	if err != nil {
 		log.Printf("[ERROR] Failed to submit bid for claim_id=%s: %v", claim.ID, err)
 		// Continue watching - don't crash on bid failure

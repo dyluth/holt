@@ -12,12 +12,14 @@ func TestLoadConfig_Success(t *testing.T) {
 	os.Setenv("SETT_AGENT_ROLE", "coder")
 	os.Setenv("REDIS_URL", "redis://localhost:6379")
 	os.Setenv("SETT_AGENT_COMMAND", `["/app/run.sh"]`)
+	os.Setenv("SETT_BIDDING_STRATEGY", "exclusive") // M3.1: Required
 	defer func() {
 		os.Unsetenv("SETT_INSTANCE_NAME")
 		os.Unsetenv("SETT_AGENT_NAME")
 		os.Unsetenv("SETT_AGENT_ROLE")
 		os.Unsetenv("REDIS_URL")
 		os.Unsetenv("SETT_AGENT_COMMAND")
+		os.Unsetenv("SETT_BIDDING_STRATEGY")
 	}()
 
 	cfg, err := LoadConfig()
@@ -236,11 +238,12 @@ func TestLoadConfig_EmptyRedisURL(t *testing.T) {
 
 func TestValidate_ValidConfig(t *testing.T) {
 	cfg := &Config{
-		InstanceName: "test-instance",
-		AgentName:    "test-agent",
-		AgentRole:    "coder",
-		RedisURL:     "redis://localhost:6379",
-		Command:      []string{"/app/run.sh"},
+		InstanceName:    "test-instance",
+		AgentName:       "test-agent",
+		AgentRole:       "coder",
+		RedisURL:        "redis://localhost:6379",
+		Command:         []string{"/app/run.sh"},
+		BiddingStrategy: "exclusive", // M3.1: Required
 	}
 
 	err := cfg.Validate()

@@ -4,6 +4,7 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
+	"time"
 
 	"github.com/docker/docker/api/types"
 	"github.com/docker/docker/api/types/container"
@@ -318,14 +319,17 @@ func rollbackInstance(ctx context.Context, cli *client.Client, instanceName stri
 }
 
 func printUpSuccess(instanceName, workspacePath string, cfg *config.SettConfig) {
-	printer.Success("\nInstance '%s' started successfully\n\n", instanceName)
+	agentCount := len(cfg.Agents)
+	printer.Success("\nInstance '%s' started successfully (%d agents ready)\n\n", instanceName, agentCount)
 	printer.Info("Containers:\n")
 	printer.Info("  • %s (running)\n", dockerpkg.RedisContainerName(instanceName))
 	printer.Info("  • %s (running)\n", dockerpkg.OrchestratorContainerName(instanceName))
 
 	// List agent containers
-	for agentName := range cfg.Agents {
-		printer.Info("  • %s (running)\n", dockerpkg.AgentContainerName(instanceName, agentName))
+	for agentName, agent := range cfg.Agents {
+		printer.Info("  • %s (running, healthy, bidding_strategy=%s)\n",
+			dockerpkg.AgentContainerName(instanceName, agentName),
+			agent.BiddingStrategy)
 	}
 
 	printer.Info("\n")
@@ -422,16 +426,57 @@ func validateAgentImages(ctx context.Context, cli *client.Client, cfg *config.Se
 	return nil
 }
 
+// M3.1: launchAgentContainersParallel launches all agent containers in parallel with fail-fast.
+// Uses goroutines + WaitGroup for concurrent startup.
+// Validates health checks before reporting success.
+// Returns error immediately on first failure (fail-fast) and triggers rollback.
 func launchAgentContainers(ctx context.Context, cli *client.Client, cfg *config.SettConfig, instanceName, runID, workspacePath, networkName, redisName string) error {
 	if len(cfg.Agents) == 0 {
 		return nil
 	}
 
-	for agentName, agent := range cfg.Agents {
-		if err := launchAgentContainer(ctx, cli, instanceName, runID, workspacePath, networkName, redisName, agentName, agent); err != nil {
-			return fmt.Errorf("failed to launch agent '%s': %w", agentName, err)
-		}
+	// Create cancellable context for fail-fast behavior
+	launchCtx, cancel := context.WithCancel(ctx)
+	defer cancel()
+
+	// Channels for collecting results
+	type launchResult struct {
+		agentName string
+		err       error
 	}
+	resultChan := make(chan launchResult, len(cfg.Agents))
+
+	// Launch all agents in parallel
+	agentCount := 0
+	for agentName, agent := range cfg.Agents {
+		agentCount++
+		// Launch each agent in a goroutine
+		go func(name string, agentCfg config.Agent) {
+			err := launchAgentContainer(launchCtx, cli, instanceName, runID, workspacePath, networkName, redisName, name, agentCfg)
+			resultChan <- launchResult{agentName: name, err: err}
+		}(agentName, agent)
+	}
+
+	// Collect results - fail fast on first error
+	var containerNames []string
+	for i := 0; i < agentCount; i++ {
+		result := <-resultChan
+		if result.err != nil {
+			// Fail-fast: cancel other launches and return error
+			cancel()
+			return fmt.Errorf("failed to launch agent '%s': %w", result.agentName, result.err)
+		}
+		containerNames = append(containerNames, dockerpkg.AgentContainerName(instanceName, result.agentName))
+	}
+
+	printer.Success("Started %d agent container(s) in parallel\n", agentCount)
+
+	// M3.1: Validate all agents are healthy before reporting success
+	if err := validateAllAgentsHealthy(ctx, cli, containerNames); err != nil {
+		return fmt.Errorf("agent health check failed: %w", err)
+	}
+
+	printer.Success("All agents healthy\n")
 
 	return nil
 }
@@ -454,6 +499,7 @@ func launchAgentContainer(ctx context.Context, cli *client.Client, instanceName,
 		fmt.Sprintf("SETT_AGENT_NAME=%s", agentName),
 		fmt.Sprintf("SETT_AGENT_ROLE=%s", agent.Role),
 		fmt.Sprintf("REDIS_URL=%s", redisURL),
+		fmt.Sprintf("SETT_BIDDING_STRATEGY=%s", agent.BiddingStrategy), // M3.1
 	}
 
 	// Add SETT_AGENT_COMMAND as JSON array
@@ -492,5 +538,115 @@ func launchAgentContainer(ctx context.Context, cli *client.Client, instanceName,
 	}
 
 	printer.Success("Started agent container: %s\n", containerName)
+	return nil
+}
+
+// validateAllAgentsHealthy validates that all agent containers pass health checks.
+// M3.1: Uses docker exec to check /healthz endpoint inside each container.
+// Implements retry logic with exponential backoff (5 attempts over ~10s).
+// Total timeout: 30 seconds for all agents.
+// Fail-fast: Returns error immediately on first health check failure.
+func validateAllAgentsHealthy(ctx context.Context, cli *client.Client, containerNames []string) error {
+	// Create timeout context (30 seconds total)
+	healthCtx, cancel := context.WithTimeout(ctx, 30*time.Second)
+	defer cancel()
+
+	printer.Info("Validating agent health checks...\n")
+
+	// Check each agent health in parallel
+	type healthResult struct {
+		containerName string
+		err           error
+	}
+	resultChan := make(chan healthResult, len(containerNames))
+
+	for _, containerName := range containerNames {
+		go func(name string) {
+			err := validateAgentHealth(healthCtx, cli, name)
+			resultChan <- healthResult{containerName: name, err: err}
+		}(containerName)
+	}
+
+	// Collect results - fail fast on first error
+	for i := 0; i < len(containerNames); i++ {
+		result := <-resultChan
+		if result.err != nil {
+			return fmt.Errorf("agent %s failed health check: %w", result.containerName, result.err)
+		}
+		printer.Info("  ✓ %s (healthy)\n", result.containerName)
+	}
+
+	return nil
+}
+
+// validateAgentHealth checks if a single agent container is healthy.
+// Retries up to 5 times with exponential backoff: 100ms, 200ms, 400ms, 800ms, 1600ms.
+func validateAgentHealth(ctx context.Context, cli *client.Client, containerName string) error {
+	maxAttempts := 5
+	backoff := 100 * time.Millisecond
+
+	for attempt := 1; attempt <= maxAttempts; attempt++ {
+		// Try health check
+		err := checkHealthEndpoint(ctx, cli, containerName)
+		if err == nil {
+			return nil // Success!
+		}
+
+		// Check if context cancelled (timeout or fail-fast)
+		if ctx.Err() != nil {
+			return fmt.Errorf("health check cancelled: %w", ctx.Err())
+		}
+
+		// Last attempt failed - return error
+		if attempt == maxAttempts {
+			return fmt.Errorf("health check failed after %d attempts: %w", maxAttempts, err)
+		}
+
+		// Wait before retry with exponential backoff
+		time.Sleep(backoff)
+		backoff *= 2
+	}
+
+	return fmt.Errorf("health check failed after %d attempts", maxAttempts)
+}
+
+// checkHealthEndpoint uses docker exec to check the /healthz endpoint inside a container.
+// Uses wget -q -O- http://localhost:8080/healthz to fetch health status.
+func checkHealthEndpoint(ctx context.Context, cli *client.Client, containerName string) error {
+	// Create exec instance
+	execConfig := types.ExecConfig{
+		Cmd:          []string{"wget", "-q", "-O-", "http://localhost:8080/healthz"},
+		AttachStdout: true,
+		AttachStderr: true,
+	}
+
+	execID, err := cli.ContainerExecCreate(ctx, containerName, execConfig)
+	if err != nil {
+		return fmt.Errorf("failed to create exec: %w", err)
+	}
+
+	// Start exec
+	resp, err := cli.ContainerExecAttach(ctx, execID.ID, types.ExecStartCheck{})
+	if err != nil {
+		return fmt.Errorf("failed to start exec: %w", err)
+	}
+	defer resp.Close()
+
+	// Wait for completion
+	err = cli.ContainerExecStart(ctx, execID.ID, types.ExecStartCheck{})
+	if err != nil {
+		return fmt.Errorf("failed to exec start: %w", err)
+	}
+
+	// Check exit code
+	inspectResp, err := cli.ContainerExecInspect(ctx, execID.ID)
+	if err != nil {
+		return fmt.Errorf("failed to inspect exec: %w", err)
+	}
+
+	if inspectResp.ExitCode != 0 {
+		return fmt.Errorf("health check returned non-zero exit code: %d", inspectResp.ExitCode)
+	}
+
 	return nil
 }

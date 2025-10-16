@@ -1,0 +1,40 @@
+# Example Multi-Agent Sett configuration for M3.1+
+# Demonstrates multiple agents with different bidding strategies
+# Copy this to sett.yml and customize as needed
+
+version: "1.0"
+
+agents:
+  # Reviewer agent - provides feedback (bids "review")
+  reviewer-agent:
+    role: "Reviewer"
+    image: "example-reviewer-agent:latest"
+    command: ["/app/run.sh"]
+    bidding_strategy: "review"  # Always bids "review" - runs in review phase
+    workspace:
+      mode: ro  # Read-only - reviewers don't modify code
+
+  # Git agent - creates code commits (bids "exclusive")
+  git-agent:
+    role: "Coder"
+    image: "example-git-agent:latest"
+    command: ["/app/run.sh"]
+    bidding_strategy: "exclusive"  # Bids "exclusive" - needs exclusive workspace access
+    workspace:
+      mode: rw  # Read-write - needs to modify code and commit
+
+  # Test agent - observes but doesn't act (bids "ignore")
+  test-agent:
+    role: "Tester"
+    image: "example-test-agent:latest"
+    command: ["/app/run.sh"]
+    bidding_strategy: "ignore"  # Always bids "ignore" - never executes
+    workspace:
+      mode: ro
+
+# Optional: Service overrides
+# services:
+#   redis:
+#     image: "redis:7-alpine"
+#   orchestrator:
+#     image: "sett-orchestrator:latest"
