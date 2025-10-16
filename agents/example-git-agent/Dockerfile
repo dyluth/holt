@@ -40,7 +40,8 @@ USER agent
 # Configure git (required for commits) - MUST be done AFTER switching to agent user
 # so the config is written to /home/agent/.gitconfig instead of /root/.gitconfig
 RUN git config --global user.email "agent@sett.local" && \
-    git config --global user.name "Sett Git Agent"
+    git config --global user.name "Sett Git Agent" && \
+    git config --global --add safe.directory /workspace
 
 # Entrypoint is the cub binary
 ENTRYPOINT ["/app/cub"]
