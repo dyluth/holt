@@ -1,9 +1,16 @@
 package orchestrator
 
 import (
+	"context"
 	"testing"
+	"time"
 
+	"github.com/alicebob/miniredis/v2"
 	"github.com/dyluth/sett/pkg/blackboard"
+	"github.com/google/uuid"
+	"github.com/redis/go-redis/v9"
+	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
 )
 
 // TestIsTerminalArtefact verifies Terminal artefact detection logic.
@@ -98,4 +105,141 @@ func TestCreateClaimForArtefact(t *testing.T) {
 	if err := claim.Validate(); err != nil {
 		t.Errorf("Valid claim failed validation: %v", err)
 	}
+}
+
+// setupTestEngine creates a test engine connected to miniredis
+func setupTestEngine(t *testing.T) (*Engine, *blackboard.Client, *miniredis.Miniredis) {
+	mr := miniredis.NewMiniRedis()
+	err := mr.Start()
+	require.NoError(t, err)
+	t.Cleanup(mr.Close)
+
+	client, err := blackboard.NewClient(&redis.Options{Addr: mr.Addr()}, "test-instance")
+	require.NoError(t, err)
+	t.Cleanup(func() { client.Close() })
+
+	engine := NewEngine(client, "test-instance", nil)
+
+	return engine, client, mr
+}
+
+// TestPublishClaimGrantedEvent verifies grant event publishing (M2.6)
+func TestPublishClaimGrantedEvent(t *testing.T) {
+	t.Run("publishes exclusive grant event", func(t *testing.T) {
+		ctx := context.Background()
+		engine, client, _ := setupTestEngine(t)
+
+		// Subscribe to workflow events before publishing
+		sub, err := client.SubscribeWorkflowEvents(ctx)
+		require.NoError(t, err)
+		defer sub.Close()
+
+		// Small delay to ensure subscription is ready
+		time.Sleep(10 * time.Millisecond)
+
+		// Create claim with exclusive grant
+		claim := &blackboard.Claim{
+			ID:                    uuid.New().String(),
+			ArtefactID:            uuid.New().String(),
+			Status:                blackboard.ClaimStatusPendingReview,
+			GrantedReviewAgents:   []string{},
+			GrantedParallelAgents: []string{},
+			GrantedExclusiveAgent: "test-agent",
+		}
+
+		// Publish event
+		err = engine.publishClaimGrantedEvent(ctx, claim, "test-agent")
+		require.NoError(t, err)
+
+		// Receive and verify event with longer timeout for CI
+		select {
+		case event := <-sub.Events():
+			assert.Equal(t, "claim_granted", event.Event)
+			assert.Equal(t, claim.ID, event.Data["claim_id"])
+			assert.Equal(t, "test-agent", event.Data["agent_name"])
+			assert.Equal(t, "exclusive", event.Data["grant_type"])
+		case <-time.After(2 * time.Second):
+			t.Fatal("timeout waiting for claim_granted event")
+		}
+	})
+
+	t.Run("publishes review grant event", func(t *testing.T) {
+		ctx := context.Background()
+		engine, client, _ := setupTestEngine(t)
+
+		sub, err := client.SubscribeWorkflowEvents(ctx)
+		require.NoError(t, err)
+		defer sub.Close()
+
+		time.Sleep(10 * time.Millisecond)
+
+		claim := &blackboard.Claim{
+			ID:                    uuid.New().String(),
+			ArtefactID:            uuid.New().String(),
+			Status:                blackboard.ClaimStatusPendingReview,
+			GrantedReviewAgents:   []string{"agent1", "agent2"},
+			GrantedParallelAgents: []string{},
+			GrantedExclusiveAgent: "",
+		}
+
+		err = engine.publishClaimGrantedEvent(ctx, claim, "agent1")
+		require.NoError(t, err)
+
+		select {
+		case event := <-sub.Events():
+			assert.Equal(t, "claim_granted", event.Event)
+			assert.Equal(t, "review", event.Data["grant_type"])
+		case <-time.After(2 * time.Second):
+			t.Fatal("timeout waiting for event")
+		}
+	})
+
+	t.Run("publishes parallel grant event", func(t *testing.T) {
+		ctx := context.Background()
+		engine, client, _ := setupTestEngine(t)
+
+		sub, err := client.SubscribeWorkflowEvents(ctx)
+		require.NoError(t, err)
+		defer sub.Close()
+
+		time.Sleep(10 * time.Millisecond)
+
+		claim := &blackboard.Claim{
+			ID:                    uuid.New().String(),
+			ArtefactID:            uuid.New().String(),
+			Status:                blackboard.ClaimStatusPendingParallel,
+			GrantedReviewAgents:   []string{},
+			GrantedParallelAgents: []string{"agent1", "agent2"},
+			GrantedExclusiveAgent: "",
+		}
+
+		err = engine.publishClaimGrantedEvent(ctx, claim, "agent1")
+		require.NoError(t, err)
+
+		select {
+		case event := <-sub.Events():
+			assert.Equal(t, "claim_granted", event.Event)
+			assert.Equal(t, "parallel", event.Data["grant_type"])
+		case <-time.After(2 * time.Second):
+			t.Fatal("timeout waiting for event")
+		}
+	})
+
+	t.Run("returns error when no grants present", func(t *testing.T) {
+		ctx := context.Background()
+		engine, _, _ := setupTestEngine(t)
+
+		claim := &blackboard.Claim{
+			ID:                    uuid.New().String(),
+			ArtefactID:            uuid.New().String(),
+			Status:                blackboard.ClaimStatusPendingReview,
+			GrantedReviewAgents:   []string{},
+			GrantedParallelAgents: []string{},
+			GrantedExclusiveAgent: "",
+		}
+
+		err := engine.publishClaimGrantedEvent(ctx, claim, "test-agent")
+		assert.Error(t, err)
+		assert.Contains(t, err.Error(), "no granted agents")
+	})
 }

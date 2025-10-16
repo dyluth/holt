@@ -3,6 +3,7 @@ package commands
 import (
 	"context"
 	"fmt"
+	"os"
 	"time"
 
 	dockerpkg "github.com/dyluth/sett/internal/docker"
@@ -141,7 +142,7 @@ func runForage(cmd *cobra.Command, args []string) error {
 	if err := instance.VerifyInstanceRunning(ctx, cli, targetInstanceName); err != nil {
 		return printer.Error(
 			fmt.Sprintf("instance '%s' is not running", targetInstanceName),
-			"Container exists but is stopped.",
+			fmt.Sprintf("Error: %v", err),
 			[]string{
 				fmt.Sprintf("Start the instance:\n  sett up --name %s", targetInstanceName),
 				fmt.Sprintf("Or if stuck, restart:\n  sett down --name %s\n  sett up --name %s", targetInstanceName, targetInstanceName),
@@ -190,7 +191,43 @@ func runForage(cmd *cobra.Command, args []string) error {
 		)
 	}
 
-	// Phase 7: Create GoalDefined artefact
+	// Phase 7: If --watch mode, start streaming BEFORE creating artefact to catch all events
+	if forageWatch {
+		printer.Info("Starting watch mode...\n")
+
+		// Start streaming in a goroutine
+		streamDone := make(chan error, 1)
+		go func() {
+			streamDone <- watch.StreamActivity(ctx, bbClient, targetInstanceName, watch.OutputFormatDefault, os.Stdout)
+		}()
+
+		// Give subscription time to set up before publishing artefact
+		time.Sleep(100 * time.Millisecond)
+
+		// Now create the artefact - all subsequent events will be captured
+		artefactID := uuid.New().String()
+		logicalID := uuid.New().String()
+
+		artefact := &blackboard.Artefact{
+			ID:              artefactID,
+			LogicalID:       logicalID,
+			Version:         1,
+			StructuralType:  blackboard.StructuralTypeStandard,
+			Type:            "GoalDefined",
+			Payload:         forageGoal,
+			SourceArtefacts: []string{},
+			ProducedByRole:  "user",
+		}
+
+		if err := bbClient.CreateArtefact(ctx, artefact); err != nil {
+			return fmt.Errorf("failed to create artefact: %w", err)
+		}
+
+		// Wait for streaming to complete (typically on Ctrl+C)
+		return <-streamDone
+	}
+
+	// Non-watch mode: create artefact and return
 	artefactID := uuid.New().String()
 	logicalID := uuid.New().String()
 
@@ -211,29 +248,10 @@ func runForage(cmd *cobra.Command, args []string) error {
 
 	printer.Success("Goal artefact created: %s\n", artefactID)
 
-	// Phase 8: Optionally wait for claim (--watch)
-	if forageWatch {
-		printer.Info("⏳ Waiting for orchestrator to create claim...\n")
-
-		claim, err := watch.PollForClaim(ctx, bbClient, artefactID, 5*time.Second)
-		if err != nil {
-			return printer.Error(
-				"timeout waiting for claim",
-				"No claim created after 5 seconds.\n\nPossible causes:\n  - Orchestrator container not running\n  - Orchestrator not subscribed to artefact_events\n  - Redis Pub/Sub issue",
-				[]string{
-					fmt.Sprintf("Check orchestrator status:\n  docker ps | grep orchestrator\n  docker logs sett-orchestrator-%s", targetInstanceName),
-					fmt.Sprintf("Check artefact was created:\n  # Connect to Redis and verify\n  redis-cli -p %d HGETALL sett:%s:artefact:%s", redisPort, targetInstanceName, artefactID),
-				},
-			)
-		}
-
-		printer.Success("Claim created: %s (status: %s)\n", claim.ID, claim.Status)
-	}
-
 	printer.Info("\nNext steps:\n")
 	printer.Info("  • Agents will process this goal in Phase 2+\n")
 	printer.Info("  • View all artefacts: sett hoard --name %s\n", targetInstanceName)
-	printer.Info("  • Monitor workflow: sett watch --name %s (Phase 2+)\n", targetInstanceName)
+	printer.Info("  • Monitor workflow: sett watch --name %s\n", targetInstanceName)
 
 	return nil
 }

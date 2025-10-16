@@ -29,49 +29,54 @@ func TestHealthCheckEndpoint_MethodNotAllowed(t *testing.T) {
 
 // TestHealthCheckResponse verifies the JSON response structure.
 func TestHealthCheckResponse(t *testing.T) {
-	// Create a minimal Redis client for testing
-	// (it won't connect, but we can test the structure)
-	client, err := blackboard.NewClient(&redis.Options{
-		Addr: "localhost:6379",
-	}, "test")
-	if err != nil {
-		t.Fatalf("Failed to create client: %v", err)
-	}
-	defer client.Close()
+	t.Run("unhealthy when Redis unavailable", func(t *testing.T) {
+		// Use an address that definitely won't have Redis running
+		// Port 9 is the discard protocol - connections will fail immediately
+		client, err := blackboard.NewClient(&redis.Options{
+			Addr:         "localhost:9",
+			DialTimeout:  50 * time.Millisecond,
+			ReadTimeout:  50 * time.Millisecond,
+			WriteTimeout: 50 * time.Millisecond,
+		}, "test")
+		if err != nil {
+			t.Fatalf("Failed to create client: %v", err)
+		}
+		defer client.Close()
 
-	server := NewHealthServer(client)
+		server := NewHealthServer(client)
 
-	req := httptest.NewRequest(http.MethodGet, "/healthz", nil)
-	// Use context with timeout to prevent hanging
-	ctx, cancel := context.WithTimeout(context.Background(), 100*time.Millisecond)
-	defer cancel()
-	req = req.WithContext(ctx)
+		req := httptest.NewRequest(http.MethodGet, "/healthz", nil)
+		// Use context with timeout to prevent hanging
+		ctx, cancel := context.WithTimeout(context.Background(), 200*time.Millisecond)
+		defer cancel()
+		req = req.WithContext(ctx)
 
-	w := httptest.NewRecorder()
+		w := httptest.NewRecorder()
 
-	server.healthCheckHandler(w, req)
+		server.healthCheckHandler(w, req)
 
-	// Parse response
-	var response HealthResponse
-	if err := json.NewDecoder(w.Body).Decode(&response); err != nil {
-		t.Fatalf("Failed to decode response: %v", err)
-	}
+		// Parse response
+		var response HealthResponse
+		if err := json.NewDecoder(w.Body).Decode(&response); err != nil {
+			t.Fatalf("Failed to decode response: %v", err)
+		}
 
-	// Since Redis is not actually running, expect unhealthy status
-	if response.Status != "unhealthy" {
-		t.Errorf("Expected unhealthy status (Redis not running), got %s", response.Status)
-	}
+		// Since Redis is not actually running, expect unhealthy status
+		if response.Status != "unhealthy" {
+			t.Errorf("Expected unhealthy status (Redis not running), got %s", response.Status)
+		}
 
-	if response.Redis != "disconnected" {
-		t.Errorf("Expected redis=disconnected, got %s", response.Redis)
-	}
+		if response.Redis != "disconnected" {
+			t.Errorf("Expected redis=disconnected, got %s", response.Redis)
+		}
 
-	if w.Code != http.StatusServiceUnavailable {
-		t.Errorf("Expected status 503, got %d", w.Code)
-	}
+		if w.Code != http.StatusServiceUnavailable {
+			t.Errorf("Expected status 503, got %d", w.Code)
+		}
 
-	// Verify Content-Type header
-	if ct := w.Header().Get("Content-Type"); ct != "application/json" {
-		t.Errorf("Expected Content-Type application/json, got %s", ct)
-	}
+		// Verify Content-Type header
+		if ct := w.Header().Get("Content-Type"); ct != "application/json" {
+			t.Errorf("Expected Content-Type application/json, got %s", ct)
+		}
+	})
 }

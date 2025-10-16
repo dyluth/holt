@@ -95,6 +95,62 @@ ls -la hello.txt  # File created by agent!
 
 ---
 
+## How It Works: A Conceptual Overview
+
+This diagram illustrates the high-level conceptual workflow of the Sett system, demonstrating how a user goal initiates a collaborative, auditable process between the orchestrator and a clan of specialized AI agents interacting via the central Redis Blackboard.
+
+```mermaid
+graph TD
+    User([fa:fa-user User]) -- "1. `sett forage --goal '...'`" --> CLI(fa:fa-terminal Sett CLI)
+
+    subgraph "Sett System"
+        direction LR
+        
+        subgraph "Execution Plane"
+            Agents["fa:fa-users AI Agent Clan<br/>(e.g., Coder, Tester, Reviewer)"]
+            Tools([fa:fa-wrench Tools<br/>Git, Linters, etc.])
+        end
+
+        subgraph "Control & Data Plane"
+            Orchestrator(fa:fa-sitemap Orchestrator)
+            
+            subgraph Blackboard [fa:fa-database Redis Blackboard]
+                Artefacts("fa:fa-file-alt Artefacts")
+                Claims("fa:fa-check-square Claims")
+                Bids("fa:fa-gavel Bids")
+            end
+        end
+    end
+
+    CLI -- "2. Writes Goal Artefact" --> Blackboard
+    
+    Blackboard -- "3. Event" --> Orchestrator
+    Orchestrator -- "4. Creates Claim" --> Blackboard
+    
+    Blackboard -- "5. Event" --> Agents
+    Agents -- "6. Submit Bids" --> Blackboard
+    
+    Orchestrator -- "7. Grants Claim" --> Blackboard
+    Blackboard -- "8. Notifies Winning Agent" --> Agents
+    
+    Agents -- "9. Executes Work Using" --> Tools
+    Tools -- "10. Produces Result (e.g., Git Commit)" --> Agents
+    Agents -- "11. Writes New Artefact" --> Blackboard
+
+    Blackboard -- "12. Loop: Next Cycle Begins..." --> Orchestrator
+
+    %% Style Definitions
+    classDef core fill:#d4edda,stroke:#155724,color:#000;
+    classDef agent fill:#ddebf7,stroke:#3b7ddd,color:#000;
+    classDef user fill:#f8d7da,stroke:#721c24,color:#000;
+    classDef data fill:#fff3cd,stroke:#856404,color:#000;
+
+    class Orchestrator,Blackboard core;
+    class Agents agent;
+    class User,CLI user;
+    class Tools data;
+```
+
 ## Core Concepts
 
 ### The Blackboard
@@ -187,48 +243,6 @@ Sett is designed for human oversight:
 - **Review phase**: Humans or review agents can provide feedback before execution (Phase 3)
 - **Complete audit trail**: Every decision is traceable for compliance
 - **Manual intervention**: Humans can inspect state and intervene at any point
-
----
-
-## Architecture
-
-```
-┌─────────────────────────────────────────────────────────────┐
-│                         User                                 │
-│                           │                                  │
-│                           ▼                                  │
-│                    ┌──────────────┐                          │
-│                    │  Sett CLI    │                          │
-│                    └──────┬───────┘                          │
-│                           │                                  │
-│                           │ creates artefacts                │
-│                           ▼                                  │
-│  ┌────────────────────────────────────────────────────────┐ │
-│  │          Redis Blackboard (State Storage)              │ │
-│  │   • Artefacts • Claims • Bids • Thread Tracking       │ │
-│  └────────┬────────────────────────────────┬──────────────┘ │
-│           │ Pub/Sub                        │ Pub/Sub         │
-│           │ artefact_events                │ claim_events    │
-│           ▼                                ▼                 │
-│  ┌─────────────────┐             ┌──────────────────────┐   │
-│  │  Orchestrator   │             │   Agent Containers   │   │
-│  │                 │             │                      │   │
-│  │  • Watches for  │             │  ┌────────────────┐ │   │
-│  │    artefacts    │             │  │  Agent Cub     │ │   │
-│  │  • Creates      │             │  │  • Watches     │ │   │
-│  │    claims       │             │  │  • Bids        │ │   │
-│  │  • Coordinates  │◄───bids─────┤  │  • Executes    │ │   │
-│  │    phases       │             │  └────────┬───────┘ │   │
-│  │  • Grants work  │             │           │         │   │
-│  └─────────────────┘             │           ▼         │   │
-│                                   │  ┌────────────────┐ │   │
-│                                   │  │  Tool Script   │ │   │
-│                                   │  │  (your logic)  │ │   │
-│                                   │  └────────────────┘ │   │
-│                                   │                      │   │
-│                                   │  /workspace (Git)    │   │
-│                                   └──────────────────────┘   │
-└─────────────────────────────────────────────────────────────┘
 ```
 
 ---

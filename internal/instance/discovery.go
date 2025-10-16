@@ -108,6 +108,7 @@ func GetInstanceRedisPort(ctx context.Context, cli *client.Client, instanceName 
 
 // VerifyInstanceRunning checks if the given instance's containers are running.
 // Returns an error if any required container (Redis, orchestrator) is not running.
+// Note: Agent containers may exit after completing work and are not checked.
 func VerifyInstanceRunning(ctx context.Context, cli *client.Client, instanceName string) error {
 	// Find all containers for this instance
 	filter := filters.NewArgs()
@@ -125,11 +126,29 @@ func VerifyInstanceRunning(ctx context.Context, cli *client.Client, instanceName
 		return fmt.Errorf("instance '%s' not found", instanceName)
 	}
 
-	// Check that all containers are running
+	// Check that essential containers (Redis, orchestrator) are running
+	// Agent containers may exit after completing work, so they are not checked
+	essentialComponents := map[string]bool{
+		"redis":        false,
+		"orchestrator": false,
+	}
+
 	for _, container := range containers {
-		if container.State != "running" {
-			component := container.Labels[dockerpkg.LabelComponent]
-			return fmt.Errorf("instance '%s' is not running (component '%s' is %s)", instanceName, component, container.State)
+		component := container.Labels[dockerpkg.LabelComponent]
+
+		// If this is an essential component, mark it as found and check if running
+		if _, isEssential := essentialComponents[component]; isEssential {
+			essentialComponents[component] = true
+			if container.State != "running" {
+				return fmt.Errorf("instance '%s' is not running (component '%s' is %s)", instanceName, component, container.State)
+			}
+		}
+	}
+
+	// Verify that all essential components were found
+	for component, found := range essentialComponents {
+		if !found {
+			return fmt.Errorf("instance '%s' is missing essential component '%s'", instanceName, component)
 		}
 	}
 

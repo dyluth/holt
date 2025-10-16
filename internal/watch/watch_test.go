@@ -202,3 +202,165 @@ func TestPollForClaim(t *testing.T) {
 		require.Equal(t, claimID, foundClaim.ID)
 	})
 }
+
+// M2.6 formatter tests
+func TestFormatters(t *testing.T) {
+	t.Run("defaultFormatter formats artefact events", func(t *testing.T) {
+		var buf []byte
+		writer := &testWriter{buf: &buf}
+		formatter := &defaultFormatter{writer: writer}
+
+		artefact := &blackboard.Artefact{
+			ID:   "abc-123",
+			Type: "GoalDefined",
+		}
+
+		err := formatter.FormatArtefact(artefact)
+		require.NoError(t, err)
+
+		output := string(buf)
+		require.Contains(t, output, "✨ Artefact created")
+		require.Contains(t, output, "type=GoalDefined")
+		require.Contains(t, output, "id=abc-123")
+	})
+
+	t.Run("defaultFormatter formats claim events", func(t *testing.T) {
+		var buf []byte
+		writer := &testWriter{buf: &buf}
+		formatter := &defaultFormatter{writer: writer}
+
+		claim := &blackboard.Claim{
+			ID:         "claim-123",
+			ArtefactID: "artefact-456",
+			Status:     blackboard.ClaimStatusPendingReview,
+		}
+
+		err := formatter.FormatClaim(claim)
+		require.NoError(t, err)
+
+		output := string(buf)
+		require.Contains(t, output, "⏳ Claim created")
+		require.Contains(t, output, "claim=claim-123")
+		require.Contains(t, output, "artefact=artefact-456")
+		require.Contains(t, output, "status=pending_review")
+	})
+
+	t.Run("defaultFormatter formats bid_submitted events", func(t *testing.T) {
+		var buf []byte
+		writer := &testWriter{buf: &buf}
+		formatter := &defaultFormatter{writer: writer}
+
+		event := &blackboard.WorkflowEvent{
+			Event: "bid_submitted",
+			Data: map[string]interface{}{
+				"claim_id":   "claim-123",
+				"agent_name": "test-agent",
+				"bid_type":   "exclusive",
+			},
+		}
+
+		err := formatter.FormatWorkflow(event)
+		require.NoError(t, err)
+
+		output := string(buf)
+		require.Contains(t, output, "🙋 Bid submitted")
+		require.Contains(t, output, "agent=test-agent")
+		require.Contains(t, output, "claim=claim-123")
+		require.Contains(t, output, "type=exclusive")
+	})
+
+	t.Run("defaultFormatter formats claim_granted events", func(t *testing.T) {
+		var buf []byte
+		writer := &testWriter{buf: &buf}
+		formatter := &defaultFormatter{writer: writer}
+
+		event := &blackboard.WorkflowEvent{
+			Event: "claim_granted",
+			Data: map[string]interface{}{
+				"claim_id":   "claim-123",
+				"agent_name": "test-agent",
+				"grant_type": "exclusive",
+			},
+		}
+
+		err := formatter.FormatWorkflow(event)
+		require.NoError(t, err)
+
+		output := string(buf)
+		require.Contains(t, output, "🏆 Claim granted")
+		require.Contains(t, output, "agent=test-agent")
+		require.Contains(t, output, "claim=claim-123")
+		require.Contains(t, output, "type=exclusive")
+	})
+
+	t.Run("jsonFormatter formats artefact events", func(t *testing.T) {
+		var buf []byte
+		writer := &testWriter{buf: &buf}
+		formatter := &jsonFormatter{writer: writer}
+
+		artefact := &blackboard.Artefact{
+			ID:   "abc-123",
+			Type: "GoalDefined",
+		}
+
+		err := formatter.FormatArtefact(artefact)
+		require.NoError(t, err)
+
+		output := string(buf)
+		require.Contains(t, output, `"event":"artefact_created"`)
+		require.Contains(t, output, `"id":"abc-123"`)
+		require.Contains(t, output, `"type":"GoalDefined"`)
+	})
+
+	t.Run("jsonFormatter formats claim events", func(t *testing.T) {
+		var buf []byte
+		writer := &testWriter{buf: &buf}
+		formatter := &jsonFormatter{writer: writer}
+
+		claim := &blackboard.Claim{
+			ID:         "claim-123",
+			ArtefactID: "artefact-456",
+			Status:     blackboard.ClaimStatusPendingReview,
+		}
+
+		err := formatter.FormatClaim(claim)
+		require.NoError(t, err)
+
+		output := string(buf)
+		require.Contains(t, output, `"event":"claim_created"`)
+		require.Contains(t, output, `"id":"claim-123"`)
+		require.Contains(t, output, `"artefact_id":"artefact-456"`)
+	})
+
+	t.Run("jsonFormatter formats workflow events", func(t *testing.T) {
+		var buf []byte
+		writer := &testWriter{buf: &buf}
+		formatter := &jsonFormatter{writer: writer}
+
+		event := &blackboard.WorkflowEvent{
+			Event: "bid_submitted",
+			Data: map[string]interface{}{
+				"claim_id":   "claim-123",
+				"agent_name": "test-agent",
+			},
+		}
+
+		err := formatter.FormatWorkflow(event)
+		require.NoError(t, err)
+
+		output := string(buf)
+		require.Contains(t, output, `"event":"bid_submitted"`)
+		require.Contains(t, output, `"claim_id":"claim-123"`)
+		require.Contains(t, output, `"agent_name":"test-agent"`)
+	})
+}
+
+// testWriter is a simple writer for testing formatters
+type testWriter struct {
+	buf *[]byte
+}
+
+func (w *testWriter) Write(p []byte) (n int, err error) {
+	*w.buf = append(*w.buf, p...)
+	return len(p), nil
+}

@@ -5,10 +5,12 @@ package testutil
 import (
 	"context"
 	"fmt"
+	"io"
 	"os"
 	"os/exec"
 	"path/filepath"
 	"strconv"
+	"strings"
 	"testing"
 	"time"
 
@@ -164,6 +166,14 @@ func SetupE2EEnvironment(t *testing.T, settYML string) *E2EEnvironment {
 	exec.Command("git", "-C", tmpDir, "add", "sett.yml").Run()
 	exec.Command("git", "-C", tmpDir, "commit", "-m", "Add sett.yml").Run()
 
+	// Fix permissions for Docker container access (critical for CI environments)
+	// Containers may run as different users, so we need world-readable/writable files
+	// a+rwX means: add read+write for all users, and execute for directories
+	chmodCmd := exec.Command("chmod", "-R", "a+rwX", tmpDir)
+	if output, err := chmodCmd.CombinedOutput(); err != nil {
+		t.Logf("Warning: chmod failed: %v\nOutput: %s", err, string(output))
+	}
+
 	// Change to test directory
 	originalDir, err := os.Getwd()
 	require.NoError(t, err)
@@ -250,14 +260,20 @@ func (env *E2EEnvironment) WaitForContainer(containerNameSuffix string) {
 		fullName = fmt.Sprintf("sett-agent-%s-%s", env.InstanceName, agentName)
 	}
 
+	var lastState string
+	var lastStatus string
 	for i := 0; i < 30; i++ {
 		containers, err := env.DockerClient.ContainerList(env.Ctx, container.ListOptions{All: true})
 		if err == nil {
 			for _, c := range containers {
 				for _, name := range c.Names {
-					if name == "/"+fullName && c.State == "running" {
-						env.T.Logf("✓ Container %s is running", fullName)
-						return
+					if name == "/"+fullName {
+						lastState = c.State
+						lastStatus = c.Status
+						if c.State == "running" {
+							env.T.Logf("✓ Container %s is running", fullName)
+							return
+						}
 					}
 				}
 			}
@@ -265,7 +281,29 @@ func (env *E2EEnvironment) WaitForContainer(containerNameSuffix string) {
 		time.Sleep(1 * time.Second)
 	}
 
-	require.Fail(env.T, fmt.Sprintf("Container %s did not start within 30 seconds", fullName))
+	// Container never became running - show diagnostic info with logs
+	if lastState != "" {
+		// Try to get container logs for debugging
+		logs, logErr := env.DockerClient.ContainerLogs(env.Ctx, fullName, container.LogsOptions{
+			ShowStdout: true,
+			ShowStderr: true,
+			Tail:       "50",
+		})
+		var logOutput string
+		if logErr == nil {
+			defer logs.Close()
+			logBytes, _ := io.ReadAll(logs)
+			logOutput = string(logBytes)
+		}
+
+		failMsg := fmt.Sprintf("Container %s did not start within 30 seconds (last state: %s, status: %s)", fullName, lastState, lastStatus)
+		if logOutput != "" {
+			failMsg += fmt.Sprintf("\n\nContainer logs:\n%s", logOutput)
+		}
+		require.Fail(env.T, failMsg)
+	} else {
+		require.Fail(env.T, fmt.Sprintf("Container %s not found", fullName))
+	}
 }
 
 // WaitForArtefactByType polls blackboard for an artefact of specific type (up to 60 seconds)
@@ -274,10 +312,14 @@ func (env *E2EEnvironment) WaitForArtefactByType(artefactType string) *blackboar
 
 	env.T.Logf("Waiting for artefact of type '%s'...", artefactType)
 
+	var allArtefacts []string // Track all artefacts for debugging
+
 	for i := 0; i < 60; i++ {
 		// Scan for artefacts using Redis SCAN
 		pattern := fmt.Sprintf("sett:%s:artefact:*", env.InstanceName)
 		iter := env.BBClient.RedisClient().Scan(env.Ctx, 0, pattern, 0).Iterator()
+
+		allArtefacts = allArtefacts[:0] // Reset for this iteration
 
 		for iter.Next(env.Ctx) {
 			key := iter.Val()
@@ -286,6 +328,11 @@ func (env *E2EEnvironment) WaitForArtefactByType(artefactType string) *blackboar
 			data, err := env.BBClient.RedisClient().HGetAll(env.Ctx, key).Result()
 			if err != nil {
 				continue
+			}
+
+			// Track this artefact
+			if data["type"] != "" {
+				allArtefacts = append(allArtefacts, fmt.Sprintf("%s (id=%s)", data["type"], data["id"][:8]))
 			}
 
 			// Check if type matches
@@ -315,7 +362,52 @@ func (env *E2EEnvironment) WaitForArtefactByType(artefactType string) *blackboar
 		time.Sleep(1 * time.Second)
 	}
 
-	require.Fail(env.T, fmt.Sprintf("Artefact of type '%s' not found within 60 seconds", artefactType))
+	// Timeout - show what artefacts WERE found
+	failMsg := fmt.Sprintf("Artefact of type '%s' not found within 60 seconds", artefactType)
+	if len(allArtefacts) > 0 {
+		failMsg += fmt.Sprintf("\n\nArtefacts found: %s", strings.Join(allArtefacts, ", "))
+	} else {
+		failMsg += "\n\nNo artefacts found on blackboard"
+	}
+
+	// If we found a ToolExecutionFailure, try to extract and display its payload
+	pattern := fmt.Sprintf("sett:%s:artefact:*", env.InstanceName)
+	iter := env.BBClient.RedisClient().Scan(env.Ctx, 0, pattern, 0).Iterator()
+	for iter.Next(env.Ctx) {
+		key := iter.Val()
+		data, err := env.BBClient.RedisClient().HGetAll(env.Ctx, key).Result()
+		if err != nil {
+			continue
+		}
+
+		if data["type"] == "ToolExecutionFailure" {
+			failMsg += fmt.Sprintf("\n\nToolExecutionFailure payload:\n%s", data["payload"])
+			break
+		}
+	}
+
+	// Try to get container logs for debugging
+	for _, containerSuffix := range []string{"orchestrator", "agent-git-agent"} {
+		var fullName string
+		if containerSuffix == "orchestrator" {
+			fullName = fmt.Sprintf("sett-orchestrator-%s", env.InstanceName)
+		} else {
+			fullName = fmt.Sprintf("sett-agent-%s-git-agent", env.InstanceName)
+		}
+
+		logs, logErr := env.DockerClient.ContainerLogs(env.Ctx, fullName, container.LogsOptions{
+			ShowStdout: true,
+			ShowStderr: true,
+			Tail:       "30",
+		})
+		if logErr == nil {
+			defer logs.Close()
+			logBytes, _ := io.ReadAll(logs)
+			failMsg += fmt.Sprintf("\n\n%s logs:\n%s", containerSuffix, string(logBytes))
+		}
+	}
+
+	require.Fail(env.T, failMsg)
 	return nil
 }
 

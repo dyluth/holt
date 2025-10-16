@@ -272,6 +272,12 @@ func (e *Engine) grantClaim(ctx context.Context, claim *blackboard.Claim, bids m
 		"bid_types":  bids,
 	})
 
+	// Publish claim_granted event to workflow_events channel (M2.6)
+	if err := e.publishClaimGrantedEvent(ctx, claim, winner); err != nil {
+		// Log error but don't fail the grant (best-effort delivery)
+		log.Printf("[Orchestrator] Failed to publish claim_granted event: %v", err)
+	}
+
 	// Publish grant notification to agent's channel
 	if err := e.publishGrantNotification(ctx, winner, claim.ID); err != nil {
 		log.Printf("[Orchestrator] Failed to publish grant notification: %v", err)
@@ -307,6 +313,38 @@ func (e *Engine) publishGrantNotification(ctx context.Context, agentName, claimI
 		"agent_name": agentName,
 		"channel":    channel,
 	})
+
+	return nil
+}
+
+// publishClaimGrantedEvent publishes a claim_granted event to the workflow_events channel.
+// Detects grant type from claim fields (exclusive, review, or parallel).
+func (e *Engine) publishClaimGrantedEvent(ctx context.Context, claim *blackboard.Claim, agentName string) error {
+	// Detect grant type from claim fields
+	var grantType string
+	if claim.GrantedExclusiveAgent != "" {
+		grantType = "exclusive"
+	} else if len(claim.GrantedReviewAgents) > 0 {
+		grantType = "review"
+	} else if len(claim.GrantedParallelAgents) > 0 {
+		grantType = "parallel"
+	} else {
+		// Should not happen, but handle gracefully
+		return fmt.Errorf("claim has no granted agents")
+	}
+
+	eventData := map[string]interface{}{
+		"claim_id":   claim.ID,
+		"agent_name": agentName,
+		"grant_type": grantType,
+	}
+
+	if err := e.client.PublishWorkflowEvent(ctx, "claim_granted", eventData); err != nil {
+		return fmt.Errorf("failed to publish workflow event: %w", err)
+	}
+
+	log.Printf("[Orchestrator] Published claim_granted event: claim_id=%s, agent=%s, type=%s",
+		claim.ID, agentName, grantType)
 
 	return nil
 }

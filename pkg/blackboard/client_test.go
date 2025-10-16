@@ -869,3 +869,189 @@ func TestErrorPaths(t *testing.T) {
 		assert.Error(t, err)
 	})
 }
+
+// Workflow events tests (M2.6)
+func TestSetBidPublishesEvent(t *testing.T) {
+	client, _ := setupTestClient(t)
+	ctx := context.Background()
+
+	t.Run("publishes bid_submitted event on successful bid", func(t *testing.T) {
+		// Subscribe to workflow events first
+		sub, err := client.SubscribeWorkflowEvents(ctx)
+		require.NoError(t, err)
+		defer sub.Close()
+
+		// Submit a bid
+		claimID := uuid.New().String()
+		agentName := "test-agent"
+		bidType := BidTypeExclusive
+
+		err = client.SetBid(ctx, claimID, agentName, bidType)
+		require.NoError(t, err)
+
+		// Receive workflow event
+		select {
+		case event := <-sub.Events():
+			assert.Equal(t, "bid_submitted", event.Event)
+			assert.Equal(t, claimID, event.Data["claim_id"])
+			assert.Equal(t, agentName, event.Data["agent_name"])
+			assert.Equal(t, string(bidType), event.Data["bid_type"])
+		case <-time.After(1 * time.Second):
+			t.Fatal("timeout waiting for bid_submitted event")
+		}
+	})
+
+	t.Run("returns error if Redis operations fail", func(t *testing.T) {
+		// Create a client with a closed connection to trigger failure
+		// Note: This will fail at the write step, not publish step, but validates error handling
+		closedClient, _ := setupTestClient(t)
+		closedClient.Close()
+
+		err := closedClient.SetBid(ctx, uuid.New().String(), "agent", BidTypeExclusive)
+		assert.Error(t, err)
+	})
+}
+
+func TestPublishWorkflowEvent(t *testing.T) {
+	client, _ := setupTestClient(t)
+	ctx := context.Background()
+
+	t.Run("publishes workflow event successfully", func(t *testing.T) {
+		// Subscribe first
+		sub, err := client.SubscribeWorkflowEvents(ctx)
+		require.NoError(t, err)
+		defer sub.Close()
+
+		// Publish a claim_granted event
+		eventData := map[string]interface{}{
+			"claim_id":   "test-claim-id",
+			"agent_name": "test-agent",
+			"grant_type": "exclusive",
+		}
+
+		err = client.PublishWorkflowEvent(ctx, "claim_granted", eventData)
+		require.NoError(t, err)
+
+		// Receive event
+		select {
+		case event := <-sub.Events():
+			assert.Equal(t, "claim_granted", event.Event)
+			assert.Equal(t, "test-claim-id", event.Data["claim_id"])
+			assert.Equal(t, "test-agent", event.Data["agent_name"])
+			assert.Equal(t, "exclusive", event.Data["grant_type"])
+		case <-time.After(1 * time.Second):
+			t.Fatal("timeout waiting for claim_granted event")
+		}
+	})
+}
+
+func TestSubscribeWorkflowEvents(t *testing.T) {
+	client, _ := setupTestClient(t)
+	ctx := context.Background()
+
+	t.Run("receives bid and grant events", func(t *testing.T) {
+		sub, err := client.SubscribeWorkflowEvents(ctx)
+		require.NoError(t, err)
+		defer sub.Close()
+
+		// Publish a bid event
+		claimID := uuid.New().String()
+		err = client.SetBid(ctx, claimID, "agent1", BidTypeExclusive)
+		require.NoError(t, err)
+
+		// Receive bid event
+		select {
+		case event := <-sub.Events():
+			assert.Equal(t, "bid_submitted", event.Event)
+			assert.Equal(t, claimID, event.Data["claim_id"])
+		case <-time.After(1 * time.Second):
+			t.Fatal("timeout waiting for bid event")
+		}
+
+		// Publish a grant event
+		grantData := map[string]interface{}{
+			"claim_id":   claimID,
+			"agent_name": "agent1",
+			"grant_type": "exclusive",
+		}
+		err = client.PublishWorkflowEvent(ctx, "claim_granted", grantData)
+		require.NoError(t, err)
+
+		// Receive grant event
+		select {
+		case event := <-sub.Events():
+			assert.Equal(t, "claim_granted", event.Event)
+			assert.Equal(t, claimID, event.Data["claim_id"])
+		case <-time.After(1 * time.Second):
+			t.Fatal("timeout waiting for grant event")
+		}
+	})
+
+	t.Run("multiple subscribers receive same events", func(t *testing.T) {
+		sub1, err := client.SubscribeWorkflowEvents(ctx)
+		require.NoError(t, err)
+		defer sub1.Close()
+
+		sub2, err := client.SubscribeWorkflowEvents(ctx)
+		require.NoError(t, err)
+		defer sub2.Close()
+
+		// Publish event
+		claimID := uuid.New().String()
+		err = client.SetBid(ctx, claimID, "agent", BidTypeReview)
+		require.NoError(t, err)
+
+		// Both should receive
+		select {
+		case event := <-sub1.Events():
+			assert.Equal(t, "bid_submitted", event.Event)
+		case <-time.After(1 * time.Second):
+			t.Fatal("timeout on sub1")
+		}
+
+		select {
+		case event := <-sub2.Events():
+			assert.Equal(t, "bid_submitted", event.Event)
+		case <-time.After(1 * time.Second):
+			t.Fatal("timeout on sub2")
+		}
+	})
+
+	t.Run("cleanup on Close", func(t *testing.T) {
+		sub, err := client.SubscribeWorkflowEvents(ctx)
+		require.NoError(t, err)
+
+		err = sub.Close()
+		assert.NoError(t, err)
+
+		// Calling Close again should be safe
+		err = sub.Close()
+		assert.NoError(t, err)
+	})
+
+	t.Run("cleanup on context cancellation", func(t *testing.T) {
+		cancelCtx, cancel := context.WithCancel(ctx)
+
+		sub, err := client.SubscribeWorkflowEvents(cancelCtx)
+		require.NoError(t, err)
+
+		cancel()
+
+		// Events channel should eventually close
+		select {
+		case _, ok := <-sub.Events():
+			assert.False(t, ok, "channel should be closed")
+		case <-time.After(1 * time.Second):
+			t.Fatal("timeout waiting for channel close")
+		}
+	})
+
+	t.Run("workflow subscription exposes errors channel", func(t *testing.T) {
+		sub, err := client.SubscribeWorkflowEvents(ctx)
+		require.NoError(t, err)
+		defer sub.Close()
+
+		// Verify error channel is accessible
+		assert.NotNil(t, sub.Errors())
+	})
+}
