@@ -50,7 +50,9 @@ func writeSampleConfig(t *testing.T, gitRoot string) {
 agents:
   example-agent:
     role: "Example Agent"
+    image: "example-agent:latest"
     command: ["echo", "hello"]
+    bidding_strategy: "exclusive"
 `
 	err := os.WriteFile(filepath.Join(gitRoot, "sett.yml"), []byte(configContent), 0644)
 	require.NoError(t, err)

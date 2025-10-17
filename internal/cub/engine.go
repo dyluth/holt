@@ -156,10 +156,27 @@ func (e *Engine) claimWatcher(ctx context.Context, workQueue chan *blackboard.Cl
 func (e *Engine) handleClaimEvent(ctx context.Context, claim *blackboard.Claim) {
 	log.Printf("[INFO] Received claim event: claim_id=%s artefact_id=%s", claim.ID, claim.ArtefactID)
 
-	// M3.1: Use configured bidding strategy
+	// Fetch the target artefact to check its producer role
+	targetArtefact, err := e.bbClient.GetArtefact(ctx, claim.ArtefactID)
+	if err != nil {
+		log.Printf("[ERROR] Failed to fetch target artefact %s for bid decision: %v", claim.ArtefactID, err)
+		return // Cannot make a bid decision without the artefact
+	}
+	if targetArtefact == nil {
+		log.Printf("[ERROR] Target artefact %s not found for bid decision", claim.ArtefactID)
+		return
+	}
+
+	// Default to the configured bidding strategy
 	bidType := e.config.BiddingStrategy
 
-	err := e.bbClient.SetBid(ctx, claim.ID, e.config.AgentName, bidType)
+	// HEURISTIC: If this agent's role produced the artefact, ignore the claim to prevent loops.
+	if targetArtefact.ProducedByRole == e.config.AgentRole {
+		log.Printf("[INFO] Ignoring claim %s for self-produced artefact (role: %s)", claim.ID, e.config.AgentRole)
+		bidType = blackboard.BidTypeIgnore
+	}
+
+	err = e.bbClient.SetBid(ctx, claim.ID, e.config.AgentName, bidType)
 	if err != nil {
 		log.Printf("[ERROR] Failed to submit bid for claim_id=%s: %v", claim.ID, err)
 		// Continue watching - don't crash on bid failure

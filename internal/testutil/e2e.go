@@ -472,6 +472,7 @@ agents:
     role: "Git Agent"
     image: "example-git-agent:latest"
     command: ["/app/run.sh"]
+    bidding_strategy: "exclusive"
     workspace:
       mode: rw
 services:
@@ -488,6 +489,7 @@ agents:
     role: "Echo Agent"
     image: "example-agent:latest"
     command: ["/app/run.sh"]
+    bidding_strategy: "exclusive"
     workspace:
       mode: ro
 services:

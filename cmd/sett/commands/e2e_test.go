@@ -32,6 +32,7 @@ agents:
     role: "Echo Agent"
     image: "example-agent:latest"
     command: ["/bin/sh", "-c", "cat && echo '{\"artefact_type\": \"EchoSuccess\", \"artefact_payload\": \"echo-test\"}'"]
+    bidding_strategy: "exclusive"
     workspace:
       mode: ro
 services:
@@ -144,6 +145,7 @@ agents:
     role: "Echo Agent"
     image: "example-agent:latest"
     command: ["/bin/sh", "-c", "cat && echo '{\"artefact_type\": \"EchoSuccess\", \"artefact_payload\": \"echo-test\"}'"]
+    bidding_strategy: "exclusive"
     workspace:
       mode: ro
 services:
