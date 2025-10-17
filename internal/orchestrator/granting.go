@@ -2,7 +2,6 @@ package orchestrator
 
 import (
 	"context"
-	"encoding/json"
 	"fmt"
 	"log"
 	"sort"
@@ -10,71 +9,68 @@ import (
 	"github.com/dyluth/sett/pkg/blackboard"
 )
 
-// GrantClaim determines the winning agent and grants them the claim.
-// M3.1: Only processes exclusive bids with deterministic alphabetical tie-breaking.
-// Review and parallel bids are collected but not granted (deferred to M3.2).
+// GrantClaim determines the initial phase and grants the claim accordingly.
+// M3.2: Processes review, parallel, and exclusive bids with phased execution.
 //
-// Returns error if Redis operations fail. No error if no exclusive bids (claim stays pending).
+// Returns error if Redis operations fail. Logs dormant claims if no bids in any phase.
 func (e *Engine) GrantClaim(ctx context.Context, claim *blackboard.Claim, bids map[string]blackboard.BidType) error {
-	// Collect all agents with exclusive bids
-	var exclusiveBidders []string
-	for agentName, bidType := range bids {
-		if bidType == blackboard.BidTypeExclusive {
-			exclusiveBidders = append(exclusiveBidders, agentName)
-		}
-	}
+	// Determine initial phase based on bids
+	initialStatus, initialPhase := DetermineInitialPhase(bids)
 
-	// Check if any exclusive bids exist
-	if len(exclusiveBidders) == 0 {
-		log.Printf("[Orchestrator] No exclusive bids for claim %s (review/parallel bids not processed in M3.1), claim remains pending",
-			claim.ID)
-		e.logEvent("no_exclusive_bids", map[string]interface{}{
+	// Check for dormant claim (no bids in any phase)
+	if initialPhase == "" {
+		log.Printf("[Orchestrator] No bids in any phase for claim %s, claim becomes dormant", claim.ID)
+		e.logEvent("claim_dormant", map[string]interface{}{
 			"claim_id": claim.ID,
+			"reason":   "no_bids_in_any_phase",
 			"bids":     bids,
 		})
 		return nil
 	}
 
-	// Select winner using deterministic alphabetical ordering
-	winner := SelectExclusiveWinner(exclusiveBidders)
-
-	// Log grant decision with rationale
-	if len(exclusiveBidders) == 1 {
-		log.Printf("[Orchestrator] Granted exclusive to %s (only exclusive bidder) for claim %s", winner, claim.ID)
-	} else {
-		log.Printf("[Orchestrator] Granted exclusive to %s (selected from %d exclusive bidders: %v) for claim %s",
-			winner, len(exclusiveBidders), exclusiveBidders, claim.ID)
+	// Update claim status
+	claim.Status = initialStatus
+	if err := e.client.UpdateClaim(ctx, claim); err != nil {
+		return fmt.Errorf("failed to update claim status: %w", err)
 	}
 
-	e.logEvent("claim_granted", map[string]interface{}{
-		"claim_id":          claim.ID,
-		"winner":            winner,
-		"exclusive_bidders": exclusiveBidders,
-		"selection_method":  "alphabetical",
-		"bid_count":         len(bids),
-		"all_bids":          bids,
+	e.logEvent("initial_phase_determined", map[string]interface{}{
+		"claim_id":       claim.ID,
+		"initial_phase":  initialPhase,
+		"initial_status": initialStatus,
+		"bids":           bids,
 	})
 
-	// Update claim with granted agent
-	claim.GrantedExclusiveAgent = winner
-	// Keep status as pending_review (M3.1 doesn't change status yet)
+	log.Printf("[Orchestrator] Claim %s starting in %s phase (status: %s)", claim.ID, initialPhase, initialStatus)
 
-	if err := e.client.UpdateClaim(ctx, claim); err != nil {
-		return fmt.Errorf("failed to update claim with grant: %w", err)
+	// Grant based on initial phase
+	var err error
+	var grantedAgents []string
+
+	switch initialPhase {
+	case "review":
+		err = e.GrantReviewPhase(ctx, claim, bids)
+		grantedAgents = claim.GrantedReviewAgents
+
+	case "parallel":
+		err = e.GrantParallelPhase(ctx, claim, bids)
+		grantedAgents = claim.GrantedParallelAgents
+
+	case "exclusive":
+		err = e.GrantExclusivePhase(ctx, claim, bids)
+		grantedAgents = []string{claim.GrantedExclusiveAgent}
+
+	default:
+		return fmt.Errorf("unknown initial phase: %s", initialPhase)
 	}
 
-	// Publish claim_granted event to workflow_events channel
-	if err := e.publishClaimGrantedEvent(ctx, claim, winner); err != nil {
-		// Log error but don't fail the grant (best-effort delivery)
-		log.Printf("[Orchestrator] Failed to publish claim_granted event: %v", err)
+	if err != nil {
+		return fmt.Errorf("failed to grant %s phase: %w", initialPhase, err)
 	}
 
-	// Publish grant notification to agent's channel
-	if err := e.publishGrantNotification(ctx, winner, claim.ID); err != nil {
-		log.Printf("[Orchestrator] Failed to publish grant notification: %v", err)
-		// Not a fatal error - claim is still granted in Redis
-		return nil
-	}
+	// Initialize phase state tracking
+	phaseState := NewPhaseState(claim.ID, initialPhase, grantedAgents, bids)
+	e.phaseStates[claim.ID] = phaseState
 
 	return nil
 }
@@ -106,34 +102,6 @@ func SelectExclusiveWinner(bidders []string) string {
 	return sorted[0]
 }
 
-// publishGrantNotification publishes a grant notification to the agent's event channel.
-func (e *Engine) publishGrantNotification(ctx context.Context, agentName, claimID string) error {
-	notification := map[string]string{
-		"event_type": "grant",
-		"claim_id":   claimID,
-	}
-
-	notificationJSON, err := json.Marshal(notification)
-	if err != nil {
-		return fmt.Errorf("failed to marshal grant notification: %w", err)
-	}
-
-	channel := blackboard.AgentEventsChannel(e.instanceName, agentName)
-
-	log.Printf("[Orchestrator] Publishing grant notification to %s: claim_id=%s", channel, claimID)
-
-	if err := e.client.PublishRaw(ctx, channel, string(notificationJSON)); err != nil {
-		return fmt.Errorf("failed to publish grant notification: %w", err)
-	}
-
-	e.logEvent("grant_notification_published", map[string]interface{}{
-		"claim_id":   claimID,
-		"agent_name": agentName,
-		"channel":    channel,
-	})
-
-	return nil
-}
 
 // publishClaimGrantedEvent publishes a claim_granted event to the workflow_events channel.
 // Detects grant type from claim fields (exclusive, review, or parallel).

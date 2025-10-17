@@ -18,7 +18,8 @@ type Engine struct {
 	client        *blackboard.Client
 	instanceName  string
 	healthServer  *HealthServer
-	agentRegistry map[string]string // agent_name -> agent_role
+	agentRegistry map[string]string      // agent_name -> agent_role
+	phaseStates   map[string]*PhaseState // claimID -> PhaseState (M3.2: in-memory tracking)
 }
 
 // NewEngine creates a new orchestrator engine.
@@ -37,6 +38,7 @@ func NewEngine(client *blackboard.Client, instanceName string, cfg *config.SettC
 		instanceName:  instanceName,
 		healthServer:  NewHealthServer(client),
 		agentRegistry: agentRegistry,
+		phaseStates:   make(map[string]*PhaseState), // M3.2: Initialize phase state tracking
 	}
 }
 
@@ -83,6 +85,9 @@ func (e *Engine) Run(ctx context.Context) error {
 				log.Printf("[Orchestrator] Error processing artefact %s: %v", artefact.ID, err)
 				// Continue processing - don't crash on single artefact failure
 			}
+
+			// M3.2: Also process artefact for phase completion tracking
+			e.processArtefactForPhases(ctx, artefact)
 
 		case err, ok := <-subscription.Errors():
 			if !ok {
@@ -166,6 +171,113 @@ func (e *Engine) processArtefact(ctx context.Context, artefact *blackboard.Artef
 	}
 
 	return nil
+}
+
+// processArtefactForPhases checks if this artefact completes a phase for any active claims.
+// M3.2: Tracks artefacts produced by granted agents and triggers phase completion checks.
+func (e *Engine) processArtefactForPhases(ctx context.Context, artefact *blackboard.Artefact) {
+	// Skip non-phase-relevant artefacts
+	if artefact.StructuralType == blackboard.StructuralTypeTerminal ||
+		artefact.StructuralType == blackboard.StructuralTypeFailure {
+		return
+	}
+
+	// Find claims waiting for artefacts from this producer
+	for claimID, phaseState := range e.phaseStates {
+		claim, err := e.client.GetClaim(ctx, claimID)
+		if err != nil {
+			log.Printf("[Orchestrator] Error fetching claim %s: %v", claimID, err)
+			continue
+		}
+
+		// Check if this artefact is derived from the claim's target artefact
+		if !isSourceOfClaim(artefact, claim.ArtefactID) {
+			continue
+		}
+
+		// Check if this artefact is from a granted agent in the current phase
+		if !isProducedByGrantedAgent(claim, artefact.ProducedByRole, phaseState.Phase) {
+			continue
+		}
+
+		// Track this artefact as received
+		phaseState.ReceivedArtefacts[artefact.ProducedByRole] = artefact.ID
+
+		log.Printf("[Orchestrator] Phase %s artefact received for claim %s: producer=%s, artefact=%s",
+			phaseState.Phase, claim.ID, artefact.ProducedByRole, artefact.ID)
+
+		e.logEvent("phase_artefact_received", map[string]interface{}{
+			"claim_id":    claim.ID,
+			"phase":       phaseState.Phase,
+			"agent_role":  artefact.ProducedByRole,
+			"artefact_id": artefact.ID,
+		})
+
+		// Check phase completion
+		e.checkPhaseCompletion(ctx, claim, phaseState, artefact)
+	}
+}
+
+// isSourceOfClaim checks if an artefact is derived from the claim's target artefact.
+func isSourceOfClaim(artefact *blackboard.Artefact, claimArtefactID string) bool {
+	for _, sourceID := range artefact.SourceArtefacts {
+		if sourceID == claimArtefactID {
+			return true
+		}
+	}
+	return false
+}
+
+// isProducedByGrantedAgent checks if the artefact's producer role is in the granted agents list.
+func isProducedByGrantedAgent(claim *blackboard.Claim, producerRole string, phase string) bool {
+	var grantedAgents []string
+
+	switch phase {
+	case "review":
+		grantedAgents = claim.GrantedReviewAgents
+	case "parallel":
+		grantedAgents = claim.GrantedParallelAgents
+	case "exclusive":
+		// For exclusive, we need to check if the granted agent has this role
+		// In M3.2, we rely on the agent registry to map names to roles
+		// For now, we'll check if any artefact was produced by the granted agent's role
+		return claim.GrantedExclusiveAgent != ""
+	default:
+		return false
+	}
+
+	for _, grantedAgent := range grantedAgents {
+		// In M3.2, granted agents are stored by name, but artefacts are produced by role
+		// We need to check if the producer role matches any granted agent
+		// For simplicity, we'll assume role == agent name in phase tracking
+		if grantedAgent == producerRole {
+			return true
+		}
+	}
+
+	return false
+}
+
+// checkPhaseCompletion checks if a phase is complete and triggers appropriate logic.
+func (e *Engine) checkPhaseCompletion(ctx context.Context, claim *blackboard.Claim, phaseState *PhaseState, artefact *blackboard.Artefact) {
+	switch phaseState.Phase {
+	case "review":
+		if err := e.CheckReviewPhaseCompletion(ctx, claim, phaseState); err != nil {
+			log.Printf("[Orchestrator] Error checking review phase completion: %v", err)
+		}
+
+	case "parallel":
+		if err := e.CheckParallelPhaseCompletion(ctx, claim, phaseState); err != nil {
+			log.Printf("[Orchestrator] Error checking parallel phase completion: %v", err)
+		}
+
+	case "exclusive":
+		// Exclusive phase completes immediately when artefact is received
+		log.Printf("[Orchestrator] Exclusive phase complete for claim %s", claim.ID)
+		if err := e.TransitionToNextPhase(ctx, claim, phaseState); err != nil {
+			log.Printf("[Orchestrator] Error transitioning from exclusive phase: %v", err)
+		}
+	}
 }
 
 // waitForConsensusAndGrant orchestrates the full consensus and granting process.

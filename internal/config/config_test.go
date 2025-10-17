@@ -308,3 +308,91 @@ services:
 	assert.NotNil(t, config.Services.Orchestrator)
 	assert.Equal(t, "custom-orchestrator:latest", config.Services.Orchestrator.Image)
 }
+
+// M3.2: Test unique role validation
+func TestValidate_DuplicateRoles(t *testing.T) {
+	config := &SettConfig{
+		Version: "1.0",
+		Agents: map[string]Agent{
+			"agent-1": {
+				Role:            "Coder",
+				Image:           "agent1:latest",
+				Command:         []string{"./run.sh"},
+				BiddingStrategy: "exclusive",
+			},
+			"agent-2": {
+				Role:            "Coder",
+				Image:           "agent2:latest",
+				Command:         []string{"./run.sh"},
+				BiddingStrategy: "exclusive",
+			},
+		},
+	}
+
+	err := config.Validate()
+	assert.Error(t, err)
+	assert.Contains(t, err.Error(), "duplicate agent role 'Coder' found")
+	assert.Contains(t, err.Error(), "agent-1")
+	assert.Contains(t, err.Error(), "agent-2")
+	assert.Contains(t, err.Error(), "all agents must have unique roles in Phase 3")
+}
+
+func TestValidate_UniqueRoles(t *testing.T) {
+	config := &SettConfig{
+		Version: "1.0",
+		Agents: map[string]Agent{
+			"reviewer": {
+				Role:            "Reviewer",
+				Image:           "reviewer:latest",
+				Command:         []string{"./review.sh"},
+				BiddingStrategy: "review",
+			},
+			"tester": {
+				Role:            "Tester",
+				Image:           "tester:latest",
+				Command:         []string{"./test.sh"},
+				BiddingStrategy: "claim",
+			},
+			"coder": {
+				Role:            "Coder",
+				Image:           "coder:latest",
+				Command:         []string{"./code.sh"},
+				BiddingStrategy: "exclusive",
+			},
+		},
+	}
+
+	err := config.Validate()
+	assert.NoError(t, err)
+}
+
+func TestValidate_MultipleDuplicateRoles(t *testing.T) {
+	config := &SettConfig{
+		Version: "1.0",
+		Agents: map[string]Agent{
+			"agent-1": {
+				Role:            "Coder",
+				Image:           "agent1:latest",
+				Command:         []string{"./run.sh"},
+				BiddingStrategy: "exclusive",
+			},
+			"agent-2": {
+				Role:            "Coder",
+				Image:           "agent2:latest",
+				Command:         []string{"./run.sh"},
+				BiddingStrategy: "exclusive",
+			},
+			"agent-3": {
+				Role:            "Reviewer",
+				Image:           "agent3:latest",
+				Command:         []string{"./run.sh"},
+				BiddingStrategy: "review",
+			},
+		},
+	}
+
+	// Should catch the first duplicate it encounters
+	err := config.Validate()
+	assert.Error(t, err)
+	assert.Contains(t, err.Error(), "duplicate agent role")
+}

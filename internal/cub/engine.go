@@ -152,7 +152,7 @@ func (e *Engine) claimWatcher(ctx context.Context, workQueue chan *blackboard.Cl
 }
 
 // handleClaimEvent processes a claim event by submitting a bid.
-// M3.1: Uses configured bidding strategy from SETT_BIDDING_STRATEGY env var.
+// M3.2: Uses configured bidding strategy with refined loop prevention for review bids.
 func (e *Engine) handleClaimEvent(ctx context.Context, claim *blackboard.Claim) {
 	log.Printf("[INFO] Received claim event: claim_id=%s artefact_id=%s", claim.ID, claim.ArtefactID)
 
@@ -170,10 +170,16 @@ func (e *Engine) handleClaimEvent(ctx context.Context, claim *blackboard.Claim) 
 	// Default to the configured bidding strategy
 	bidType := e.config.BiddingStrategy
 
-	// HEURISTIC: If this agent's role produced the artefact, ignore the claim to prevent loops.
+	// HEURISTIC: Refined loop prevention for M3.2
 	if targetArtefact.ProducedByRole == e.config.AgentRole {
-		log.Printf("[INFO] Ignoring claim %s for self-produced artefact (role: %s)", claim.ID, e.config.AgentRole)
-		bidType = blackboard.BidTypeIgnore
+		if e.config.BiddingStrategy == blackboard.BidTypeReview {
+			// M3.2: Allow review bids on own outputs (self-review scenario)
+			log.Printf("[INFO] Allowing self-review for claim %s (role: %s)", claim.ID, e.config.AgentRole)
+		} else {
+			// Still block claim/exclusive on own outputs
+			log.Printf("[INFO] Ignoring claim %s for self-produced artefact (role: %s)", claim.ID, e.config.AgentRole)
+			bidType = blackboard.BidTypeIgnore
+		}
 	}
 
 	err = e.bbClient.SetBid(ctx, claim.ID, e.config.AgentName, bidType)

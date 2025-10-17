@@ -88,6 +88,16 @@ func (c *SettConfig) Validate() error {
 		}
 	}
 
+	// M3.2: Enforce unique agent roles
+	rolesSeen := make(map[string]string) // role → agentName
+	for agentName, agent := range c.Agents {
+		if existingAgent, exists := rolesSeen[agent.Role]; exists {
+			return fmt.Errorf("duplicate agent role '%s' found (agents '%s' and '%s'): all agents must have unique roles in Phase 3",
+				agent.Role, existingAgent, agentName)
+		}
+		rolesSeen[agent.Role] = agentName
+	}
+
 	return nil
 }
 
