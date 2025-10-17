@@ -498,6 +498,37 @@ services:
 `
 }
 
+// ThreePhaseSettYML returns a sett.yml with review, parallel, and exclusive agents (M3.2)
+func ThreePhaseSettYML() string {
+	return `version: "1.0"
+agents:
+  reviewer:
+    role: "Reviewer"
+    image: "example-reviewer-agent:latest"
+    command: ["/app/run.sh"]
+    bidding_strategy: "review"
+    workspace:
+      mode: ro
+  parallel-worker:
+    role: "ParallelWorker"
+    image: "example-parallel-agent:latest"
+    command: ["/app/run.sh"]
+    bidding_strategy: "claim"
+    workspace:
+      mode: ro
+  coder:
+    role: "Coder"
+    image: "example-git-agent:latest"
+    command: ["/app/run.sh"]
+    bidding_strategy: "exclusive"
+    workspace:
+      mode: rw
+services:
+  redis:
+    image: redis:7-alpine
+`
+}
+
 // CreateTestAgent creates a custom test agent with provided run.sh script
 func (env *E2EEnvironment) CreateTestAgent(agentName, runScript string) {
 	agentDir := filepath.Join(env.TmpDir, ".test-agents", agentName)
