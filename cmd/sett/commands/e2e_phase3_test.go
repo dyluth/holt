@@ -323,7 +323,7 @@ func TestE2E_Phase3_PhaseSkipping(t *testing.T) {
 	// Start instance
 	upCmd := &cobra.Command{}
 	upInstanceName = env.InstanceName
-	err := runUp(upCmd, []string{})
+	err = runUp(upCmd, []string{})
 	require.NoError(t, err, "sett up failed")
 
 	env.WaitForContainer("orchestrator")
