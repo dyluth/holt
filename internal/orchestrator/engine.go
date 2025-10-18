@@ -196,7 +196,7 @@ func (e *Engine) processArtefactForPhases(ctx context.Context, artefact *blackbo
 		}
 
 		// Check if this artefact is from a granted agent in the current phase
-		if !isProducedByGrantedAgent(claim, artefact.ProducedByRole, phaseState.Phase) {
+		if !e.isProducedByGrantedAgent(claim, artefact.ProducedByRole, phaseState.Phase) {
 			continue
 		}
 
@@ -228,29 +228,31 @@ func isSourceOfClaim(artefact *blackboard.Artefact, claimArtefactID string) bool
 	return false
 }
 
-// isProducedByGrantedAgent checks if the artefact's producer role is in the granted agents list.
-func isProducedByGrantedAgent(claim *blackboard.Claim, producerRole string, phase string) bool {
-	var grantedAgents []string
+// isProducedByGrantedAgent checks if the artefact's producer role matches any granted agent.
+// Uses the engine's agent registry to map agent names to roles.
+func (e *Engine) isProducedByGrantedAgent(claim *blackboard.Claim, producerRole string, phase string) bool {
+	var grantedAgentNames []string
 
 	switch phase {
 	case "review":
-		grantedAgents = claim.GrantedReviewAgents
+		grantedAgentNames = claim.GrantedReviewAgents
 	case "parallel":
-		grantedAgents = claim.GrantedParallelAgents
+		grantedAgentNames = claim.GrantedParallelAgents
 	case "exclusive":
-		// For exclusive, we need to check if the granted agent has this role
-		// In M3.2, we rely on the agent registry to map names to roles
-		// For now, we'll check if any artefact was produced by the granted agent's role
-		return claim.GrantedExclusiveAgent != ""
+		// For exclusive, check if the granted agent's role matches
+		if claim.GrantedExclusiveAgent == "" {
+			return false
+		}
+		grantedAgentNames = []string{claim.GrantedExclusiveAgent}
 	default:
 		return false
 	}
 
-	for _, grantedAgent := range grantedAgents {
-		// In M3.2, granted agents are stored by name, but artefacts are produced by role
-		// We need to check if the producer role matches any granted agent
-		// For simplicity, we'll assume role == agent name in phase tracking
-		if grantedAgent == producerRole {
+	// Map agent names to roles and check if any match the producer role
+	for _, agentName := range grantedAgentNames {
+		// Look up the agent's role in the registry
+		agentRole, exists := e.agentRegistry[agentName]
+		if exists && agentRole == producerRole {
 			return true
 		}
 	}

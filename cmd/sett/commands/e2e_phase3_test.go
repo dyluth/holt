@@ -305,15 +305,14 @@ func TestE2E_Phase3_PhaseSkipping(t *testing.T) {
 		t.Log("✓ Cleanup complete")
 	}()
 
-	// Build git agent image
-	projectRoot := testutil.GetProjectRoot()
+	// Build git agent image (same pattern as ThreePhaseWorkflow test)
 	t.Log("Building example-git-agent Docker image...")
-	buildCmd := exec.Command("docker", "build",
+	buildGitCmd := exec.Command("docker", "build",
 		"-t", "example-git-agent:latest",
 		"-f", "agents/example-git-agent/Dockerfile",
 		".")
-	buildCmd.Dir = projectRoot
-	output, err := buildCmd.CombinedOutput()
+	buildGitCmd.Dir = testutil.GetProjectRoot()
+	output, err := buildGitCmd.CombinedOutput()
 	if err != nil {
 		t.Logf("Build output:\n%s", string(output))
 	}
