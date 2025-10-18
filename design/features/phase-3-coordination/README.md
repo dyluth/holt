@@ -67,6 +67,20 @@ See "Future Milestones" section below for planned enhancements.
 - 🔜 Controller-worker pattern verification (deferred to M3.6)
 - 🔜 Load testing with multiple agents (deferred - see Performance Testing note below)
 
+### **Running M3.2 E2E Tests**
+
+**IMPORTANT**: M3.2 E2E tests require rebuilding the orchestrator Docker image with the new phase execution code:
+
+```bash
+# 1. Rebuild orchestrator with M3.2 code (REQUIRED)
+make docker-orchestrator
+
+# 2. Run E2E tests
+go test -tags=integration ./cmd/sett/commands -run TestE2E_Phase3 -v
+```
+
+The E2E tests will automatically build the required agent images (example-reviewer-agent, example-parallel-agent, example-git-agent) during test execution.
+
 ### **Performance Testing Note**
 
 **Status**: Deferred (not critical for M3.2)
