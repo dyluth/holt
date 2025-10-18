@@ -200,61 +200,19 @@ The following limitations are **by design** in M3.2 and should be addressed in f
 
 The following requirements have been identified as immediate priorities for Phase 3 completion. These should be designed and implemented as the next milestones after M3.2.
 
-### **M3.3: Orchestrator Restart Resilience** 🔜 **HIGH PRIORITY**
 
-**Requirement**: The orchestrator must be able to recover the state of in-progress claims if it restarts unexpectedly.
 
-**Current Limitation**: Phase state is in-memory only; orchestrator restart loses all tracking data.
-
-**Proposed Behavior**:
-- On startup, the orchestrator scans Redis for claims in active states (pending_review, pending_parallel, pending_exclusive)
-- Reconstructs in-memory phase state by querying granted agents and received artefacts
-- Resumes monitoring for phase completion
-- Claims are no longer stuck after orchestrator restart
-
-**Implementation Considerations**:
-- Need to persist phase state to Redis (additional keys or claim fields)
-- Need startup recovery logic to rebuild phase state map
-- Need to handle edge cases (partial artefacts received, status inconsistencies)
-
-**Success Criteria**:
-- Orchestrator restart does not lose phase tracking
-- Claims continue progressing through phases after restart
-- No manual intervention required for stuck claims
-
-### **M3.4: Runtime Failure Detection & Timeouts** 🔜 **HIGH PRIORITY**
-
-**Requirement**: The orchestrator needs a mechanism to detect when a granted agent has crashed, hung, or is taking too long to produce an artefact.
-
-**Current Limitation**: Orchestrator waits indefinitely; crashed agents leave claims stuck.
-
-**Proposed Behavior**:
-- Configurable timeout per phase (e.g., review: 5 minutes, parallel: 10 minutes, exclusive: 30 minutes)
-- When timeout is exceeded, orchestrator terminates the claim
-- Creates a Failure artefact with timeout details
-- Logs clear timeout event for operational monitoring
-
-**Implementation Considerations**:
-- Add timeout configuration to sett.yml (per-agent or per-phase)
-- Track grant time in phase state
-- Periodic check for timed-out grants
-- Graceful handling of agents that complete after timeout
-
-**Success Criteria**:
-- Claims do not remain stuck indefinitely
-- Timeouts create Failure artefacts with clear error messages
-- Configurable timeout values per agent or phase
-
-### **M3.5: Automated Feedback Loop** 🔜 **MEDIUM PRIORITY**
+### **M3.3: Automated Feedback Loop** 🔜 **HIGH PRIORITY**
 
 **Requirement**: The system needs a mechanism to automatically re-assign work to an agent based on Review feedback from another agent.
 
 **Current Limitation**: Review rejection terminates claim; user must manually restart workflow.
 
 **Proposed Behavior**:
-- When a claim is terminated due to negative review feedback, the orchestrator automatically creates a new claim
+- When a claim is terminated due to negative review feedback, the orchestrator automatically creates a new special feedback claim
 - New claim targets the original artefact's producer agent
-- New claim's context includes both the original artefact and the Review feedback artefact
+- no agents should bid on the claim, instead, the agent that created the original claim is assigned the work and automatically picks it up.
+- New claim's context includes both the original artefact and the Review feedback artefact, the Cub needs to traverse the history to provide this.
 - Agent can read feedback and iterate on the work
 
 **Implementation Considerations**:
@@ -264,12 +222,15 @@ The following requirements have been identified as immediate priorities for Phas
 - Log feedback loop creation for audit trail
 
 **Success Criteria**:
+- Cub correctly reconstructs context chain in the call to its tool by traversing the artefacts parents and including that in the history struct - for all claims, not jsut feedback claims.
 - Review feedback automatically triggers new claim
 - Original agent receives feedback in context
+- Original agent creates a new Artefact, with an identical name as the original artefact, but a newer revision number.
 - Workflow can iterate until all reviewers approve
 - Iteration depth limits prevent infinite loops
 
-### **M3.6: Controller-Worker Pattern for Scaling** 🔜 **LOW PRIORITY**
+
+### **M3.4: Controller-Worker Pattern for Scaling** 🔜 **HIGH PRIORITY**
 
 **Requirement**: Support scalable agent architecture with replicas > 1.
 
@@ -293,3 +254,52 @@ The following requirements have been identified as immediate priorities for Phas
 - No race conditions in bidding
 - Workers execute in parallel efficiently
 - Clean worker cleanup after execution
+
+
+
+### **M3.5: Orchestrator Restart Resilience** 🔜 **HIGH PRIORITY**
+
+**Requirement**: The orchestrator must be able to recover the state of in-progress claims if it restarts unexpectedly.
+
+**Current Limitation**: Phase state is in-memory only; orchestrator restart loses all tracking data.
+
+**Proposed Behavior**:
+- On startup, the orchestrator scans Redis for claims in active states (pending_review, pending_parallel, pending_exclusive)
+- Reconstructs in-memory phase state by querying granted agents and received artefacts
+- Resumes monitoring for phase completion
+- Claims are no longer stuck after orchestrator restart
+
+**Implementation Considerations**:
+- Need to persist phase state to Redis (additional keys or claim fields)
+- Need startup recovery logic to rebuild phase state map
+- Need to handle edge cases (partial artefacts received, status inconsistencies)
+
+**Success Criteria**:
+- Orchestrator restart does not lose phase tracking
+- Claims continue progressing through phases after restart
+- No manual intervention required for stuck claims
+
+### **M3.6: Runtime Failure Detection & Timeouts** 🔜 **HIGH PRIORITY**
+
+**Requirement**: The orchestrator needs a mechanism to detect when a granted agent has crashed, hung, or is taking too long to produce an artefact.
+
+**Current Limitation**: Orchestrator waits indefinitely; crashed agents leave claims stuck.
+
+**Proposed Behavior**:
+- Configurable timeout per phase (e.g., review: 5 minutes, parallel: 10 minutes, exclusive: 30 minutes)
+- When timeout is exceeded, orchestrator terminates the claim
+- Creates a Failure artefact with timeout details
+- Logs clear timeout event for operational monitoring
+
+**Implementation Considerations**:
+- Add timeout configuration to sett.yml (per-agent or per-phase)
+- Track grant time in phase state
+- Periodic check for timed-out grants
+- Graceful handling of agents that complete after timeout
+
+**Success Criteria**:
+- Claims do not remain stuck indefinitely
+- Timeouts create Failure artefacts with clear error messages
+- Configurable timeout values per agent or phase
+
+
