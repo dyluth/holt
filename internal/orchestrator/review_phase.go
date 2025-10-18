@@ -65,9 +65,8 @@ func (e *Engine) CheckReviewPhaseCompletion(ctx context.Context, claim *blackboa
 		claim.ID)
 
 	// Fetch all Review artefacts and check for feedback
-	hasFeedback := false
-	var rejectorRole string
-	var rejectorArtefactID string
+	// M3.3: Collect ALL feedback artefacts (not just first rejection)
+	var feedbackArtefacts []*blackboard.Artefact
 
 	for agentRole, artefactID := range phaseState.ReceivedArtefacts {
 		artefact, err := e.client.GetArtefact(ctx, artefactID)
@@ -78,16 +77,13 @@ func (e *Engine) CheckReviewPhaseCompletion(ctx context.Context, claim *blackboa
 
 		// Parse review payload
 		if !isApproval(artefact.Payload) {
-			hasFeedback = true
-			rejectorRole = agentRole
-			rejectorArtefactID = artefactID
+			feedbackArtefacts = append(feedbackArtefacts, artefact)
 
 			e.logEvent("review_rejection", map[string]interface{}{
 				"claim_id":    claim.ID,
 				"reviewer":    agentRole,
 				"artefact_id": artefact.ID,
 			})
-			break // Single veto - stop checking
 		} else {
 			e.logEvent("review_approved", map[string]interface{}{
 				"claim_id":    claim.ID,
@@ -97,9 +93,15 @@ func (e *Engine) CheckReviewPhaseCompletion(ctx context.Context, claim *blackboa
 		}
 	}
 
-	if hasFeedback {
-		// Terminate claim due to review feedback
+	if len(feedbackArtefacts) > 0 {
+		// M3.3: Create feedback claim instead of just terminating
+		if err := e.CreateFeedbackClaim(ctx, claim, feedbackArtefacts); err != nil {
+			e.logError("failed to create feedback claim", err)
+		}
+
+		// Terminate original claim with reason
 		claim.Status = blackboard.ClaimStatusTerminated
+		claim.TerminationReason = formatReviewRejectionReason(feedbackArtefacts)
 		if err := e.client.UpdateClaim(ctx, claim); err != nil {
 			return fmt.Errorf("failed to terminate claim: %w", err)
 		}
@@ -108,13 +110,12 @@ func (e *Engine) CheckReviewPhaseCompletion(ctx context.Context, claim *blackboa
 		delete(e.phaseStates, claim.ID)
 
 		e.logEvent("claim_terminated_review_feedback", map[string]interface{}{
-			"claim_id":      claim.ID,
-			"rejector":      rejectorRole,
-			"artefact_id":   rejectorArtefactID,
+			"claim_id":           claim.ID,
+			"feedback_artefacts": extractIDs(feedbackArtefacts),
 		})
 
-		log.Printf("[Orchestrator] Claim %s terminated due to review feedback from %s",
-			claim.ID, rejectorRole)
+		log.Printf("[Orchestrator] Claim %s terminated due to review feedback (%d reviewers)",
+			claim.ID, len(feedbackArtefacts))
 
 		return nil
 	}
@@ -196,4 +197,14 @@ func (e *Engine) logError(message string, err error) {
 		"message": message,
 		"error":   err.Error(),
 	})
+}
+
+// extractIDs extracts artefact IDs from a slice of artefacts.
+// M3.3: Helper for logging feedback artefact IDs.
+func extractIDs(artefacts []*blackboard.Artefact) []string {
+	ids := make([]string, len(artefacts))
+	for i, art := range artefacts {
+		ids[i] = art.ID
+	}
+	return ids
 }

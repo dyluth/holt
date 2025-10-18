@@ -61,6 +61,10 @@ type Claim struct {
 	GrantedReviewAgents   []string    `json:"granted_review_agents"`   // Agent names granted review access
 	GrantedParallelAgents []string    `json:"granted_parallel_agents"` // Agent names granted parallel access
 	GrantedExclusiveAgent string      `json:"granted_exclusive_agent"` // Single agent name granted exclusive access
+
+	// M3.3: Feedback loop support
+	AdditionalContextIDs  []string    `json:"additional_context_ids,omitempty"`  // Review artefact IDs for feedback claims
+	TerminationReason     string      `json:"termination_reason,omitempty"`      // Explicit reason when status=terminated
 }
 
 // ClaimStatus defines the lifecycle state of a claim.
@@ -76,6 +80,9 @@ const (
 
 	// ClaimStatusPendingExclusive indicates the claim is in the exclusive execution phase
 	ClaimStatusPendingExclusive ClaimStatus = "pending_exclusive"
+
+	// ClaimStatusPendingAssignment indicates a feedback claim with pre-assigned agent (M3.3)
+	ClaimStatusPendingAssignment ClaimStatus = "pending_assignment"
 
 	// ClaimStatusComplete indicates the claim has been successfully processed
 	ClaimStatusComplete ClaimStatus = "complete"
@@ -182,7 +189,8 @@ func (c *Claim) Validate() error {
 func (cs ClaimStatus) Validate() error {
 	switch cs {
 	case ClaimStatusPendingReview, ClaimStatusPendingParallel,
-		ClaimStatusPendingExclusive, ClaimStatusComplete, ClaimStatusTerminated:
+		ClaimStatusPendingExclusive, ClaimStatusPendingAssignment,
+		ClaimStatusComplete, ClaimStatusTerminated:
 		return nil
 	default:
 		return fmt.Errorf("unknown claim status: %q", cs)

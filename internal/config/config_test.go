@@ -396,3 +396,109 @@ func TestValidate_MultipleDuplicateRoles(t *testing.T) {
 	assert.Error(t, err)
 	assert.Contains(t, err.Error(), "duplicate agent role")
 }
+
+// M3.3: Orchestrator config validation tests
+
+func TestValidate_OrchestratorConfig_DefaultValue(t *testing.T) {
+	config := &SettConfig{
+		Version: "1.0",
+		// Orchestrator section omitted - should default to 3
+		Agents: map[string]Agent{
+			"test": {
+				Role:            "Test",
+				Image:           "test:latest",
+				Command:         []string{"test"},
+				BiddingStrategy: "exclusive",
+			},
+		},
+	}
+
+	err := config.Validate()
+	assert.NoError(t, err)
+	assert.NotNil(t, config.Orchestrator, "Orchestrator config should be initialized with defaults")
+	assert.Equal(t, 3, config.Orchestrator.MaxReviewIterations, "Default max_review_iterations should be 3")
+}
+
+func TestValidate_OrchestratorConfig_ValidValues(t *testing.T) {
+	tests := []struct {
+		name           string
+		maxIterations  int
+	}{
+		{"zero (unlimited)", 0},
+		{"one iteration", 1},
+		{"three iterations", 3},
+		{"ten iterations", 10},
+		{"large number", 100},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			config := &SettConfig{
+				Version: "1.0",
+				Orchestrator: &OrchestratorConfig{
+					MaxReviewIterations: tt.maxIterations,
+				},
+				Agents: map[string]Agent{
+					"test": {
+						Role:            "Test",
+						Image:           "test:latest",
+						Command:         []string{"test"},
+						BiddingStrategy: "exclusive",
+					},
+				},
+			}
+
+			err := config.Validate()
+			assert.NoError(t, err)
+			assert.Equal(t, tt.maxIterations, config.Orchestrator.MaxReviewIterations)
+		})
+	}
+}
+
+func TestValidate_OrchestratorConfig_NegativeValue(t *testing.T) {
+	config := &SettConfig{
+		Version: "1.0",
+		Orchestrator: &OrchestratorConfig{
+			MaxReviewIterations: -1,
+		},
+		Agents: map[string]Agent{
+			"test": {
+				Role:            "Test",
+				Image:           "test:latest",
+				Command:         []string{"test"},
+				BiddingStrategy: "exclusive",
+			},
+		},
+	}
+
+	err := config.Validate()
+	assert.Error(t, err)
+	assert.Contains(t, err.Error(), "orchestrator.max_review_iterations must be >= 0")
+	assert.Contains(t, err.Error(), "-1")
+}
+
+func TestLoad_WithOrchestratorConfig(t *testing.T) {
+	tmpDir := t.TempDir()
+	configPath := filepath.Join(tmpDir, "sett.yml")
+
+	// Write config with orchestrator section
+	configWithOrchestrator := `version: "1.0"
+orchestrator:
+  max_review_iterations: 5
+agents:
+  example-agent:
+    role: "Example Agent"
+    image: "example-agent:latest"
+    command: ["./run.sh"]
+    bidding_strategy: "exclusive"
+`
+	err := os.WriteFile(configPath, []byte(configWithOrchestrator), 0644)
+	require.NoError(t, err)
+
+	// Load and validate
+	config, err := Load(configPath)
+	require.NoError(t, err)
+	assert.NotNil(t, config)
+	assert.NotNil(t, config.Orchestrator)
+	assert.Equal(t, 5, config.Orchestrator.MaxReviewIterations)
+}

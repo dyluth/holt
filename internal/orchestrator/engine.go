@@ -15,11 +15,13 @@ import (
 // Engine is the core orchestrator that watches for artefacts and creates claims.
 // It implements the event-driven coordination logic for Phase 1.
 type Engine struct {
-	client        *blackboard.Client
-	instanceName  string
-	healthServer  *HealthServer
-	agentRegistry map[string]string      // agent_name -> agent_role
-	phaseStates   map[string]*PhaseState // claimID -> PhaseState (M3.2: in-memory tracking)
+	client                  *blackboard.Client
+	instanceName            string
+	config                  *config.SettConfig     // M3.3: Need config for max_review_iterations
+	healthServer            *HealthServer
+	agentRegistry           map[string]string      // agent_name -> agent_role
+	phaseStates             map[string]*PhaseState // claimID -> PhaseState (M3.2: in-memory tracking)
+	pendingAssignmentClaims map[string]string      // claimID -> targetArtefactID (M3.3: feedback claim tracking)
 }
 
 // NewEngine creates a new orchestrator engine.
@@ -34,11 +36,13 @@ func NewEngine(client *blackboard.Client, instanceName string, cfg *config.SettC
 	}
 
 	return &Engine{
-		client:        client,
-		instanceName:  instanceName,
-		healthServer:  NewHealthServer(client),
-		agentRegistry: agentRegistry,
-		phaseStates:   make(map[string]*PhaseState), // M3.2: Initialize phase state tracking
+		client:                  client,
+		instanceName:            instanceName,
+		config:                  cfg, // M3.3: Store config for feedback loop logic
+		healthServer:            NewHealthServer(client),
+		agentRegistry:           agentRegistry,
+		phaseStates:             make(map[string]*PhaseState), // M3.2: Initialize phase state tracking
+		pendingAssignmentClaims: make(map[string]string),      // M3.3: Initialize feedback claim tracking
 	}
 }
 
@@ -175,6 +179,7 @@ func (e *Engine) processArtefact(ctx context.Context, artefact *blackboard.Artef
 
 // processArtefactForPhases checks if this artefact completes a phase for any active claims.
 // M3.2: Tracks artefacts produced by granted agents and triggers phase completion checks.
+// M3.3: Also handles pending_assignment claims (feedback claims).
 func (e *Engine) processArtefactForPhases(ctx context.Context, artefact *blackboard.Artefact) {
 	// Skip non-phase-relevant artefacts
 	if artefact.StructuralType == blackboard.StructuralTypeTerminal ||
@@ -182,7 +187,11 @@ func (e *Engine) processArtefactForPhases(ctx context.Context, artefact *blackbo
 		return
 	}
 
-	// Find claims waiting for artefacts from this producer
+	// M3.3: Check for pending_assignment claims (feedback claims)
+	// These don't use phaseStates - they complete immediately when agent produces artefact
+	e.checkPendingAssignmentClaims(ctx, artefact)
+
+	// Find claims waiting for artefacts from this producer (phased claims)
 	for claimID, phaseState := range e.phaseStates {
 		claim, err := e.client.GetClaim(ctx, claimID)
 		if err != nil {
@@ -325,4 +334,62 @@ func (e *Engine) logEvent(eventType string, data map[string]interface{}) {
 	}
 
 	log.Println(string(jsonData))
+}
+
+// checkPendingAssignmentClaims checks if an artefact completes any pending_assignment claims.
+// M3.3: Feedback claims complete immediately when the granted agent produces an artefact.
+func (e *Engine) checkPendingAssignmentClaims(ctx context.Context, artefact *blackboard.Artefact) {
+	for claimID, targetArtefactID := range e.pendingAssignmentClaims {
+		// Check if this artefact is derived from the claim's target artefact
+		if !isSourceOfClaim(artefact, targetArtefactID) {
+			continue
+		}
+
+		// Fetch the claim
+		claim, err := e.client.GetClaim(ctx, claimID)
+		if err != nil {
+			log.Printf("[Orchestrator] Error fetching pending_assignment claim %s: %v", claimID, err)
+			continue
+		}
+
+		// Verify claim is still pending_assignment (defensive check)
+		if claim.Status != blackboard.ClaimStatusPendingAssignment {
+			log.Printf("[Orchestrator] Warning: claim %s is not pending_assignment (status=%s), removing from tracking",
+				claimID, claim.Status)
+			delete(e.pendingAssignmentClaims, claimID)
+			continue
+		}
+
+		// Check if artefact is produced by the granted agent
+		grantedAgentRole, exists := e.agentRegistry[claim.GrantedExclusiveAgent]
+		if !exists {
+			log.Printf("[Orchestrator] Warning: granted agent %s not found in registry for claim %s",
+				claim.GrantedExclusiveAgent, claimID)
+			continue
+		}
+
+		if artefact.ProducedByRole != grantedAgentRole {
+			// Artefact not from granted agent, continue waiting
+			continue
+		}
+
+		// Artefact received from granted agent - mark claim as complete
+		claim.Status = blackboard.ClaimStatusComplete
+		if err := e.client.UpdateClaim(ctx, claim); err != nil {
+			log.Printf("[Orchestrator] Error updating claim %s to complete: %v", claimID, err)
+			continue
+		}
+
+		// Remove from tracking
+		delete(e.pendingAssignmentClaims, claimID)
+
+		e.logEvent("feedback_claim_complete", map[string]interface{}{
+			"claim_id":    claimID,
+			"artefact_id": artefact.ID,
+			"agent":       claim.GrantedExclusiveAgent,
+		})
+
+		log.Printf("[Orchestrator] Feedback claim %s completed by agent %s (artefact: %s)",
+			claimID, claim.GrantedExclusiveAgent, artefact.ID)
+	}
 }

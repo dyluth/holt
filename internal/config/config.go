@@ -7,11 +7,17 @@ import (
 	"gopkg.in/yaml.v3"
 )
 
+// OrchestratorConfig specifies orchestrator behavior settings (M3.3)
+type OrchestratorConfig struct {
+	MaxReviewIterations int `yaml:"max_review_iterations"` // How many times an artefact can be rejected and reworked (0 = unlimited)
+}
+
 // SettConfig represents the top-level sett.yml configuration
 type SettConfig struct {
-	Version  string              `yaml:"version"`
-	Agents   map[string]Agent    `yaml:"agents"`
-	Services *ServicesConfig     `yaml:"services,omitempty"`
+	Version      string              `yaml:"version"`
+	Orchestrator *OrchestratorConfig `yaml:"orchestrator,omitempty"` // M3.3: Orchestrator settings
+	Agents       map[string]Agent    `yaml:"agents"`
+	Services     *ServicesConfig     `yaml:"services,omitempty"`
 }
 
 // Agent represents a single agent configuration
@@ -96,6 +102,18 @@ func (c *SettConfig) Validate() error {
 				agent.Role, existingAgent, agentName)
 		}
 		rolesSeen[agent.Role] = agentName
+	}
+
+	// M3.3: Apply default orchestrator config if missing
+	if c.Orchestrator == nil {
+		c.Orchestrator = &OrchestratorConfig{
+			MaxReviewIterations: 3, // Default value
+		}
+	}
+
+	// M3.3: Validate orchestrator config
+	if c.Orchestrator.MaxReviewIterations < 0 {
+		return fmt.Errorf("orchestrator.max_review_iterations must be >= 0 (0 = unlimited), got %d", c.Orchestrator.MaxReviewIterations)
 	}
 
 	return nil
