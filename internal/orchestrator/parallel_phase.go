@@ -48,6 +48,10 @@ func (e *Engine) GrantParallelPhase(ctx context.Context, claim *blackboard.Claim
 		}
 	}
 
+	// Create new phase state for parallel phase
+	newPhaseState := NewPhaseState(claim.ID, "parallel", parallelBidders, bids)
+	e.phaseStates[claim.ID] = newPhaseState
+
 	return nil
 }
 
