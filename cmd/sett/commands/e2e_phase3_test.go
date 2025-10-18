@@ -224,8 +224,6 @@ func TestE2E_Phase3_ReviewRejection(t *testing.T) {
 		t.Skip("Skipping E2E test in short mode")
 	}
 
-	ctx := context.Background()
-
 	t.Log("=== Phase 3 E2E Review Rejection Test ===")
 
 	// For this test, we need a reviewer agent that rejects
