@@ -128,8 +128,8 @@ func (e *Engine) claimWatcher(ctx context.Context, workQueue chan *blackboard.Cl
 				log.Printf("[WARN] Claim events channel closed")
 				return
 			}
-			// Handle claim event - submit bid
-			e.handleClaimEvent(ctx, claim)
+			// Handle claim event - submit bid or handle pending_assignment
+			e.handleClaimEvent(ctx, claim, workQueue)
 
 		case grantMsg, ok := <-grantSub.Messages():
 			if !ok {
@@ -151,11 +151,36 @@ func (e *Engine) claimWatcher(ctx context.Context, workQueue chan *blackboard.Cl
 	}
 }
 
-// handleClaimEvent processes a claim event by submitting a bid.
+// handleClaimEvent processes a claim event by submitting a bid or handling pre-assigned work.
 // M3.2: Uses configured bidding strategy with refined loop prevention for review bids.
-func (e *Engine) handleClaimEvent(ctx context.Context, claim *blackboard.Claim) {
-	log.Printf("[INFO] Received claim event: claim_id=%s artefact_id=%s", claim.ID, claim.ArtefactID)
+// M3.3: Detects pending_assignment claims (feedback claims) and pushes directly to work queue.
+func (e *Engine) handleClaimEvent(ctx context.Context, claim *blackboard.Claim, workQueue chan *blackboard.Claim) {
+	log.Printf("[INFO] Received claim event: claim_id=%s artefact_id=%s status=%s",
+		claim.ID, claim.ArtefactID, claim.Status)
 
+	// M3.3: Handle pending_assignment claims (feedback claims)
+	// These bypass bidding and go directly to the assigned agent
+	if claim.Status == blackboard.ClaimStatusPendingAssignment {
+		// Check if this claim is assigned to us
+		if claim.GrantedExclusiveAgent == e.config.AgentName {
+			log.Printf("[INFO] Feedback claim %s is assigned to this agent, pushing to work queue", claim.ID)
+
+			// Push claim to work queue
+			select {
+			case workQueue <- claim:
+				log.Printf("[DEBUG] Feedback claim %s successfully queued for execution", claim.ID)
+			case <-ctx.Done():
+				log.Printf("[DEBUG] Context cancelled while queuing feedback claim %s", claim.ID)
+				return
+			}
+		} else {
+			log.Printf("[DEBUG] Feedback claim %s assigned to %s, ignoring (we are %s)",
+				claim.ID, claim.GrantedExclusiveAgent, e.config.AgentName)
+		}
+		return // No bidding for pending_assignment claims
+	}
+
+	// Regular claim - proceed with bidding logic
 	// Fetch the target artefact to check its producer role
 	targetArtefact, err := e.bbClient.GetArtefact(ctx, claim.ArtefactID)
 	if err != nil {

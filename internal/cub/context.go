@@ -19,23 +19,31 @@ const (
 //
 // Algorithm (from agent-cub.md):
 //  1. Start with target artefact's source_artefacts
-//  2. For each level (max 10):
+//  2. M3.3: Also add claim.AdditionalContextIDs for feedback claims
+//  3. For each level (max 10):
 //     - Fetch each artefact from blackboard
 //     - Use thread tracking to get latest version of that logical artefact
 //     - Store latest version in context map (de-duplicates by logical_id)
 //     - Add source_artefacts to next level queue
-//  3. Filter context to Standard and Answer artefacts only
-//  4. Sort chronologically (oldest → newest)
-//  5. Return filtered, sorted context chain
+//  4. Filter context to Standard and Answer artefacts only
+//  5. Sort chronologically (oldest → newest)
+//  6. Return filtered, sorted context chain
 //
 // Returns empty array for root artefacts (no source_artefacts).
-func (e *Engine) assembleContext(ctx context.Context, targetArtefact *blackboard.Artefact) ([]*blackboard.Artefact, error) {
+func (e *Engine) assembleContext(ctx context.Context, targetArtefact *blackboard.Artefact, claim *blackboard.Claim) ([]*blackboard.Artefact, error) {
 	log.Printf("[INFO] Assembling context for artefact: artefact_id=%s type=%s",
 		targetArtefact.ID, targetArtefact.Type)
 
 	// Initialize BFS queue with target's source artefacts
 	queue := make([]string, len(targetArtefact.SourceArtefacts))
 	copy(queue, targetArtefact.SourceArtefacts)
+
+	// M3.3: Add additional context IDs for feedback claims
+	if len(claim.AdditionalContextIDs) > 0 {
+		queue = append(queue, claim.AdditionalContextIDs...)
+		log.Printf("[INFO] Feedback claim detected, adding %d Review artefacts to context",
+			len(claim.AdditionalContextIDs))
+	}
 
 	// Context map keyed by logical_id for de-duplication
 	// Also serves as cache for GetLatestVersion results

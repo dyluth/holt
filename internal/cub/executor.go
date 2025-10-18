@@ -116,9 +116,11 @@ func (e *Engine) fetchTargetArtefact(ctx context.Context, claim *blackboard.Clai
 
 // prepareToolInput creates the JSON structure to pass to the tool via stdin.
 // M2.4: Uses context assembly to populate context_chain with historical artefacts.
+// M3.3: Passes claim to assembleContext for AdditionalContextIDs support.
 func (e *Engine) prepareToolInput(ctx context.Context, claim *blackboard.Claim, targetArtefact *blackboard.Artefact) (string, error) {
 	// Assemble context chain via BFS traversal with thread tracking
-	contextChain, err := e.assembleContext(ctx, targetArtefact)
+	// M3.3: Pass claim for feedback claim context support
+	contextChain, err := e.assembleContext(ctx, targetArtefact, claim)
 	if err != nil {
 		return "", fmt.Errorf("failed to assemble context: %w", err)
 	}
@@ -262,12 +264,21 @@ func (e *Engine) parseToolOutput(stdout string) (*ToolOutput, error) {
 }
 
 // createResultArtefact builds a new artefact from the tool output and writes it to the blackboard.
-// Uses the DERIVATIVE relationship model:
+// M2.4: Uses the DERIVATIVE relationship model for new work
+// M3.3: Automatically manages versioning for feedback claims (rework)
+//
+// For regular claims:
 //   - New logical_id (creates new logical thread)
 //   - Version = 1 (first version of this new work)
 //   - source_artefacts = [claim.ArtefactID] (links back to input)
 //
-// M2.4: Validates git commit hashes for CodeCommit artefacts before creating artefact.
+// For feedback claims (pending_assignment):
+//   - Same logical_id as target (continues thread)
+//   - Version = target.Version + 1 (increment version)
+//   - Same type as target (rework, not new type)
+//   - source_artefacts = [target.ID] + claim.AdditionalContextIDs (includes Review artefacts)
+//
+// Agents remain completely unaware of this versioning logic.
 func (e *Engine) createResultArtefact(ctx context.Context, claim *blackboard.Claim, output *ToolOutput) (*blackboard.Artefact, error) {
 	// M2.4: Validate git commit for CodeCommit artefacts
 	if output.ArtefactType == "CodeCommit" {
@@ -279,6 +290,13 @@ func (e *Engine) createResultArtefact(ctx context.Context, claim *blackboard.Cla
 		log.Printf("[DEBUG] Git commit validation passed: hash=%s", output.ArtefactPayload)
 	}
 
+	// M3.3: Check if this is a feedback claim (rework scenario)
+	if claim.Status == blackboard.ClaimStatusPendingAssignment {
+		// This is a feedback claim - create rework artefact
+		return e.createReworkArtefact(ctx, claim, output)
+	}
+
+	// Regular claim - create new work artefact
 	// Generate new UUIDs for the artefact
 	artefactID := uuid.New().String()
 	logicalID := artefactID // Derivative: new logical thread
@@ -390,4 +408,64 @@ func truncate(s string, maxLen int) string {
 		return s
 	}
 	return s[:maxLen] + "..."
+}
+
+// createReworkArtefact builds a new version of the target artefact using agent output.
+// M3.3: Automatically manages versioning for feedback claims - agents remain unaware.
+//
+// The cub:
+//   - Fetches the target artefact to get its logical_id, version, and type
+//   - Creates a new artefact with:
+//     * Same logical_id (continues the thread)
+//     * Version = target.version + 1 (automatic increment)
+//     * Same type as target (rework, not new type)
+//     * source_artefacts = [target.ID] + claim.AdditionalContextIDs (target + Review artefacts)
+//   - Agent tool is completely unaware of versioning
+func (e *Engine) createReworkArtefact(ctx context.Context, claim *blackboard.Claim, output *ToolOutput) (*blackboard.Artefact, error) {
+	// Fetch the target artefact to get logical_id, version, and type
+	targetArtefact, err := e.bbClient.GetArtefact(ctx, claim.ArtefactID)
+	if err != nil {
+		return nil, fmt.Errorf("failed to fetch target artefact: %w", err)
+	}
+	if targetArtefact == nil {
+		return nil, fmt.Errorf("target artefact %s not found", claim.ArtefactID)
+	}
+
+	log.Printf("[INFO] Creating rework artefact: logical_id=%s version=%d→%d type=%s",
+		targetArtefact.LogicalID, targetArtefact.Version, targetArtefact.Version+1, targetArtefact.Type)
+
+	// Build source_artefacts: target + Review artefacts
+	sourceArtefacts := []string{targetArtefact.ID}
+	sourceArtefacts = append(sourceArtefacts, claim.AdditionalContextIDs...)
+
+	// Generate new artefact ID
+	artefactID := uuid.New().String()
+
+	artefact := &blackboard.Artefact{
+		ID:              artefactID,
+		LogicalID:       targetArtefact.LogicalID,       // Same thread
+		Version:         targetArtefact.Version + 1,      // Increment version
+		StructuralType:  output.GetStructuralType(),
+		Type:            targetArtefact.Type,             // Same type (rework)
+		Payload:         output.ArtefactPayload,
+		SourceArtefacts: sourceArtefacts,                // Target + Reviews
+		ProducedByRole:  e.config.AgentRole,
+	}
+
+	// Create artefact in Redis (also publishes event)
+	if err := e.bbClient.CreateArtefact(ctx, artefact); err != nil {
+		return nil, fmt.Errorf("failed to create rework artefact: %w", err)
+	}
+
+	// Add to thread tracking
+	if err := e.bbClient.AddVersionToThread(ctx, artefact.LogicalID, artefact.ID, artefact.Version); err != nil {
+		// Log but don't fail - artefact was created successfully
+		log.Printf("[WARN] Failed to add rework artefact to thread: logical_id=%s error=%v",
+			artefact.LogicalID, err)
+	}
+
+	log.Printf("[INFO] Rework artefact created: id=%s logical_id=%s version=%d (agent unaware of versioning)",
+		artefact.ID, artefact.LogicalID, artefact.Version)
+
+	return artefact, nil
 }
