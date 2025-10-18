@@ -1,6 +1,7 @@
 package orchestrator
 
 import (
+	"log"
 	"time"
 
 	"github.com/dyluth/sett/pkg/blackboard"
@@ -96,20 +97,28 @@ func DetermineInitialPhase(bids map[string]blackboard.BidType) (blackboard.Claim
 	hasParallelBids := HasBidsForPhase(bids, "parallel")
 	hasExclusiveBids := HasBidsForPhase(bids, "exclusive")
 
+	// Debug logging to diagnose phase determination
+	log.Printf("[DEBUG] DetermineInitialPhase: hasReview=%v, hasParallel=%v, hasExclusive=%v, bids=%v",
+		hasReviewBids, hasParallelBids, hasExclusiveBids, bids)
+
 	// Phase skipping logic
 	if !hasReviewBids {
 		if !hasParallelBids {
 			if hasExclusiveBids {
 				// Skip directly to exclusive
+				log.Printf("[DEBUG] Skipping to exclusive phase")
 				return blackboard.ClaimStatusPendingExclusive, "exclusive"
 			}
 			// No bids in any phase - claim becomes dormant
+			log.Printf("[DEBUG] No bids in any phase - dormant")
 			return blackboard.ClaimStatusPendingReview, "" // Will be logged as dormant
 		}
 		// Skip to parallel
+		log.Printf("[DEBUG] Skipping review, starting with parallel")
 		return blackboard.ClaimStatusPendingParallel, "parallel"
 	}
 
 	// Start with review
+	log.Printf("[DEBUG] Starting with review phase")
 	return blackboard.ClaimStatusPendingReview, "review"
 }
