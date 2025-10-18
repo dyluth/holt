@@ -416,7 +416,30 @@ func TestValidate_OrchestratorConfig_DefaultValue(t *testing.T) {
 	err := config.Validate()
 	assert.NoError(t, err)
 	assert.NotNil(t, config.Orchestrator, "Orchestrator config should be initialized with defaults")
-	assert.Equal(t, 3, config.Orchestrator.MaxReviewIterations, "Default max_review_iterations should be 3")
+	assert.NotNil(t, config.Orchestrator.MaxReviewIterations, "MaxReviewIterations should not be nil")
+	assert.Equal(t, 3, *config.Orchestrator.MaxReviewIterations, "Default max_review_iterations should be 3")
+}
+
+func TestValidate_OrchestratorConfig_DefaultWhenSectionExists(t *testing.T) {
+	config := &SettConfig{
+		Version: "1.0",
+		Orchestrator: &OrchestratorConfig{
+			// max_review_iterations not specified - should default to 3
+		},
+		Agents: map[string]Agent{
+			"test": {
+				Role:            "Test",
+				Image:           "test:latest",
+				Command:         []string{"test"},
+				BiddingStrategy: "exclusive",
+			},
+		},
+	}
+
+	err := config.Validate()
+	assert.NoError(t, err)
+	assert.NotNil(t, config.Orchestrator.MaxReviewIterations, "MaxReviewIterations should not be nil after validation")
+	assert.Equal(t, 3, *config.Orchestrator.MaxReviewIterations, "Default max_review_iterations should be 3 even when orchestrator section exists")
 }
 
 func TestValidate_OrchestratorConfig_ValidValues(t *testing.T) {
@@ -433,10 +456,11 @@ func TestValidate_OrchestratorConfig_ValidValues(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
+			iterations := tt.maxIterations
 			config := &SettConfig{
 				Version: "1.0",
 				Orchestrator: &OrchestratorConfig{
-					MaxReviewIterations: tt.maxIterations,
+					MaxReviewIterations: &iterations,
 				},
 				Agents: map[string]Agent{
 					"test": {
@@ -450,16 +474,17 @@ func TestValidate_OrchestratorConfig_ValidValues(t *testing.T) {
 
 			err := config.Validate()
 			assert.NoError(t, err)
-			assert.Equal(t, tt.maxIterations, config.Orchestrator.MaxReviewIterations)
+			assert.Equal(t, tt.maxIterations, *config.Orchestrator.MaxReviewIterations)
 		})
 	}
 }
 
 func TestValidate_OrchestratorConfig_NegativeValue(t *testing.T) {
+	negativeValue := -1
 	config := &SettConfig{
 		Version: "1.0",
 		Orchestrator: &OrchestratorConfig{
-			MaxReviewIterations: -1,
+			MaxReviewIterations: &negativeValue,
 		},
 		Agents: map[string]Agent{
 			"test": {
@@ -500,5 +525,6 @@ agents:
 	require.NoError(t, err)
 	assert.NotNil(t, config)
 	assert.NotNil(t, config.Orchestrator)
-	assert.Equal(t, 5, config.Orchestrator.MaxReviewIterations)
+	assert.NotNil(t, config.Orchestrator.MaxReviewIterations)
+	assert.Equal(t, 5, *config.Orchestrator.MaxReviewIterations)
 }

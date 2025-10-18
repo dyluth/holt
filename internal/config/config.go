@@ -9,7 +9,7 @@ import (
 
 // OrchestratorConfig specifies orchestrator behavior settings (M3.3)
 type OrchestratorConfig struct {
-	MaxReviewIterations int `yaml:"max_review_iterations"` // How many times an artefact can be rejected and reworked (0 = unlimited)
+	MaxReviewIterations *int `yaml:"max_review_iterations,omitempty"` // How many times an artefact can be rejected and reworked (0 = unlimited, default = 3)
 }
 
 // SettConfig represents the top-level sett.yml configuration
@@ -106,14 +106,19 @@ func (c *SettConfig) Validate() error {
 
 	// M3.3: Apply default orchestrator config if missing
 	if c.Orchestrator == nil {
+		defaultIterations := 3
 		c.Orchestrator = &OrchestratorConfig{
-			MaxReviewIterations: 3, // Default value
+			MaxReviewIterations: &defaultIterations,
 		}
+	} else if c.Orchestrator.MaxReviewIterations == nil {
+		// Orchestrator section exists but max_review_iterations not specified - apply default
+		defaultIterations := 3
+		c.Orchestrator.MaxReviewIterations = &defaultIterations
 	}
 
 	// M3.3: Validate orchestrator config
-	if c.Orchestrator.MaxReviewIterations < 0 {
-		return fmt.Errorf("orchestrator.max_review_iterations must be >= 0 (0 = unlimited), got %d", c.Orchestrator.MaxReviewIterations)
+	if *c.Orchestrator.MaxReviewIterations < 0 {
+		return fmt.Errorf("orchestrator.max_review_iterations must be >= 0 (0 = unlimited), got %d", *c.Orchestrator.MaxReviewIterations)
 	}
 
 	return nil

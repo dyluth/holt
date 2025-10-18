@@ -22,7 +22,7 @@ func (e *Engine) CreateFeedbackClaim(ctx context.Context, originalClaim *blackbo
 
 	// Check iteration limit using version number
 	iterationCount := targetArtefact.Version - 1
-	maxIterations := e.config.Orchestrator.MaxReviewIterations
+	maxIterations := *e.config.Orchestrator.MaxReviewIterations
 
 	if maxIterations > 0 && iterationCount >= maxIterations {
 		// Create Failure artefact and terminate
@@ -91,7 +91,7 @@ func (e *Engine) findAgentByRole(role string) (string, error) {
 // terminateMaxIterations creates Failure artefact when iteration limit is reached.
 // M3.3: Called when artefact.version - 1 >= max_review_iterations.
 func (e *Engine) terminateMaxIterations(ctx context.Context, claim *blackboard.Claim, artefact *blackboard.Artefact, iterations int) error {
-	maxIterations := e.config.Orchestrator.MaxReviewIterations
+	maxIterations := *e.config.Orchestrator.MaxReviewIterations
 	failurePayload := fmt.Sprintf("Max review iterations (%d) reached for artefact %s (version %d). Review feedback loop terminated.",
 		maxIterations, artefact.ID, artefact.Version)
 
