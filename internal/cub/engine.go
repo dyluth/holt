@@ -196,6 +196,7 @@ func (e *Engine) handleClaimEvent(ctx context.Context, claim *blackboard.Claim) 
 type GrantNotification struct {
 	EventType string `json:"event_type"`
 	ClaimID   string `json:"claim_id"`
+	ClaimType string `json:"claim_type,omitempty"` // M3.2: "review", "claim", or "exclusive"
 }
 
 // handleGrantNotification processes a grant notification from the orchestrator.
@@ -223,9 +224,37 @@ func (e *Engine) handleGrantNotification(ctx context.Context, msgPayload string,
 	}
 
 	// Security check: Verify claim is actually granted to this agent
-	if claim.GrantedExclusiveAgent != e.config.AgentName {
-		log.Printf("[WARN] Grant notification for claim %s not granted to this agent (granted to: %s)",
-			grant.ClaimID, claim.GrantedExclusiveAgent)
+	// M3.2: Check review, parallel, and exclusive grant fields
+	isGranted := false
+
+	// Check review grants
+	for _, grantedAgent := range claim.GrantedReviewAgents {
+		if grantedAgent == e.config.AgentName {
+			isGranted = true
+			break
+		}
+	}
+
+	// Check parallel grants
+	if !isGranted {
+		for _, grantedAgent := range claim.GrantedParallelAgents {
+			if grantedAgent == e.config.AgentName {
+				isGranted = true
+				break
+			}
+		}
+	}
+
+	// Check exclusive grant
+	if !isGranted && claim.GrantedExclusiveAgent == e.config.AgentName {
+		isGranted = true
+	}
+
+	if !isGranted {
+		log.Printf("[WARN] Grant notification for claim %s not granted to this agent (name: %s)",
+			grant.ClaimID, e.config.AgentName)
+		log.Printf("[DEBUG] Claim grants - review: %v, parallel: %v, exclusive: %s",
+			claim.GrantedReviewAgents, claim.GrantedParallelAgents, claim.GrantedExclusiveAgent)
 		return
 	}
 
