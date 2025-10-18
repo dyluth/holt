@@ -1,5 +1,5 @@
 #!/bin/sh
-# Example Reviewer agent tool script for M3.1
+# Example Reviewer agent tool script for M3.2
 # Always outputs Review artefact with approval payload "{}"
 
 set -e  # Exit on any error
@@ -12,9 +12,12 @@ echo "Reviewer agent received claim, auto-approving..." >&2
 
 # Output Review artefact with approval payload
 # Payload of "{}" indicates approval (no feedback)
+# Tool contract requires: artefact_type, artefact_payload, summary, structural_type
 cat <<EOF
 {
-  "structural_type": "Review",
-  "payload": "{}"
+  "artefact_type": "Review",
+  "artefact_payload": "{}",
+  "summary": "Review approved - no issues found",
+  "structural_type": "Review"
 }
 EOF

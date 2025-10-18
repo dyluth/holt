@@ -307,12 +307,18 @@ func TestE2E_Phase3_PhaseSkipping(t *testing.T) {
 
 	// Build git agent image
 	projectRoot := testutil.GetProjectRoot()
+	t.Log("Building example-git-agent Docker image...")
 	buildCmd := exec.Command("docker", "build",
 		"-t", "example-git-agent:latest",
 		"-f", "agents/example-git-agent/Dockerfile",
 		".")
 	buildCmd.Dir = projectRoot
-	require.NoError(t, buildCmd.Run(), "Failed to build example-git-agent")
+	output, err := buildCmd.CombinedOutput()
+	if err != nil {
+		t.Logf("Build output:\n%s", string(output))
+	}
+	require.NoError(t, err, "Failed to build example-git-agent Docker image")
+	t.Log("✓ example-git-agent image built")
 
 	// Start instance
 	upCmd := &cobra.Command{}
