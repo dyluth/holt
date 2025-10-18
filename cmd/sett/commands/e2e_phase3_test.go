@@ -4,10 +4,13 @@ package commands
 
 import (
 	"context"
+	"fmt"
+	"io"
 	"os/exec"
 	"testing"
 	"time"
 
+	"github.com/docker/docker/api/types/container"
 	"github.com/dyluth/sett/internal/instance"
 	"github.com/dyluth/sett/internal/testutil"
 	"github.com/dyluth/sett/pkg/blackboard"
@@ -132,6 +135,21 @@ func TestE2E_Phase3_ThreePhaseWorkflow(t *testing.T) {
 	t.Log("Step 5: Verifying claim creation and bidding...")
 	time.Sleep(3 * time.Second) // Give agents time to bid
 
+	// Helper function to dump orchestrator logs on failure
+	dumpOrchestratorLogs := func() {
+		t.Log("=== ORCHESTRATOR LOGS ===")
+		logs, err := env.DockerClient.ContainerLogs(ctx, fmt.Sprintf("sett-orchestrator-%s", env.InstanceName), container.LogsOptions{
+			ShowStdout: true,
+			ShowStderr: true,
+			Tail:       "100",
+		})
+		if err == nil {
+			defer logs.Close()
+			logBytes, _ := io.ReadAll(logs)
+			t.Logf("\n%s", string(logBytes))
+		}
+	}
+
 	// Get the claim for the GoalDefined artefact
 	claim, err := env.BBClient.GetClaimByArtefactID(ctx, goalArtefact.ID)
 	require.NoError(t, err, "Failed to get claim")
@@ -151,6 +169,9 @@ func TestE2E_Phase3_ThreePhaseWorkflow(t *testing.T) {
 	t.Log("Step 6: Verifying review phase...")
 
 	// Claim should start in pending_review status
+	if claim.Status != blackboard.ClaimStatusPendingReview {
+		dumpOrchestratorLogs() // Dump logs before assertion fails
+	}
 	require.Equal(t, blackboard.ClaimStatusPendingReview, claim.Status, "Claim should start in pending_review")
 	t.Logf("✓ Claim in review phase")
 
