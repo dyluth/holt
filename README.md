@@ -8,7 +8,7 @@ Sett manages a clan of specialized, tool-equipped AI agents that collaborate on 
 
 ## Project Status
 
-**Phase 2 Complete** ✅ - Single-agent workflows with Git integration
+**Phase 3 (M3.3) Complete** ✅ - Multi-agent coordination with automated feedback loops
 
 Current capabilities:
 - ✅ Event-driven orchestration via Redis blackboard
@@ -17,11 +17,15 @@ Current capabilities:
 - ✅ Complete immutable audit trail
 - ✅ Human-in-the-loop support
 - ✅ Multi-instance workspace safety
+- ✅ Multi-agent coordination (review → parallel → exclusive phases)
+- ✅ Consensus-based bidding system
+- ✅ Automated feedback loops with review-based iteration
+- ✅ Automatic version management for iterative refinement
 
-Coming in Phase 3:
-- 🚧 Multi-agent coordination (review → parallel → exclusive phases)
-- 🚧 Controller-worker scaling pattern
-- 🚧 Advanced consensus mechanisms
+Coming in Phase 3+:
+- 🚧 Controller-worker scaling pattern (M3.4+)
+- 🚧 Runtime failure detection & timeouts (M3.6+)
+- 🚧 Orchestrator restart resilience (M3.5+)
 
 ---
 

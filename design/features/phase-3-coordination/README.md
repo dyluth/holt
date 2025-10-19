@@ -21,15 +21,25 @@
 - Self-review support for review agents
 - **Status**: Core functionality complete, tested, and backward compatible
 
-### **M3.3+: Future Milestones** 🔜 **PENDING DESIGN**
+### **M3.3: Automated Feedback Loop** ✅ **COMPLETE**
+- Automatic review-based claim reassignment to original producer
+- Feedback claims bypass bidding (pending_assignment status)
+- Context assembly includes Review artefacts for agent feedback
+- Automatic version management (Cub increments version transparently)
+- Configurable iteration limits (`orchestrator.max_review_iterations`)
+- Graceful termination with Failure artefacts for max iterations/missing agents
+- Complete audit trail with termination reasons
+- **Status**: Fully implemented with comprehensive test coverage
+
+### **M3.4+: Future Milestones** 🔜 **PENDING DESIGN**
 See "Future Milestones" section below for planned enhancements.
 
 ## **Phase Success Criteria**
 
-- ✅ Complex workflow with review feedback loop
-- ✅ Multiple agents working in parallel
-- ⚠️ Basic error handling (no timeouts or auto-retry yet)
-- 🔜 Controller-worker pattern for scaling (deferred)
+- ✅ Complex workflow with review feedback loop (M3.3 complete)
+- ✅ Multiple agents working in parallel (M3.2 complete)
+- ⚠️ Basic error handling (no timeouts yet - deferred to M3.6)
+- 🔜 Controller-worker pattern for scaling (deferred to M3.4)
 
 ## **Key Features Implemented**
 
@@ -143,16 +153,15 @@ The following limitations are **by design** in M3.2 and should be addressed in f
 
 **Future Resolution**: Phase 4+ could use `produced_by_agent` field to support duplicate roles.
 
-### **3. No Automated Feedback Loop**
+### **3. No Automated Feedback Loop** ✅ **RESOLVED IN M3.3**
 
-**Limitation**: Review rejection terminates the claim; no automatic retry with feedback incorporated.
+**Previous Limitation**: Review rejection terminated the claim; no automatic retry with feedback incorporated.
 
-**Impact**:
-- When a reviewer provides feedback, the claim status becomes `terminated`
-- Workflow stops; no automatic re-assignment to the original agent with feedback
-- User must manually restart the workflow with the feedback incorporated
-
-**Future Resolution**: M3.3+ should automatically create new claims with feedback context.
+**M3.3 Resolution**:
+- Review rejection now automatically creates feedback claims
+- Original agent is reassigned with review feedback in context
+- Automatic version management (v1→v2→v3) with iteration limits
+- Complete audit trail of feedback loop iterations
 
 ### **4. No Runtime Failure Detection or Timeouts**
 
@@ -202,32 +211,20 @@ The following requirements have been identified as immediate priorities for Phas
 
 
 
-### **M3.3: Automated Feedback Loop** 🔜 **HIGH PRIORITY**
+### **M3.3: Automated Feedback Loop** ✅ **COMPLETE**
 
-**Requirement**: The system needs a mechanism to automatically re-assign work to an agent based on Review feedback from another agent.
+**Implemented**: M3.3 provides automated review-based iteration with version management.
 
-**Current Limitation**: Review rejection terminates claim; user must manually restart workflow.
+**Implementation Summary**:
+- Review rejection automatically creates feedback claims assigned to original producer
+- Feedback claims bypass bidding via `pending_assignment` status
+- Context assembly includes Review artefacts for agent feedback
+- Cub automatically manages versioning (logical_id preservation, version increment)
+- Configurable iteration limits prevent infinite loops (`orchestrator.max_review_iterations`)
+- Graceful termination with Failure artefacts and clear termination reasons
+- Complete audit trail of all feedback iterations
 
-**Proposed Behavior**:
-- When a claim is terminated due to negative review feedback, the orchestrator automatically creates a new special feedback claim
-- New claim targets the original artefact's producer agent
-- no agents should bid on the claim, instead, the agent that created the original claim is assigned the work and automatically picks it up.
-- New claim's context includes both the original artefact and the Review feedback artefact, the Cub needs to traverse the history to provide this.
-- Agent can read feedback and iterate on the work
-
-**Implementation Considerations**:
-- Detect review rejection and extract feedback artefact
-- Create new claim with source_artefacts = [original_artefact, review_artefact]
-- Limit iteration depth to prevent infinite loops (max 3 iterations?)
-- Log feedback loop creation for audit trail
-
-**Success Criteria**:
-- Cub correctly reconstructs context chain in the call to its tool by traversing the artefacts parents and including that in the history struct - for all claims, not jsut feedback claims.
-- Review feedback automatically triggers new claim
-- Original agent receives feedback in context
-- Original agent creates a new Artefact, with an identical name as the original artefact, but a newer revision number.
-- Workflow can iterate until all reviewers approve
-- Iteration depth limits prevent infinite loops
+**Documentation**: See `design/features/phase-3-coordination/M3.3-automated-feedback-loop.md` for full design and implementation details.
 
 
 ### **M3.4: Controller-Worker Pattern for Scaling** 🔜 **HIGH PRIORITY**

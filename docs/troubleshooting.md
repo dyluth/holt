@@ -12,6 +12,7 @@
 2. [Agent Won't Execute](#agent-wont-execute)
 3. [Git Workspace Errors](#git-workspace-errors)
 4. [Blackboard State Issues](#blackboard-state-issues)
+   - [M3.3 Feedback Loop Issues](#error-max-review-iterations-reached-m33)
 5. [Docker & Container Problems](#docker--container-problems)
 6. [Performance Issues](#performance-issues)
 7. [Debugging Commands](#debugging-commands)
@@ -486,6 +487,191 @@ sett down && sett up
 
 ---
 
+### Error: "Max review iterations reached" (M3.3+)
+
+**Symptoms:**
+```
+Failure artefact payload:
+"Max review iterations (3) reached for artefact abc123 (version 4)"
+```
+
+**Cause:** Feedback loop hit configured iteration limit (`orchestrator.max_review_iterations`).
+
+**What Happened:**
+1. Agent produced work (v1)
+2. Reviewer rejected with feedback
+3. Agent reworked (v2)
+4. Reviewer rejected again
+5. Process repeated until reaching max iterations
+6. Orchestrator terminated with Failure artefact
+
+**Solution:**
+```bash
+# Option 1: Increase iteration limit in sett.yml
+cat >> sett.yml <<EOF
+orchestrator:
+  max_review_iterations: 5  # Increase from default 3
+EOF
+
+# Option 2: Investigate why agent and reviewer disagree
+# Check review feedback in audit trail
+sett hoard | grep -A 5 "Review"
+
+# Check agent's iterations
+docker exec sett-{instance}-redis redis-cli KEYS "sett:{instance}:thread:*"
+
+# Option 3: Fix agent or reviewer logic
+# - Update agent to better address feedback
+# - Update reviewer criteria to be more lenient
+```
+
+**Debug Commands:**
+```bash
+# View iteration history for an artefact
+sett hoard | grep -B 2 -A 5 "version"
+
+# Check termination reason
+docker exec sett-{instance}-redis redis-cli HGET sett:{instance}:claim:{uuid} termination_reason
+
+# View Failure artefact details
+docker exec sett-{instance}-redis redis-cli HGETALL sett:{instance}:artefact:{failure-uuid}
+```
+
+---
+
+### Feedback Loop Not Working (M3.3+)
+
+**Symptoms:**
+- Reviewer rejects work
+- Claim terminates instead of creating feedback claim
+- Agent not automatically reassigned for rework
+
+**Cause:** Missing M3.3 orchestrator image, configuration issue, or orchestrator bug.
+
+**Solution:**
+```bash
+# Verify orchestrator has M3.3 code
+docker exec sett-{instance}-orchestrator /app/orchestrator --version
+# Should show version with M3.3 support
+
+# Rebuild orchestrator with M3.3
+make docker-orchestrator
+
+# Restart instance
+sett down && sett up
+
+# Check orchestrator logs for feedback events
+sett logs orchestrator | grep "feedback_claim"
+```
+
+**Expected Log Messages:**
+```
+[Orchestrator] Review rejection detected for claim abc123
+[Orchestrator] Created feedback claim def456 for agent coder-agent (iteration 2)
+[Orchestrator] Feedback claim def456 completed by agent coder-agent
+```
+
+**Debug Commands:**
+```bash
+# Check for feedback claims in Redis
+docker exec sett-{instance}-redis redis-cli KEYS "sett:{instance}:claim:*"
+docker exec sett-{instance}-redis redis-cli HGET sett:{instance}:claim:{uuid} status
+# Look for "pending_assignment" status
+
+# Check for termination reasons
+docker exec sett-{instance}-redis redis-cli HGET sett:{instance}:claim:{uuid} termination_reason
+```
+
+---
+
+### Version Not Incrementing (M3.3+)
+
+**Symptoms:**
+- Agent processes feedback claim
+- New artefact created with version=1 instead of version=2
+- Logical IDs don't match (breaks thread continuity)
+
+**Cause:** Cub not detecting feedback claim, or missing M3.3 Cub code.
+
+**Solution:**
+```bash
+# Verify agent Cub has M3.3 code
+docker exec sett-{instance}-agent-{agent-name} /app/cub --version
+
+# Rebuild agent images with M3.3 Cub
+docker build -t {agent-name}:latest -f agents/{agent-name}/Dockerfile .
+
+# Restart instance
+sett down && sett up
+
+# Verify version progression in audit trail
+sett hoard | grep -A 3 "logical_id"
+```
+
+**Expected Behavior:**
+```
+First attempt:
+  logical_id: abc-123, version: 1, type: CodeCommit
+
+After feedback:
+  logical_id: abc-123, version: 2, type: CodeCommit  <- Same logical_id, incremented version
+
+After more feedback:
+  logical_id: abc-123, version: 3, type: CodeCommit  <- Continues incrementing
+```
+
+**Debug Commands:**
+```bash
+# Check artefact version progression
+docker exec sett-{instance}-redis redis-cli ZRANGE sett:{instance}:thread:{logical-id} 0 -1 WITHSCORES
+
+# Verify claim has additional_context_ids (feedback claim indicator)
+docker exec sett-{instance}-redis redis-cli HGET sett:{instance}:claim:{uuid} additional_context_ids
+
+# Check Cub logs for version management
+sett logs {agent-name} | grep "Creating rework artefact"
+```
+
+---
+
+### Error: "Missing agent configuration for feedback" (M3.3+)
+
+**Symptoms:**
+```
+Failure artefact payload:
+"Cannot create feedback claim: agent with role 'Coder' no longer exists in configuration"
+```
+
+**Cause:** Original agent that produced work was removed from `sett.yml` before feedback loop completed.
+
+**Solution:**
+```bash
+# Option 1: Re-add the agent to sett.yml
+cat >> sett.yml <<EOF
+agents:
+  coder-agent:
+    role: "Coder"
+    image: "coder-agent:latest"
+    command: ["/app/run.sh"]
+    workspace:
+      mode: rw
+EOF
+
+# Option 2: Manually terminate the stuck workflow
+# (Orchestrator already created Failure artefact)
+sett hoard  # Verify Failure artefact exists
+
+# Restart with corrected configuration
+sett down && sett up
+```
+
+**Prevention:**
+- Don't remove agents from configuration during active workflows
+- Wait for workflows to complete before changing agent configuration
+- Monitor `sett hoard` before modifying `sett.yml`
+
+---
+
 ## Docker & Container Problems
 
 ### Docker Daemon Not Running
@@ -783,6 +969,9 @@ If you've tried the solutions above and still have issues:
 | Redis problems | `docker logs sett-{instance}-redis` |
 | Permission errors | `ls -la && docker inspect <container>` |
 | Performance issues | `docker stats` |
+| Max iterations (M3.3) | `sett hoard \| grep Failure` |
+| Feedback loop (M3.3) | `sett logs orchestrator \| grep feedback` |
+| Version not incrementing (M3.3) | `sett logs <agent> \| grep "rework artefact"` |
 
 ---
 

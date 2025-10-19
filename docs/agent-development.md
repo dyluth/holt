@@ -136,10 +136,11 @@ When the cub executes your tool script, it passes a JSON object via stdin:
 
 **context_chain Array:**
 - Populated via BFS traversal of source_artefacts graph
-- Filtered to include only "Standard" and "Answer" artefacts
+- Filtered to include "Standard", "Answer", and "Review" artefacts (M3.3+)
 - Uses thread tracking to ensure latest versions
 - Empty array `[]` for root artefacts (no sources)
 - Provides complete historical context for informed decisions
+- **M3.3**: Review artefacts included for feedback-based iteration
 
 ### Output: JSON on stdout
 
@@ -440,10 +441,11 @@ done
 ### Context Chain Characteristics
 
 - **Chronological order**: Oldest → Newest
-- **Filtered**: Only "Standard" and "Answer" artefacts included
+- **Filtered**: "Standard", "Answer", and "Review" artefacts included (M3.3+)
 - **Latest versions**: Uses thread tracking (logical_id → max version)
 - **Empty for root**: `[]` if target_artefact has no source_artefacts
 - **Depth limit**: Maximum 10 levels (safety valve)
+- **M3.3**: Review artefacts provide feedback for iterative refinement
 
 ### Example: Building on Previous Work
 
@@ -482,10 +484,11 @@ fi
 - `source_artefacts` = [target_artefact.id] (provenance chain)
 - **Different** `type` (e.g., GoalDefined → CodeCommit)
 
-**Evolutionary** (future feature):
+**Evolutionary** (automatic in M3.3 feedback loops):
 - **Same** `logical_id`
 - `version` incremented (v1 → v2)
-- Same `type` (e.g., Design v1 → Design v2)
+- Same `type` (e.g., CodeCommit v1 → CodeCommit v2)
+- **The cub handles this automatically** when reworking based on review feedback
 
 ### Example Flow
 
@@ -503,6 +506,125 @@ Another Agent:
 ```
 
 **The cub handles this automatically** - you just output the artefact_type and payload.
+
+---
+
+## Automatic Version Management (M3.3+)
+
+**New in Phase 3 M3.3:** The Cub now automatically manages versioning for feedback-based iterations, so your agent code remains simple and unaware of version management.
+
+### How It Works
+
+When a reviewer rejects your agent's work and provides feedback:
+
+1. **Orchestrator detects review rejection** and creates a **feedback claim**
+2. **Your agent is automatically reassigned** (no bidding required)
+3. **Cub injects review feedback** into the `context_chain`
+4. **Your agent executes** using the same tool script
+5. **Cub automatically creates a new version** (v2, v3, etc.) with:
+   - Same `logical_id` (preserves thread)
+   - Incremented `version` number
+   - Same `type` as original artefact
+   - Updated `source_artefacts` (includes original + review artefacts)
+
+### What Your Agent Sees
+
+**Feedback Claim Input:**
+```json
+{
+  "claim_type": "exclusive",
+  "target_artefact": {
+    "id": "original-uuid",
+    "logical_id": "thread-uuid",
+    "version": 1,
+    "type": "CodeCommit",
+    "payload": "abc123...",
+    ...
+  },
+  "context_chain": [
+    {
+      "type": "GoalDefined",
+      "payload": "Build authentication"
+    },
+    {
+      "type": "Review",
+      "payload": "{\"issue\": \"needs tests\", \"severity\": \"high\"}",
+      "structural_type": "Review"
+    }
+  ]
+}
+```
+
+**What Your Agent Outputs (unchanged):**
+```json
+{
+  "artefact_type": "CodeCommit",
+  "artefact_payload": "def456...",
+  "summary": "Added tests per review feedback"
+}
+```
+
+**What Cub Creates Automatically:**
+- `logical_id`: "thread-uuid" (same as v1)
+- `version`: 2 (automatically incremented)
+- `type`: "CodeCommit" (preserved from v1)
+- `source_artefacts`: ["original-uuid", "review-uuid"]
+
+### Key Benefits
+
+1. **Agents stay simple** - no version management logic needed
+2. **Automatic thread preservation** - all versions linked via logical_id
+3. **Complete audit trail** - source_artefacts shows provenance chain
+4. **Review feedback in context** - accessible via context_chain
+5. **Iteration limits** - orchestrator prevents infinite loops
+
+### Using Review Feedback
+
+Your agent can access review feedback from `context_chain`:
+
+```bash
+#!/bin/sh
+input=$(cat)
+
+# Check if this is rework (Review artefact in context)
+if echo "$input" | jq -e '.context_chain[] | select(.structural_type=="Review")' > /dev/null; then
+  echo "Processing review feedback..." >&2
+
+  # Extract review comments
+  feedback=$(echo "$input" | jq -r '.context_chain[] | select(.structural_type=="Review") | .payload')
+  echo "Reviewer feedback: $feedback" >&2
+
+  # Address feedback in your implementation
+  # ...
+else
+  echo "Fresh implementation (no feedback)" >&2
+fi
+
+# Output same format regardless
+cat <<EOF
+{
+  "artefact_type": "CodeCommit",
+  "artefact_payload": "$commit_hash",
+  "summary": "Implementation complete"
+}
+EOF
+```
+
+### Configuration
+
+Iteration limits are configured in `sett.yml`:
+
+```yaml
+version: "1.0"
+
+orchestrator:
+  max_review_iterations: 3  # Max times work can be reworked
+
+agents:
+  # ... your agents ...
+```
+
+When `max_review_iterations` is reached, the orchestrator creates a Failure artefact and terminates the workflow.
 
 ---
 
