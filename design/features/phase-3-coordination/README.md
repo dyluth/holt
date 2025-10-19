@@ -270,6 +270,7 @@ The following requirements have been identified as immediate priorities for Phas
 - Need to persist phase state to Redis (additional keys or claim fields)
 - Need startup recovery logic to rebuild phase state map
 - Need to handle edge cases (partial artefacts received, status inconsistencies)
+- Implement a persistent, restart-resilient grant queue for controller-worker agents whose `max_concurrent` limit has been reached.
 
 **Success Criteria**:
 - Orchestrator restart does not lose phase tracking
