@@ -6,7 +6,7 @@ import (
 	"github.com/dyluth/sett/pkg/blackboard"
 )
 
-// TestFilterContextArtefacts verifies filtering to Standard and Answer only
+// TestFilterContextArtefacts verifies filtering to Standard, Answer, and Review (M3.3)
 func TestFilterContextArtefacts(t *testing.T) {
 	contextMap := map[string]*blackboard.Artefact{
 		"log-1": {
@@ -38,23 +38,24 @@ func TestFilterContextArtefacts(t *testing.T) {
 
 	filtered := filterContextArtefacts(contextMap)
 
-	// Should include Standard and Answer only (3 artefacts)
-	if len(filtered) != 3 {
-		t.Errorf("Expected 3 filtered artefacts, got %d", len(filtered))
+	// M3.3: Should include Standard, Answer, and Review (4 artefacts)
+	if len(filtered) != 4 {
+		t.Errorf("Expected 4 filtered artefacts, got %d", len(filtered))
 	}
 
-	// Verify only Standard and Answer types present
+	// Verify only Standard, Answer, and Review types present
 	for _, art := range filtered {
 		if art.StructuralType != blackboard.StructuralTypeStandard &&
-			art.StructuralType != blackboard.StructuralTypeAnswer {
+			art.StructuralType != blackboard.StructuralTypeAnswer &&
+			art.StructuralType != blackboard.StructuralTypeReview {
 			t.Errorf("Filtered artefact has wrong structural_type: %s", art.StructuralType)
 		}
 	}
 
-	// Verify Failure and Review were filtered out
+	// Verify only Failure was filtered out
 	for _, art := range filtered {
-		if art.LogicalID == "log-3" || art.LogicalID == "log-5" {
-			t.Errorf("Failure/Review artefact should have been filtered out: %s", art.LogicalID)
+		if art.LogicalID == "log-3" {
+			t.Errorf("Failure artefact should have been filtered out: %s", art.LogicalID)
 		}
 	}
 }
@@ -78,7 +79,11 @@ func TestFilterContextArtefacts_AllFiltered(t *testing.T) {
 		},
 		"log-2": {
 			LogicalID:      "log-2",
-			StructuralType: blackboard.StructuralTypeReview,
+			StructuralType: blackboard.StructuralTypeQuestion,
+		},
+		"log-3": {
+			LogicalID:      "log-3",
+			StructuralType: blackboard.StructuralTypeTerminal,
 		},
 	}
 

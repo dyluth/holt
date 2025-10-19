@@ -111,7 +111,7 @@ func (e *Engine) terminateMaxIterations(ctx context.Context, claim *blackboard.C
 	}
 
 	claim.Status = blackboard.ClaimStatusTerminated
-	claim.TerminationReason = fmt.Sprintf("Terminated after reaching max review iterations (%d).", iterations+1)
+	claim.TerminationReason = fmt.Sprintf("Terminated after reaching max review iterations (%d).", maxIterations)
 
 	e.logEvent("claim_terminated_max_iterations", map[string]interface{}{
 		"claim_id":   claim.ID,

@@ -168,6 +168,8 @@ func TestClaimRoundTrip(t *testing.T) {
 		GrantedReviewAgents:   []string{"agent-1", "agent-2"},
 		GrantedParallelAgents: []string{"agent-3"},
 		GrantedExclusiveAgent: "",
+		AdditionalContextIDs:  []string{}, // M3.3: Initialize to empty slice
+		TerminationReason:     "",         // M3.3: Initialize to empty string
 	}
 
 	// Convert to hash
@@ -203,6 +205,8 @@ func TestClaimRoundTrip_EmptyAgentArrays(t *testing.T) {
 		GrantedReviewAgents:   []string{},
 		GrantedParallelAgents: []string{},
 		GrantedExclusiveAgent: "",
+		AdditionalContextIDs:  []string{}, // M3.3: Initialize to empty slice
+		TerminationReason:     "",         // M3.3: Initialize to empty string
 	}
 
 	hash, err := ClaimToHash(original)
@@ -230,6 +234,10 @@ func TestClaimRoundTrip_EmptyAgentArrays(t *testing.T) {
 	}
 	if result.GrantedParallelAgents == nil {
 		t.Error("deserialized granted_parallel_agents should be empty slice, not nil")
+	}
+	// M3.3: Check additional_context_ids is also empty slice, not nil
+	if result.AdditionalContextIDs == nil {
+		t.Error("deserialized additional_context_ids should be empty slice, not nil")
 	}
 }
 

@@ -163,14 +163,16 @@ func (e *Engine) getLatestVersionForContext(ctx context.Context, discoveredArtef
 	return latestArtefact, nil
 }
 
-// filterContextArtefacts filters the context map to include only Standard and Answer artefacts.
-// This provides agents with a clean, actionable history without failures or review feedback.
+// filterContextArtefacts filters the context map to include only Standard, Answer, and Review artefacts.
+// M3.3: Review artefacts are included for feedback claims to provide review feedback to agents.
+// This provides agents with a clean, actionable history without failures or terminal artefacts.
 func filterContextArtefacts(contextMap map[string]*blackboard.Artefact) []*blackboard.Artefact {
 	filtered := make([]*blackboard.Artefact, 0, len(contextMap))
 
 	for _, artefact := range contextMap {
 		if artefact.StructuralType == blackboard.StructuralTypeStandard ||
-			artefact.StructuralType == blackboard.StructuralTypeAnswer {
+			artefact.StructuralType == blackboard.StructuralTypeAnswer ||
+			artefact.StructuralType == blackboard.StructuralTypeReview {
 			filtered = append(filtered, artefact)
 		} else {
 			log.Printf("[DEBUG] Filtered out artefact: logical_id=%s type=%s structural_type=%s",

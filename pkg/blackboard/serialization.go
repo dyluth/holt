@@ -85,6 +85,12 @@ func ClaimToHash(c *Claim) (map[string]interface{}, error) {
 		return nil, fmt.Errorf("failed to marshal granted_parallel_agents: %w", err)
 	}
 
+	// M3.3: Encode additional_context_ids as JSON
+	additionalContextJSON, err := json.Marshal(c.AdditionalContextIDs)
+	if err != nil {
+		return nil, fmt.Errorf("failed to marshal additional_context_ids: %w", err)
+	}
+
 	hash := map[string]interface{}{
 		"id":                      c.ID,
 		"artefact_id":             c.ArtefactID,
@@ -92,6 +98,8 @@ func ClaimToHash(c *Claim) (map[string]interface{}, error) {
 		"granted_review_agents":   string(reviewAgentsJSON),
 		"granted_parallel_agents": string(parallelAgentsJSON),
 		"granted_exclusive_agent": c.GrantedExclusiveAgent,
+		"additional_context_ids":  string(additionalContextJSON), // M3.3
+		"termination_reason":      c.TerminationReason,            // M3.3
 	}
 
 	return hash, nil
@@ -116,12 +124,23 @@ func HashToClaim(hash map[string]string) (*Claim, error) {
 		}
 	}
 
+	// M3.3: Decode additional_context_ids JSON array
+	var additionalContextIDs []string
+	if additionalContextJSON := hash["additional_context_ids"]; additionalContextJSON != "" {
+		if err := json.Unmarshal([]byte(additionalContextJSON), &additionalContextIDs); err != nil {
+			return nil, fmt.Errorf("failed to unmarshal additional_context_ids: %w", err)
+		}
+	}
+
 	// Ensure we have empty slices instead of nil for consistency
 	if reviewAgents == nil {
 		reviewAgents = []string{}
 	}
 	if parallelAgents == nil {
 		parallelAgents = []string{}
+	}
+	if additionalContextIDs == nil {
+		additionalContextIDs = []string{}
 	}
 
 	claim := &Claim{
@@ -131,6 +150,8 @@ func HashToClaim(hash map[string]string) (*Claim, error) {
 		GrantedReviewAgents:   reviewAgents,
 		GrantedParallelAgents: parallelAgents,
 		GrantedExclusiveAgent: hash["granted_exclusive_agent"],
+		AdditionalContextIDs:  additionalContextIDs,  // M3.3
+		TerminationReason:     hash["termination_reason"], // M3.3
 	}
 
 	return claim, nil
