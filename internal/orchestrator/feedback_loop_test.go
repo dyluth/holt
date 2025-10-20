@@ -47,7 +47,7 @@ func setupTestEngineWithMaxIterations(t *testing.T, maxIterations int) (*Engine,
 		},
 	}
 
-	engine := NewEngine(bbClient, instanceName, cfg)
+	engine := NewEngine(bbClient, instanceName, cfg, nil)
 
 	return engine, bbClient
 }

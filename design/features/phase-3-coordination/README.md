@@ -31,15 +31,27 @@
 - Complete audit trail with termination reasons
 - **Status**: Fully implemented with comprehensive test coverage
 
-### **M3.4+: Future Milestones** 🔜 **PENDING DESIGN**
+### **M3.4: Controller-Worker Pattern for Scaling** ✅ **COMPLETE**
+- Controller-worker architecture for horizontal scaling
+- Single persistent controller per role (eliminates bidding race conditions)
+- Ephemeral workers launched on-demand by orchestrator
+- Worker lifecycle management (launch → monitor → cleanup)
+- Configurable concurrency limits (`worker.max_concurrent`)
+- Stateless grant pausing when at max_concurrent limit
+- Worker failure detection with Failure artefact creation
+- Docker socket mounting for orchestrator container management
+- Mode detection: SETT_MODE=controller → controller, --execute-claim → worker
+- **Status**: Fully implemented with E2E tests and backward compatibility
+
+### **M3.5+: Future Milestones** 🔜 **PENDING DESIGN**
 See "Future Milestones" section below for planned enhancements.
 
 ## **Phase Success Criteria**
 
 - ✅ Complex workflow with review feedback loop (M3.3 complete)
 - ✅ Multiple agents working in parallel (M3.2 complete)
+- ✅ Controller-worker pattern for scaling (M3.4 complete)
 - ⚠️ Basic error handling (no timeouts yet - deferred to M3.6)
-- 🔜 Controller-worker pattern for scaling (deferred to M3.4)
 
 ## **Key Features Implemented**
 
@@ -56,11 +68,13 @@ See "Future Milestones" section below for planned enhancements.
    - ✅ Phase transition logic
    - ✅ Phase skipping (backward compatibility)
 
-3. **Controller-Worker Pattern** (Future)
-   - 🔜 Scalable agent architecture (replicas > 1)
-   - 🔜 Bidder-only and execute-only modes
-   - 🔜 Ephemeral container management
-   - 🔜 Race condition elimination
+3. **Controller-Worker Pattern** (M3.4)
+   - ✅ Scalable agent architecture with mode: "controller"
+   - ✅ Controller mode (bidder-only) and worker mode (execute-only)
+   - ✅ Ephemeral worker container management
+   - ✅ Race condition elimination via single controller per role
+   - ✅ Configurable concurrency limits (max_concurrent)
+   - ✅ Automatic worker cleanup and failure handling
 
 ## **Implementation Constraints**
 
@@ -227,30 +241,32 @@ The following requirements have been identified as immediate priorities for Phas
 **Documentation**: See `design/features/phase-3-coordination/M3.3-automated-feedback-loop.md` for full design and implementation details.
 
 
-### **M3.4: Controller-Worker Pattern for Scaling** 🔜 **HIGH PRIORITY**
+### **M3.4: Controller-Worker Pattern for Scaling** ✅ **COMPLETE**
 
-**Requirement**: Support scalable agent architecture with replicas > 1.
+**Implementation Summary**: Controller-worker architecture fully operational.
 
-**Current Status**: Agent cub has bidder-only and execute-only modes, but not fully integrated.
+**Delivered Features**:
+- ✅ Configuration schema with `mode: "controller"` and nested `worker:` block
+- ✅ Validation with default max_concurrent=1
+- ✅ Controller mode (bidder-only) - never executes work
+- ✅ Worker mode (execute-only) - launched with `--execute-claim <claim_id>`
+- ✅ WorkerManager for orchestrator with Docker client integration
+- ✅ Worker lifecycle: LaunchWorker() → monitorWorker() → cleanupWorker()
+- ✅ Concurrency limit enforcement with stateless pause mechanism
+- ✅ Failure artefact creation on worker exit code ≠ 0
+- ✅ Docker socket mounting: /var/run/docker.sock:/var/run/docker.sock
+- ✅ SETT_MODE environment variable for controller identification
+- ✅ Full backward compatibility (traditional agents unaffected)
+- ✅ Comprehensive E2E tests (basic flow, concurrency, backward compat)
 
-**Proposed Behavior**:
-- One persistent "controller" agent per role (bidder-only mode)
-- Controller submits bids on behalf of the role
-- When granted, orchestrator launches ephemeral "worker" agents (execute-only mode)
-- Workers execute in parallel, exit on completion
-- Eliminates race conditions in bidding while enabling horizontal scaling
+**Key Design Decisions**:
+- Explicit `mode: "controller"` in sett.yml for clarity
+- Command-line claim delivery: `cub --execute-claim <claim_id>`
+- Orchestrator owns worker lifecycle (centralized control)
+- No automatic retries (M3.4 scope limit)
+- Stateless grant pausing (persistent queue deferred to M3.5)
 
-**Implementation Considerations**:
-- Orchestrator needs to launch worker containers dynamically
-- Worker lifecycle management (create, execute, destroy)
-- Worker container naming and tracking
-- Resource limits for parallel workers
-
-**Success Criteria**:
-- Agents can scale horizontally with replicas > 1
-- No race conditions in bidding
-- Workers execute in parallel efficiently
-- Clean worker cleanup after execution
+**Documentation**: See `design/features/phase-3-coordination/M3.4-controller-worker-pattern.md`
 
 
 

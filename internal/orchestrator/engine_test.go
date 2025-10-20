@@ -118,7 +118,7 @@ func setupTestEngine(t *testing.T) (*Engine, *blackboard.Client, *miniredis.Mini
 	require.NoError(t, err)
 	t.Cleanup(func() { client.Close() })
 
-	engine := NewEngine(client, "test-instance", nil)
+	engine := NewEngine(client, "test-instance", nil, nil)
 
 	return engine, client, mr
 }

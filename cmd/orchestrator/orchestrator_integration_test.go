@@ -78,7 +78,7 @@ func TestOrchestrator_CreatesClaimForGoalDefined(t *testing.T) {
 	defer client.Close()
 
 	// Start orchestrator
-	engine := orchestrator.NewEngine(client, "test-instance", nil)
+	engine := orchestrator.NewEngine(client, "test-instance", nil, nil)
 	errCh := make(chan error, 1)
 	go func() {
 		errCh <- engine.Run(ctx)
@@ -165,7 +165,7 @@ func TestOrchestrator_SkipsTerminalArtefacts(t *testing.T) {
 	defer client.Close()
 
 	// Start orchestrator
-	engine := orchestrator.NewEngine(client, "test-instance", nil)
+	engine := orchestrator.NewEngine(client, "test-instance", nil, nil)
 	errCh := make(chan error, 1)
 	go func() {
 		errCh <- engine.Run(ctx)
@@ -228,7 +228,7 @@ func TestOrchestrator_IdempotentClaimCreation(t *testing.T) {
 	defer client.Close()
 
 	// Start orchestrator
-	engine := orchestrator.NewEngine(client, "test-instance", nil)
+	engine := orchestrator.NewEngine(client, "test-instance", nil, nil)
 	errCh := make(chan error, 1)
 	go func() {
 		errCh <- engine.Run(ctx)
@@ -305,7 +305,7 @@ func TestOrchestrator_HealthCheckEndpoint(t *testing.T) {
 	defer client.Close()
 
 	// Start orchestrator
-	engine := orchestrator.NewEngine(client, "test-instance", nil)
+	engine := orchestrator.NewEngine(client, "test-instance", nil, nil)
 	errCh := make(chan error, 1)
 	go func() {
 		errCh <- engine.Run(ctx)
@@ -351,7 +351,7 @@ func TestOrchestrator_GracefulShutdown(t *testing.T) {
 	defer client.Close()
 
 	// Start orchestrator
-	engine := orchestrator.NewEngine(client, "test-instance", nil)
+	engine := orchestrator.NewEngine(client, "test-instance", nil, nil)
 	errCh := make(chan error, 1)
 	go func() {
 		errCh <- engine.Run(ctx)

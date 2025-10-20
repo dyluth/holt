@@ -253,6 +253,8 @@ func createInstance(ctx context.Context, cli *client.Client, cfg *config.SettCon
 		NetworkMode: container.NetworkMode(networkName),
 		Binds: []string{
 			fmt.Sprintf("%s:/workspace:ro", workspacePath),
+			// M3.4: Mount Docker socket for worker management
+			"/var/run/docker.sock:/var/run/docker.sock",
 		},
 	}, nil, nil, orchestratorName)
 	if err != nil {
@@ -500,6 +502,11 @@ func launchAgentContainer(ctx context.Context, cli *client.Client, instanceName,
 		fmt.Sprintf("SETT_AGENT_ROLE=%s", agent.Role),
 		fmt.Sprintf("REDIS_URL=%s", redisURL),
 		fmt.Sprintf("SETT_BIDDING_STRATEGY=%s", agent.BiddingStrategy), // M3.1
+	}
+
+	// M3.4: Set SETT_MODE for controller agents
+	if agent.Mode == "controller" {
+		env = append(env, "SETT_MODE=controller")
 	}
 
 	// Add SETT_AGENT_COMMAND as JSON array

@@ -22,11 +22,13 @@ type Engine struct {
 	agentRegistry           map[string]string      // agent_name -> agent_role
 	phaseStates             map[string]*PhaseState // claimID -> PhaseState (M3.2: in-memory tracking)
 	pendingAssignmentClaims map[string]string      // claimID -> targetArtefactID (M3.3: feedback claim tracking)
+	workerManager           *WorkerManager         // M3.4: Worker lifecycle management
 }
 
 // NewEngine creates a new orchestrator engine.
 // Config is required in M2.2+ to build the agent registry for consensus.
-func NewEngine(client *blackboard.Client, instanceName string, cfg *config.SettConfig) *Engine {
+// M3.4: workerManager can be nil if Docker socket is not available (workers disabled)
+func NewEngine(client *blackboard.Client, instanceName string, cfg *config.SettConfig, workerManager *WorkerManager) *Engine {
 	// Build agent registry from config
 	agentRegistry := make(map[string]string)
 	if cfg != nil {
@@ -43,6 +45,7 @@ func NewEngine(client *blackboard.Client, instanceName string, cfg *config.SettC
 		agentRegistry:           agentRegistry,
 		phaseStates:             make(map[string]*PhaseState), // M3.2: Initialize phase state tracking
 		pendingAssignmentClaims: make(map[string]string),      // M3.3: Initialize feedback claim tracking
+		workerManager:           workerManager,                // M3.4: Worker lifecycle management
 	}
 }
 

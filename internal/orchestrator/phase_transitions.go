@@ -127,7 +127,7 @@ func (e *Engine) GrantNextPhase(ctx context.Context, claim *blackboard.Claim, ph
 }
 
 // GrantExclusivePhase grants the claim to a single exclusive agent.
-// Uses existing M3.1 logic for exclusive granting.
+// M3.4: Enhanced with controller-worker pattern support.
 func (e *Engine) GrantExclusivePhase(ctx context.Context, claim *blackboard.Claim, bids map[string]blackboard.BidType) error {
 	// Collect all agents with exclusive bids
 	var exclusiveBidders []string
@@ -144,6 +144,69 @@ func (e *Engine) GrantExclusivePhase(ctx context.Context, claim *blackboard.Clai
 	// Select winner using deterministic alphabetical ordering (M3.1 logic)
 	winner := SelectExclusiveWinner(exclusiveBidders)
 
+	// M3.4: Check if winner is a controller
+	agent, agentExists := e.config.Agents[winner]
+	if agentExists && agent.Mode == "controller" {
+		// Controller-worker pattern: check max_concurrent limit
+		if e.workerManager != nil && e.workerManager.IsAtWorkerLimit(agent.Role, agent.Worker.MaxConcurrent) {
+			// At max_concurrent limit - pause granting
+			e.logEvent("worker_limit_reached", map[string]interface{}{
+				"role":           agent.Role,
+				"max_concurrent": agent.Worker.MaxConcurrent,
+				"claim_id":       claim.ID,
+			})
+
+			log.Printf("[Orchestrator] Role '%s' at max_concurrent worker limit (%d), claim %s remains pending",
+				agent.Role, agent.Worker.MaxConcurrent, claim.ID)
+
+			// IMPORTANT: Stateless pause mechanism (M3.4)
+			// - Claim remains in pending_consensus status
+			// - Will be re-evaluated in next consensus cycle
+			// - No queue, no persistence required
+			// - Persistent queue deferred to M3.5
+			return fmt.Errorf("role '%s' at max_concurrent worker limit (%d)", agent.Role, agent.Worker.MaxConcurrent)
+		}
+
+		// Not at limit - proceed with worker launch
+		log.Printf("[Orchestrator] Granting exclusive phase to controller %s (will launch worker) for claim %s", winner, claim.ID)
+
+		// Update claim with granted agent
+		claim.GrantedExclusiveAgent = winner
+		claim.Status = blackboard.ClaimStatusPendingExclusive
+
+		if err := e.client.UpdateClaim(ctx, claim); err != nil {
+			return fmt.Errorf("failed to update claim with exclusive grant: %w", err)
+		}
+
+		e.logEvent("exclusive_phase_granted_controller", map[string]interface{}{
+			"claim_id":          claim.ID,
+			"controller_agent":  winner,
+			"exclusive_bidders": exclusiveBidders,
+		})
+
+		// M3.4: Launch worker instead of publishing grant notification
+		if e.workerManager != nil {
+			if err := e.workerManager.LaunchWorker(ctx, claim, winner, agent, e.client); err != nil {
+				log.Printf("[Orchestrator] Failed to launch worker for controller %s: %v", winner, err)
+
+				// Terminate claim with error
+				claim.Status = blackboard.ClaimStatusTerminated
+				claim.TerminationReason = fmt.Sprintf("Failed to launch worker: %v", err)
+				return e.client.UpdateClaim(ctx, claim)
+			}
+		} else {
+			log.Printf("[Orchestrator] WARN: Controller %s granted but workerManager is nil, cannot launch worker", winner)
+		}
+
+		// Create new phase state for exclusive phase
+		newPhaseState := NewPhaseState(claim.ID, "exclusive", []string{winner}, bids)
+		e.phaseStates[claim.ID] = newPhaseState
+
+		// Don't publish claim event - worker doesn't subscribe
+		return nil
+	}
+
+	// Traditional agent flow (M3.3 and earlier)
 	log.Printf("[Orchestrator] Granting exclusive phase to %s for claim %s", winner, claim.ID)
 
 	// Update claim with granted agent

@@ -37,18 +37,18 @@ help:
 	@echo "  install             - Install sett binary to GOPATH/bin"
 	@echo "  clean               - Remove build artifacts"
 
-# Run all tests
-test:
+# Run all tests (depends on binaries being built)
+test: build build-cub
 	@echo "Running tests..."
 	@$(GO) test ./...
 
 # Run all tests with verbose output
-test-verbose:
+test-verbose: build build-cub
 	@echo "Running tests (verbose)..."
 	@$(GO) test -v ./...
 
 # Run tests with coverage
-coverage:
+coverage: build build-cub
 	@echo "Running tests with coverage..."
 	@$(GO) test -coverprofile=coverage.out ./...
 	@echo ""
@@ -79,12 +79,13 @@ lint:
 	fi
 
 # Run orchestrator integration tests (requires Docker)
-test-integration:
+test-integration: build-orchestrator
 	@echo "Running orchestrator integration tests..."
 	@$(GO) test -v -tags=integration ./cmd/orchestrator
 
 # Run Phase 2 E2E test suite (requires Docker)
-test-e2e:
+# M3.4: Now depends on docker-orchestrator to ensure latest orchestrator image is available
+test-e2e: build build-cub docker-orchestrator
 	@echo "Running Phase 2 E2E test suite..."
 	@echo "Building example-git-agent Docker image..."
 	@docker build -q -t example-git-agent:latest -f agents/example-git-agent/Dockerfile . > /dev/null
@@ -155,7 +156,7 @@ build-cub:
 	@echo "✓ Built: bin/sett-cub"
 
 # Run cub unit and integration tests
-test-cub:
+test-cub: build-cub
 	@echo "Running cub tests..."
 	@$(GO) test -v -race ./internal/cub
 	@$(GO) test -v -timeout 60s ./cmd/cub

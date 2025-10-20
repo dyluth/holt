@@ -33,6 +33,10 @@ type Agent struct {
 	Environment     []string          `yaml:"environment,omitempty"`
 	Resources       *ResourcesConfig  `yaml:"resources,omitempty"`
 	Prompts         *PromptsConfig    `yaml:"prompts,omitempty"`
+
+	// M3.4: Controller-worker pattern
+	Mode   string        `yaml:"mode,omitempty"`   // "controller" or empty (traditional)
+	Worker *WorkerConfig `yaml:"worker,omitempty"` // Required if mode="controller"
 }
 
 // BuildConfig specifies how to build an agent's container image
@@ -43,6 +47,14 @@ type BuildConfig struct {
 // WorkspaceConfig specifies workspace mount configuration
 type WorkspaceConfig struct {
 	Mode string `yaml:"mode"` // "ro" or "rw"
+}
+
+// WorkerConfig specifies worker configuration for controller-worker pattern (M3.4)
+type WorkerConfig struct {
+	Image         string           `yaml:"image"`                    // Worker image (can differ from controller)
+	MaxConcurrent int              `yaml:"max_concurrent,omitempty"` // Default: 1
+	Command       []string         `yaml:"command"`
+	Workspace     *WorkspaceConfig `yaml:"workspace,omitempty"`
 }
 
 // ResourcesConfig specifies resource limits and reservations
@@ -168,6 +180,44 @@ func (a *Agent) Validate(name string) error {
 	// Validate strategy if specified
 	if a.Strategy != "" && a.Strategy != "reuse" && a.Strategy != "fresh_per_call" {
 		return fmt.Errorf("agent '%s': invalid strategy: %s (must be 'reuse' or 'fresh_per_call')", name, a.Strategy)
+	}
+
+	// M3.4: Validate controller-worker configuration
+	if a.Mode == "controller" {
+		// Validate worker config exists
+		if a.Worker == nil {
+			return fmt.Errorf("agent '%s' has mode='controller' but no worker configuration", name)
+		}
+
+		// Validate worker image
+		if a.Worker.Image == "" {
+			return fmt.Errorf("agent '%s' worker configuration missing image", name)
+		}
+
+		// Validate worker command
+		if len(a.Worker.Command) == 0 {
+			return fmt.Errorf("agent '%s' worker configuration missing command", name)
+		}
+
+		// Set default max_concurrent if not specified
+		if a.Worker.MaxConcurrent == 0 {
+			a.Worker.MaxConcurrent = 1
+		}
+
+		// Validate max_concurrent is positive
+		if a.Worker.MaxConcurrent < 1 {
+			return fmt.Errorf("agent '%s' worker.max_concurrent must be >= 1", name)
+		}
+
+		// Validate worker workspace mode if specified
+		if a.Worker.Workspace != nil && a.Worker.Workspace.Mode != "" {
+			if a.Worker.Workspace.Mode != "ro" && a.Worker.Workspace.Mode != "rw" {
+				return fmt.Errorf("agent '%s' worker: invalid workspace mode: %s (must be 'ro' or 'rw')", name, a.Worker.Workspace.Mode)
+			}
+		}
+	} else if a.Mode != "" {
+		// Unknown mode
+		return fmt.Errorf("agent '%s' has unknown mode '%s' (valid: 'controller' or omit)", name, a.Mode)
 	}
 
 	return nil

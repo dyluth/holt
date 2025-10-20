@@ -528,3 +528,317 @@ agents:
 	assert.NotNil(t, config.Orchestrator.MaxReviewIterations)
 	assert.Equal(t, 5, *config.Orchestrator.MaxReviewIterations)
 }
+
+// M3.4: Controller-worker configuration validation tests
+
+func TestAgentValidate_ControllerWithValidWorker(t *testing.T) {
+	agent := Agent{
+		Role:            "Coder",
+		Image:           "coder-controller:latest",
+		Command:         []string{"./controller.sh"},
+		BiddingStrategy: "exclusive",
+		Mode:            "controller",
+		Worker: &WorkerConfig{
+			Image:         "coder-worker:latest",
+			MaxConcurrent: 3,
+			Command:       []string{"./worker.sh"},
+			Workspace: &WorkspaceConfig{
+				Mode: "rw",
+			},
+		},
+	}
+
+	err := agent.Validate("coder-controller")
+	assert.NoError(t, err)
+}
+
+func TestAgentValidate_ControllerMissingWorkerConfig(t *testing.T) {
+	agent := Agent{
+		Role:            "Coder",
+		Image:           "coder:latest",
+		Command:         []string{"./run.sh"},
+		BiddingStrategy: "exclusive",
+		Mode:            "controller",
+		Worker:          nil, // Missing worker config
+	}
+
+	err := agent.Validate("coder")
+	assert.Error(t, err)
+	assert.Contains(t, err.Error(), "has mode='controller' but no worker configuration")
+}
+
+func TestAgentValidate_ControllerWorkerMissingImage(t *testing.T) {
+	agent := Agent{
+		Role:            "Coder",
+		Image:           "coder:latest",
+		Command:         []string{"./run.sh"},
+		BiddingStrategy: "exclusive",
+		Mode:            "controller",
+		Worker: &WorkerConfig{
+			Image:   "", // Missing image
+			Command: []string{"./worker.sh"},
+		},
+	}
+
+	err := agent.Validate("coder")
+	assert.Error(t, err)
+	assert.Contains(t, err.Error(), "worker configuration missing image")
+}
+
+func TestAgentValidate_ControllerWorkerMissingCommand(t *testing.T) {
+	agent := Agent{
+		Role:            "Coder",
+		Image:           "coder:latest",
+		Command:         []string{"./run.sh"},
+		BiddingStrategy: "exclusive",
+		Mode:            "controller",
+		Worker: &WorkerConfig{
+			Image:   "worker:latest",
+			Command: []string{}, // Missing command
+		},
+	}
+
+	err := agent.Validate("coder")
+	assert.Error(t, err)
+	assert.Contains(t, err.Error(), "worker configuration missing command")
+}
+
+func TestAgentValidate_ControllerWorkerDefaultMaxConcurrent(t *testing.T) {
+	agent := Agent{
+		Role:            "Coder",
+		Image:           "coder:latest",
+		Command:         []string{"./run.sh"},
+		BiddingStrategy: "exclusive",
+		Mode:            "controller",
+		Worker: &WorkerConfig{
+			Image:         "worker:latest",
+			Command:       []string{"./worker.sh"},
+			MaxConcurrent: 0, // Should default to 1
+		},
+	}
+
+	err := agent.Validate("coder")
+	assert.NoError(t, err)
+	assert.Equal(t, 1, agent.Worker.MaxConcurrent, "MaxConcurrent should default to 1")
+}
+
+func TestAgentValidate_ControllerWorkerNegativeMaxConcurrent(t *testing.T) {
+	agent := Agent{
+		Role:            "Coder",
+		Image:           "coder:latest",
+		Command:         []string{"./run.sh"},
+		BiddingStrategy: "exclusive",
+		Mode:            "controller",
+		Worker: &WorkerConfig{
+			Image:         "worker:latest",
+			Command:       []string{"./worker.sh"},
+			MaxConcurrent: -1, // Invalid
+		},
+	}
+
+	err := agent.Validate("coder")
+	assert.Error(t, err)
+	assert.Contains(t, err.Error(), "worker.max_concurrent must be >= 1")
+}
+
+func TestAgentValidate_ControllerWorkerValidMaxConcurrent(t *testing.T) {
+	tests := []struct {
+		name          string
+		maxConcurrent int
+	}{
+		{"one worker", 1},
+		{"three workers", 3},
+		{"ten workers", 10},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			agent := Agent{
+				Role:            "Coder",
+				Image:           "coder:latest",
+				Command:         []string{"./run.sh"},
+				BiddingStrategy: "exclusive",
+				Mode:            "controller",
+				Worker: &WorkerConfig{
+					Image:         "worker:latest",
+					Command:       []string{"./worker.sh"},
+					MaxConcurrent: tt.maxConcurrent,
+				},
+			}
+
+			err := agent.Validate("coder")
+			assert.NoError(t, err)
+			assert.Equal(t, tt.maxConcurrent, agent.Worker.MaxConcurrent)
+		})
+	}
+}
+
+func TestAgentValidate_ControllerWorkerInvalidWorkspaceMode(t *testing.T) {
+	agent := Agent{
+		Role:            "Coder",
+		Image:           "coder:latest",
+		Command:         []string{"./run.sh"},
+		BiddingStrategy: "exclusive",
+		Mode:            "controller",
+		Worker: &WorkerConfig{
+			Image:   "worker:latest",
+			Command: []string{"./worker.sh"},
+			Workspace: &WorkspaceConfig{
+				Mode: "invalid", // Invalid mode
+			},
+		},
+	}
+
+	err := agent.Validate("coder")
+	assert.Error(t, err)
+	assert.Contains(t, err.Error(), "worker: invalid workspace mode: invalid")
+	assert.Contains(t, err.Error(), "must be 'ro' or 'rw'")
+}
+
+func TestAgentValidate_ControllerWorkerValidWorkspaceModes(t *testing.T) {
+	tests := []struct {
+		name string
+		mode string
+	}{
+		{"read-only", "ro"},
+		{"read-write", "rw"},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			agent := Agent{
+				Role:            "Coder",
+				Image:           "coder:latest",
+				Command:         []string{"./run.sh"},
+				BiddingStrategy: "exclusive",
+				Mode:            "controller",
+				Worker: &WorkerConfig{
+					Image:   "worker:latest",
+					Command: []string{"./worker.sh"},
+					Workspace: &WorkspaceConfig{
+						Mode: tt.mode,
+					},
+				},
+			}
+
+			err := agent.Validate("coder")
+			assert.NoError(t, err)
+		})
+	}
+}
+
+func TestAgentValidate_UnknownMode(t *testing.T) {
+	agent := Agent{
+		Role:            "Coder",
+		Image:           "coder:latest",
+		Command:         []string{"./run.sh"},
+		BiddingStrategy: "exclusive",
+		Mode:            "unknown-mode", // Invalid mode
+	}
+
+	err := agent.Validate("coder")
+	assert.Error(t, err)
+	assert.Contains(t, err.Error(), "has unknown mode 'unknown-mode'")
+	assert.Contains(t, err.Error(), "valid: 'controller' or omit")
+}
+
+func TestAgentValidate_TraditionalAgentNoMode(t *testing.T) {
+	agent := Agent{
+		Role:            "Coder",
+		Image:           "coder:latest",
+		Command:         []string{"./run.sh"},
+		BiddingStrategy: "exclusive",
+		Mode:            "", // Traditional agent (no mode)
+	}
+
+	err := agent.Validate("coder")
+	assert.NoError(t, err)
+}
+
+func TestLoad_WithControllerWorkerConfig(t *testing.T) {
+	tmpDir := t.TempDir()
+	configPath := filepath.Join(tmpDir, "sett.yml")
+
+	// Write config with controller-worker pattern
+	controllerConfig := `version: "1.0"
+agents:
+  coder-controller:
+    role: "Coder"
+    mode: "controller"
+    image: "coder:latest"
+    command: ["./controller.sh"]
+    bidding_strategy: "exclusive"
+    worker:
+      image: "coder-worker:latest"
+      max_concurrent: 3
+      command: ["./worker.sh"]
+      workspace:
+        mode: rw
+`
+	err := os.WriteFile(configPath, []byte(controllerConfig), 0644)
+	require.NoError(t, err)
+
+	// Load and validate
+	config, err := Load(configPath)
+	require.NoError(t, err)
+	assert.NotNil(t, config)
+
+	// Verify controller configuration
+	controller := config.Agents["coder-controller"]
+	assert.Equal(t, "Coder", controller.Role)
+	assert.Equal(t, "controller", controller.Mode)
+	assert.Equal(t, "coder:latest", controller.Image)
+
+	// Verify worker configuration
+	assert.NotNil(t, controller.Worker)
+	assert.Equal(t, "coder-worker:latest", controller.Worker.Image)
+	assert.Equal(t, 3, controller.Worker.MaxConcurrent)
+	assert.Equal(t, []string{"./worker.sh"}, controller.Worker.Command)
+	assert.NotNil(t, controller.Worker.Workspace)
+	assert.Equal(t, "rw", controller.Worker.Workspace.Mode)
+}
+
+func TestLoad_MixedControllerAndTraditionalAgents(t *testing.T) {
+	tmpDir := t.TempDir()
+	configPath := filepath.Join(tmpDir, "sett.yml")
+
+	// Write config with both controller and traditional agents
+	mixedConfig := `version: "1.0"
+agents:
+  coder-controller:
+    role: "Coder"
+    mode: "controller"
+    image: "coder:latest"
+    command: ["./controller.sh"]
+    bidding_strategy: "exclusive"
+    worker:
+      image: "coder-worker:latest"
+      max_concurrent: 2
+      command: ["./worker.sh"]
+      workspace:
+        mode: rw
+  reviewer:
+    role: "Reviewer"
+    image: "reviewer:latest"
+    command: ["./review.sh"]
+    bidding_strategy: "review"
+`
+	err := os.WriteFile(configPath, []byte(mixedConfig), 0644)
+	require.NoError(t, err)
+
+	// Load and validate
+	config, err := Load(configPath)
+	require.NoError(t, err)
+	assert.NotNil(t, config)
+	assert.Len(t, config.Agents, 2)
+
+	// Verify controller
+	controller := config.Agents["coder-controller"]
+	assert.Equal(t, "controller", controller.Mode)
+	assert.NotNil(t, controller.Worker)
+
+	// Verify traditional agent
+	reviewer := config.Agents["reviewer"]
+	assert.Equal(t, "", reviewer.Mode)
+	assert.Nil(t, reviewer.Worker)
+}
