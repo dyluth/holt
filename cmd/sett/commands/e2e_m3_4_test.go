@@ -169,6 +169,29 @@ services:
 		t.Logf("Orchestrator logs (last 100 lines):\n%s", string(debugOutput))
 	}
 
+	if workerFound && !workerCompleted {
+		// Debug: Show worker logs if it was launched but didn't complete
+		workerListCmd := exec.Command("docker", "ps", "-a",
+			"--filter", fmt.Sprintf("name=%s-coder-controller-worker-", env.InstanceName),
+			"--format", "{{.Names}}")
+		workerListCmd.Dir = env.TmpDir
+		workerNameOutput, _ := workerListCmd.CombinedOutput()
+		workerName := strings.TrimSpace(string(workerNameOutput))
+
+		if workerName != "" {
+			debugCmd := exec.Command("docker", "logs", workerName)
+			debugCmd.Dir = env.TmpDir
+			debugOutput, _ := debugCmd.CombinedOutput()
+			t.Logf("Worker logs (%s):\n%s", workerName, string(debugOutput))
+
+			// Also show worker inspect for status
+			inspectCmd := exec.Command("docker", "inspect", workerName, "--format", "{{.State.Status}} (exit code: {{.State.ExitCode}})")
+			inspectCmd.Dir = env.TmpDir
+			inspectOutput, _ := inspectCmd.CombinedOutput()
+			t.Logf("Worker status: %s", string(inspectOutput))
+		}
+	}
+
 	require.True(t, workerFound, "Worker container was not launched within timeout")
 	require.True(t, workerCompleted, "Worker did not complete within timeout")
 
