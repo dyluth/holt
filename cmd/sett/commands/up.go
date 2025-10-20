@@ -256,6 +256,9 @@ func createInstance(ctx context.Context, cli *client.Client, cfg *config.SettCon
 			// M3.4: Mount Docker socket for worker management
 			"/var/run/docker.sock:/var/run/docker.sock",
 		},
+		// M3.4: Grant Docker socket access (required for worker launching)
+		// This allows orchestrator to create worker containers via Docker API
+		GroupAdd: []string{"docker"}, // Add container to host's docker group
 	}, nil, nil, orchestratorName)
 	if err != nil {
 		return fmt.Errorf("failed to create orchestrator container: %w", err)
