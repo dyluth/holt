@@ -13,6 +13,8 @@ Thumbs.db
 # Go build artifacts
 /bin/
 /sett
+/orchestrator
+/cub
 *.exe
 *.exe~
 *.dll
