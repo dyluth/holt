@@ -4,6 +4,9 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
+	"os"
+	"strconv"
+	"syscall"
 	"time"
 
 	"github.com/docker/docker/api/types"
@@ -242,6 +245,9 @@ func createInstance(ctx context.Context, cli *client.Client, cfg *config.SettCon
 	// Use Redis container name as hostname (Docker DNS)
 	redisURL := fmt.Sprintf("redis://%s:6379", redisName)
 
+	// M3.4: Get Docker socket GID for worker management permissions
+	dockerGroups := getDockerSocketGroups()
+
 	orchestratorResp, err := cli.ContainerCreate(ctx, &container.Config{
 		Image:  orchestratorImage,
 		Labels: orchestratorLabels,
@@ -257,8 +263,8 @@ func createInstance(ctx context.Context, cli *client.Client, cfg *config.SettCon
 			"/var/run/docker.sock:/var/run/docker.sock",
 		},
 		// M3.4: Grant Docker socket access (required for worker launching)
-		// This allows orchestrator to create worker containers via Docker API
-		GroupAdd: []string{"docker"}, // Add container to host's docker group
+		// Only add group if we successfully detected the socket's GID
+		GroupAdd: dockerGroups,
 	}, nil, nil, orchestratorName)
 	if err != nil {
 		return fmt.Errorf("failed to create orchestrator container: %w", err)
@@ -659,4 +665,29 @@ func checkHealthEndpoint(ctx context.Context, cli *client.Client, containerName 
 	}
 
 	return nil
+}
+
+// getDockerSocketGroups returns the GID of /var/run/docker.sock for container access.
+// Returns empty slice if unable to detect (graceful degradation - orchestrator will
+// warn about Docker unavailability but continue without worker management).
+func getDockerSocketGroups() []string {
+	// Stat the Docker socket to get its GID
+	fileInfo, err := os.Stat("/var/run/docker.sock")
+	if err != nil {
+		// Socket doesn't exist or can't be accessed - not fatal
+		// Orchestrator will run but worker management will be disabled
+		return []string{}
+	}
+
+	// Get the GID from the file info
+	stat, ok := fileInfo.Sys().(*syscall.Stat_t)
+	if !ok {
+		// Can't get stat info - return empty (graceful degradation)
+		return []string{}
+	}
+
+	// Return GID as string (Docker accepts both group names and GIDs)
+	// Using GID is more reliable than group name across different systems
+	gid := strconv.FormatUint(uint64(stat.Gid), 10)
+	return []string{gid}
 }
