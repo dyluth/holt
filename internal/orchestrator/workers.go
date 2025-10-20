@@ -78,7 +78,8 @@ func (wm *WorkerManager) LaunchWorker(ctx context.Context, claim *blackboard.Cla
 	containerConfig := &container.Config{
 		Image: agent.Worker.Image,
 		// M3.4: Worker is launched with --execute-claim flag
-		Cmd: []string{"/app/cub", "--execute-claim", claim.ID},
+		// Note: Image has ENTRYPOINT ["/app/cub"], so Cmd only contains arguments
+		Cmd: []string{"--execute-claim", claim.ID},
 		Env: []string{
 			fmt.Sprintf("SETT_INSTANCE_NAME=%s", wm.instanceName),
 			fmt.Sprintf("SETT_AGENT_NAME=%s", agentName),
