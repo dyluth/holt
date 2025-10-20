@@ -254,6 +254,8 @@ func createInstance(ctx context.Context, cli *client.Client, cfg *config.SettCon
 		Env: []string{
 			fmt.Sprintf("SETT_INSTANCE_NAME=%s", instanceName),
 			fmt.Sprintf("REDIS_URL=%s", redisURL),
+			// M3.4: Pass host workspace path for worker mounts
+			fmt.Sprintf("HOST_WORKSPACE_PATH=%s", workspacePath),
 		},
 	}, &container.HostConfig{
 		NetworkMode: container.NetworkMode(networkName),

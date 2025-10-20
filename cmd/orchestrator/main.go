@@ -76,9 +76,17 @@ func main() {
 	// 7. Create worker manager if Docker is available
 	var workerManager *orchestrator.WorkerManager = nil
 	if dockerClient != nil {
-		// Workspace path is mounted at /workspace in the orchestrator container
-		workspacePath := "/workspace"
-		workerManager = orchestrator.NewWorkerManager(dockerClient, instanceName, workspacePath)
+		// M3.4: Get host workspace path from environment (for worker bind mounts)
+		// The orchestrator container has the workspace mounted at /workspace internally,
+		// but workers need to mount from the actual host path
+		hostWorkspacePath := os.Getenv("HOST_WORKSPACE_PATH")
+		if hostWorkspacePath == "" {
+			// Fallback: try to use /workspace if not set (for backward compatibility)
+			// This may fail if running in a container environment
+			hostWorkspacePath = "/workspace"
+			fmt.Println("Warning: HOST_WORKSPACE_PATH not set, using /workspace (may fail in containerized environment)")
+		}
+		workerManager = orchestrator.NewWorkerManager(dockerClient, instanceName, hostWorkspacePath)
 		fmt.Println("Worker manager initialized for controller-worker pattern")
 	}
 
