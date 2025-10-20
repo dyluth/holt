@@ -287,6 +287,10 @@ func (wm *WorkerManager) cleanupWorker(ctx context.Context, containerID string) 
 	}
 	wm.workerLock.Unlock()
 
+	// Brief delay before container removal to allow external observers (like E2E tests)
+	// to detect the exited state before cleanup
+	time.Sleep(2 * time.Second)
+
 	// Remove container
 	wm.dockerClient.ContainerRemove(ctx, containerID, types.ContainerRemoveOptions{
 		Force: true,
