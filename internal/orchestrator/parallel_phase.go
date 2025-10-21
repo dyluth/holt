@@ -48,9 +48,15 @@ func (e *Engine) GrantParallelPhase(ctx context.Context, claim *blackboard.Claim
 		}
 	}
 
-	// Create new phase state for parallel phase
+	// M3.5: Create new phase state for parallel phase and persist
 	newPhaseState := NewPhaseState(claim.ID, "parallel", parallelBidders, bids)
 	e.phaseStates[claim.ID] = newPhaseState
+
+	// M3.5: Persist phase state to claim for restart resilience
+	if err := e.persistPhaseState(ctx, claim, newPhaseState); err != nil {
+		log.Printf("[Orchestrator] Warning: Failed to persist phase state for claim %s: %v", claim.ID, err)
+		// Non-fatal - continue execution
+	}
 
 	return nil
 }

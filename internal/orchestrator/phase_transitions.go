@@ -198,9 +198,15 @@ func (e *Engine) GrantExclusivePhase(ctx context.Context, claim *blackboard.Clai
 			log.Printf("[Orchestrator] WARN: Controller %s granted but workerManager is nil, cannot launch worker", winner)
 		}
 
-		// Create new phase state for exclusive phase
+		// M3.5: Create new phase state for exclusive phase and persist
 		newPhaseState := NewPhaseState(claim.ID, "exclusive", []string{winner}, bids)
 		e.phaseStates[claim.ID] = newPhaseState
+
+		// M3.5: Persist phase state to claim for restart resilience
+		if err := e.persistPhaseState(ctx, claim, newPhaseState); err != nil {
+			log.Printf("[Orchestrator] Warning: Failed to persist phase state for claim %s: %v", claim.ID, err)
+			// Non-fatal - continue execution
+		}
 
 		// Don't publish claim event - worker doesn't subscribe
 		return nil
@@ -228,9 +234,15 @@ func (e *Engine) GrantExclusivePhase(ctx context.Context, claim *blackboard.Clai
 		log.Printf("[Orchestrator] Failed to publish exclusive grant notification to %s: %v", winner, err)
 	}
 
-	// Create new phase state for exclusive phase
+	// M3.5: Create new phase state for exclusive phase and persist
 	newPhaseState := NewPhaseState(claim.ID, "exclusive", []string{winner}, bids)
 	e.phaseStates[claim.ID] = newPhaseState
+
+	// M3.5: Persist phase state to claim for restart resilience
+	if err := e.persistPhaseState(ctx, claim, newPhaseState); err != nil {
+		log.Printf("[Orchestrator] Warning: Failed to persist phase state for claim %s: %v", claim.ID, err)
+		// Non-fatal - continue execution
+	}
 
 	return nil
 }

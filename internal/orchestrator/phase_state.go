@@ -1,6 +1,8 @@
 package orchestrator
 
 import (
+	"context"
+	"fmt"
 	"log"
 	"time"
 
@@ -9,11 +11,11 @@ import (
 
 // PhaseState tracks the execution state of a single claim's current phase.
 // This is an in-memory structure maintained by the orchestrator to monitor
-// phase completion. It is NOT persisted to Redis.
+// phase completion.
 //
-// M3.2 Limitation: If the orchestrator restarts, all phase state is lost and
-// claims in active phases will become stuck. This is documented as a known
-// limitation and will be addressed in a future milestone.
+// M3.5: Phase state is now persisted to Redis (in the Claim structure) to enable
+// orchestrator restart resilience. The in-memory PhaseState is synchronized with
+// Redis on every phase transition.
 type PhaseState struct {
 	ClaimID           string                        // The claim being tracked
 	Phase             string                        // Current phase: "review", "parallel", or "exclusive"
@@ -88,6 +90,27 @@ func isGrantedAgent(claim *blackboard.Claim, agentRole string, phase string) boo
 		}
 	}
 	return false
+}
+
+// persistPhaseState writes phase state to the claim in Redis (M3.5).
+// This enables orchestrator restart resilience by persisting all phase tracking state.
+// Maps in-memory PhaseState to blackboard.PhaseState for persistence.
+func (e *Engine) persistPhaseState(ctx context.Context, claim *blackboard.Claim, phaseState *PhaseState) error {
+	// Convert in-memory PhaseState to blackboard.PhaseState for persistence
+	claim.PhaseState = &blackboard.PhaseState{
+		Current:       phaseState.Phase,
+		GrantedAgents: phaseState.GrantedAgents,
+		Received:      phaseState.ReceivedArtefacts,
+		AllBids:       phaseState.AllBids,
+		StartTime:     phaseState.StartTime.Unix(),
+	}
+
+	// Persist to Redis
+	if err := e.client.UpdateClaim(ctx, claim); err != nil {
+		return fmt.Errorf("failed to persist phase state: %w", err)
+	}
+
+	return nil
 }
 
 // DetermineInitialPhase determines which phase a claim should start in based on bids.

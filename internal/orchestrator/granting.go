@@ -68,9 +68,15 @@ func (e *Engine) GrantClaim(ctx context.Context, claim *blackboard.Claim, bids m
 		return fmt.Errorf("failed to grant %s phase: %w", initialPhase, err)
 	}
 
-	// Initialize phase state tracking
+	// M3.5: Initialize phase state tracking and persist to Redis
 	phaseState := NewPhaseState(claim.ID, initialPhase, grantedAgents, bids)
 	e.phaseStates[claim.ID] = phaseState
+
+	// M3.5: Persist phase state to claim for restart resilience
+	if err := e.persistPhaseState(ctx, claim, phaseState); err != nil {
+		log.Printf("[Orchestrator] Warning: Failed to persist phase state for claim %s: %v", claim.ID, err)
+		// Non-fatal - continue execution
+	}
 
 	return nil
 }
