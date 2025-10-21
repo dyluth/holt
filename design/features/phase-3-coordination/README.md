@@ -43,8 +43,15 @@
 - Mode detection: HOLT_MODE=controller → controller, --execute-claim → worker
 - **Status**: Fully implemented with E2E tests and backward compatibility
 
-### **M3.5+: Future Milestones** 🔜 **PENDING DESIGN**
-See "Future Milestones" section below for planned enhancements.
+### **M3.5: Orchestrator Restart Resilience** ✅ **COMPLETE**
+- Full orchestrator restart resilience with state recovery
+- Phase state persisted to Redis on every transition
+- Persistent grant queue with FIFO ordering (Redis ZSET)
+- Automatic recovery of active claims on startup
+- Re-triggering of incomplete grants (worker/traditional agents)
+- Orphaned worker container cleanup
+- Stale lock detection prevents race conditions
+- **Status**: Production-ready restart resilience fully implemented
 
 ## **Phase Success Criteria**
 
@@ -270,28 +277,39 @@ The following requirements have been identified as immediate priorities for Phas
 
 
 
-### **M3.5: Orchestrator Restart Resilience** 🔜 **HIGH PRIORITY**
+### **M3.5: Orchestrator Restart Resilience** ✅ **COMPLETE**
 
-**Requirement**: The orchestrator must be able to recover the state of in-progress claims if it restarts unexpectedly.
+**Implementation Summary**: Full orchestrator restart resilience with comprehensive state recovery.
 
-**Current Limitation**: Phase state is in-memory only; orchestrator restart loses all tracking data.
+**Delivered Features**:
+- ✅ Phase state persisted to Redis (Claim.PhaseState field)
+- ✅ Persistent grant queue using Redis ZSET (FIFO ordering by timestamp)
+- ✅ RecoverState() called on orchestrator startup
+- ✅ Scan Redis for active claims (pending_review, pending_parallel, pending_exclusive, pending_assignment)
+- ✅ Reconstruct in-memory PhaseState from persisted data
+- ✅ Validate granted agents still exist in config
+- ✅ Re-trigger grants for claims missing artefacts (both workers and traditional agents)
+- ✅ Orphaned worker cleanup (CleanupOrphanedWorkers)
+- ✅ Grant queue recovery with automatic resumption
+- ✅ Stale lock detection in `holt up` (30s threshold)
+- ✅ Graceful failure handling (terminate claims with clear reasons)
 
-**Proposed Behavior**:
-- On startup, the orchestrator scans Redis for claims in active states (pending_review, pending_parallel, pending_exclusive)
-- Reconstructs in-memory phase state by querying granted agents and received artefacts
-- Resumes monitoring for phase completion
-- Claims are no longer stuck after orchestrator restart
+**Key Design Decisions**:
+- Claim schema extended with PhaseState, GrantQueue, and grant tracking fields
+- ZSET-based grant queue for FIFO ordering
+- Clean upgrade model (no M3.4→M3.5 migration logic required)
+- Re-grant to same agents (not re-consensus) for determinism
+- Always re-trigger if artefact missing (no time-based heuristics)
 
-**Implementation Considerations**:
-- Need to persist phase state to Redis (additional keys or claim fields)
-- Need startup recovery logic to rebuild phase state map
-- Need to handle edge cases (partial artefacts received, status inconsistencies)
-- Implement a persistent, restart-resilient grant queue for controller-worker agents whose `max_concurrent` limit has been reached.
+**Success Criteria**: All met
+- ✓ Orchestrator restart preserves phase state
+- ✓ Claims continue progressing after restart
+- ✓ No manual intervention required
+- ✓ Persistent grant queue survives restarts
+- ✓ Orphaned workers cleaned up automatically
+- ✓ Stale locks detected and handled
 
-**Success Criteria**:
-- Orchestrator restart does not lose phase tracking
-- Claims continue progressing through phases after restart
-- No manual intervention required for stuck claims
+**Documentation**: See `design/features/phase-3-coordination/M3.5-orchestrator-restart-resilience.md`
 
 ### **M3.6: Runtime Failure Detection & Timeouts** 🔜 **HIGH PRIORITY**
 
