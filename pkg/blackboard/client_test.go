@@ -1152,3 +1152,97 @@ func TestGetClaimsByStatus(t *testing.T) {
 		assert.Equal(t, ClaimStatusPendingAssignment, claims[0].Status)
 	})
 }
+
+// M3.5: Test ZSET operations for grant queue
+func TestZSetOperations(t *testing.T) {
+	client, _ := setupTestClient(t)
+	ctx := context.Background()
+	key := "test:grant_queue:coder"
+
+	t.Run("ZAdd and ZRange - FIFO ordering", func(t *testing.T) {
+		// Add claims with timestamps (FIFO: oldest first)
+		require.NoError(t, client.ZAdd(ctx, key, 1000.0, "claim-1"))
+		require.NoError(t, client.ZAdd(ctx, key, 2000.0, "claim-2"))
+		require.NoError(t, client.ZAdd(ctx, key, 1500.0, "claim-3"))
+
+		// Retrieve in FIFO order (lowest score first)
+		members, err := client.ZRange(ctx, key, 0, -1)
+		require.NoError(t, err)
+		assert.Equal(t, []string{"claim-1", "claim-3", "claim-2"}, members)
+	})
+
+	t.Run("ZRangeWithScores - returns members with scores", func(t *testing.T) {
+		testKey := "test:grant_queue:reviewer"
+		require.NoError(t, client.ZAdd(ctx, testKey, 1234567890.0, "claim-a"))
+		require.NoError(t, client.ZAdd(ctx, testKey, 1234567900.0, "claim-b"))
+
+		results, err := client.ZRangeWithScores(ctx, testKey, 0, -1)
+		require.NoError(t, err)
+		assert.Len(t, results, 2)
+		assert.Equal(t, "claim-a", results[0].Member)
+		assert.Equal(t, 1234567890.0, results[0].Score)
+		assert.Equal(t, "claim-b", results[1].Member)
+		assert.Equal(t, 1234567900.0, results[1].Score)
+	})
+
+	t.Run("ZRem - removes members from set", func(t *testing.T) {
+		testKey := "test:grant_queue:parallel"
+		require.NoError(t, client.ZAdd(ctx, testKey, 100.0, "claim-x"))
+		require.NoError(t, client.ZAdd(ctx, testKey, 200.0, "claim-y"))
+		require.NoError(t, client.ZAdd(ctx, testKey, 300.0, "claim-z"))
+
+		// Remove claim-y
+		require.NoError(t, client.ZRem(ctx, testKey, "claim-y"))
+
+		// Verify only claim-x and claim-z remain
+		members, err := client.ZRange(ctx, testKey, 0, -1)
+		require.NoError(t, err)
+		assert.Equal(t, []string{"claim-x", "claim-z"}, members)
+	})
+
+	t.Run("ZRem - removes multiple members", func(t *testing.T) {
+		testKey := "test:grant_queue:multi"
+		require.NoError(t, client.ZAdd(ctx, testKey, 1.0, "claim-1"))
+		require.NoError(t, client.ZAdd(ctx, testKey, 2.0, "claim-2"))
+		require.NoError(t, client.ZAdd(ctx, testKey, 3.0, "claim-3"))
+
+		// Remove multiple members at once
+		require.NoError(t, client.ZRem(ctx, testKey, "claim-1", "claim-3"))
+
+		members, err := client.ZRange(ctx, testKey, 0, -1)
+		require.NoError(t, err)
+		assert.Equal(t, []string{"claim-2"}, members)
+	})
+
+	t.Run("ZRem - handles empty members slice", func(t *testing.T) {
+		testKey := "test:grant_queue:empty"
+		require.NoError(t, client.ZAdd(ctx, testKey, 1.0, "claim-1"))
+
+		// Should not error on empty members
+		require.NoError(t, client.ZRem(ctx, testKey))
+
+		// Claim should still exist
+		members, err := client.ZRange(ctx, testKey, 0, -1)
+		require.NoError(t, err)
+		assert.Len(t, members, 1)
+	})
+
+	t.Run("ZRange - returns empty slice for non-existent key", func(t *testing.T) {
+		members, err := client.ZRange(ctx, "test:non_existent", 0, -1)
+		require.NoError(t, err)
+		assert.Empty(t, members)
+	})
+
+	t.Run("ZRange - supports range queries", func(t *testing.T) {
+		testKey := "test:grant_queue:range"
+		require.NoError(t, client.ZAdd(ctx, testKey, 1.0, "claim-1"))
+		require.NoError(t, client.ZAdd(ctx, testKey, 2.0, "claim-2"))
+		require.NoError(t, client.ZAdd(ctx, testKey, 3.0, "claim-3"))
+		require.NoError(t, client.ZAdd(ctx, testKey, 4.0, "claim-4"))
+
+		// Get first 2 members (FIFO: oldest two)
+		members, err := client.ZRange(ctx, testKey, 0, 1)
+		require.NoError(t, err)
+		assert.Equal(t, []string{"claim-1", "claim-2"}, members)
+	})
+}

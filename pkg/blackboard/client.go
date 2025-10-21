@@ -779,6 +779,64 @@ func (c *Client) GetClaimsByStatus(ctx context.Context, statuses []string) ([]*C
 	return claims, nil
 }
 
+// ZAdd adds a member to a sorted set with a score (M3.5 - for grant queue FIFO).
+// Used to add claims to the persistent grant queue when max_concurrent limit is reached.
+func (c *Client) ZAdd(ctx context.Context, key string, score float64, member string) error {
+	z := redis.Z{
+		Score:  score,
+		Member: member,
+	}
+
+	if err := c.rdb.ZAdd(ctx, key, z).Err(); err != nil {
+		return fmt.Errorf("failed to add member to sorted set: %w", err)
+	}
+
+	return nil
+}
+
+// ZRange retrieves members from a sorted set by rank range (M3.5 - for grant queue dequeue).
+// Returns members in order from lowest to highest score (FIFO for timestamp-based scores).
+// start and stop are inclusive (0-based indexing, -1 for last element).
+func (c *Client) ZRange(ctx context.Context, key string, start, stop int64) ([]string, error) {
+	members, err := c.rdb.ZRange(ctx, key, start, stop).Result()
+	if err != nil {
+		return nil, fmt.Errorf("failed to read sorted set range: %w", err)
+	}
+
+	return members, nil
+}
+
+// ZRangeWithScores retrieves members with scores from a sorted set (M3.5 - for grant queue recovery).
+// Used during startup to recover grant queue state with timestamps.
+func (c *Client) ZRangeWithScores(ctx context.Context, key string, start, stop int64) ([]redis.Z, error) {
+	results, err := c.rdb.ZRangeWithScores(ctx, key, start, stop).Result()
+	if err != nil {
+		return nil, fmt.Errorf("failed to read sorted set with scores: %w", err)
+	}
+
+	return results, nil
+}
+
+// ZRem removes members from a sorted set (M3.5 - for grant queue dequeue).
+// Used to remove claims from grant queue after they are resumed.
+func (c *Client) ZRem(ctx context.Context, key string, members ...string) error {
+	if len(members) == 0 {
+		return nil
+	}
+
+	// Convert string slice to interface slice for variadic function
+	memberInterfaces := make([]interface{}, len(members))
+	for i, member := range members {
+		memberInterfaces[i] = member
+	}
+
+	if err := c.rdb.ZRem(ctx, key, memberInterfaces...).Err(); err != nil {
+		return fmt.Errorf("failed to remove members from sorted set: %w", err)
+	}
+
+	return nil
+}
+
 // IsNotFound returns true if the error is a Redis "key not found" error (redis.Nil).
 // Use this to check if GetArtefact, GetClaim, or GetLatestVersion returned "not found".
 func IsNotFound(err error) bool {
