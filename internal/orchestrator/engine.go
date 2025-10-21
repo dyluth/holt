@@ -67,6 +67,11 @@ func (e *Engine) Run(ctx context.Context) error {
 
 	log.Printf("[Orchestrator] Starting for instance '%s'", e.instanceName)
 
+	// M3.5: Recover state from Redis before starting event loop
+	if err := e.RecoverState(ctx); err != nil {
+		return fmt.Errorf("failed to recover state: %w", err)
+	}
+
 	// Subscribe to artefact events
 	subscription, err := e.client.SubscribeArtefactEvents(ctx)
 	if err != nil {

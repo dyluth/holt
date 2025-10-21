@@ -10,6 +10,7 @@ import (
 
 	"github.com/docker/docker/api/types"
 	"github.com/docker/docker/api/types/container"
+	"github.com/docker/docker/api/types/filters"
 	"github.com/docker/docker/api/types/mount"
 	"github.com/docker/docker/client"
 	"github.com/dyluth/holt/internal/config"
@@ -66,6 +67,60 @@ func NewWorkerManager(dockerClient *client.Client, instanceName, workspacePath s
 // Called by orchestrator engine to enable grant queue resumption when workers complete.
 func (wm *WorkerManager) SetWorkerSlotAvailableCallback(callback func(ctx context.Context, role string)) {
 	wm.onWorkerSlotAvailable = callback
+}
+
+// CleanupOrphanedWorkers removes worker containers from previous orchestrator runs (M3.5).
+// Identifies orphans by checking for containers with holt labels but not in activeWorkers map.
+func (wm *WorkerManager) CleanupOrphanedWorkers(ctx context.Context) error {
+	log.Printf("[Orchestrator] Scanning for orphaned worker containers...")
+
+	// List all containers with holt instance label
+	containerFilters := filters.NewArgs()
+	containerFilters.Add("label", fmt.Sprintf("holt.instance=%s", wm.instanceName))
+
+	containers, err := wm.dockerClient.ContainerList(ctx, types.ContainerListOptions{
+		All:     true, // Include stopped containers
+		Filters: containerFilters,
+	})
+	if err != nil {
+		return fmt.Errorf("failed to list containers: %w", err)
+	}
+
+	orphanCount := 0
+
+	for _, container := range containers {
+		// Check if container is in activeWorkers
+		wm.workerLock.RLock()
+		_, isTracked := wm.activeWorkers[container.ID]
+		wm.workerLock.RUnlock()
+
+		if !isTracked {
+			// Orphaned container - remove it
+			log.Printf("[Orchestrator] Removing orphaned worker container: %s (ID: %s)", container.Names, container.ID[:12])
+
+			wm.logEvent("orphan_worker_cleanup", map[string]interface{}{
+				"container_id":   container.ID[:12],
+				"container_name": container.Names,
+			})
+
+			if err := wm.dockerClient.ContainerRemove(ctx, container.ID, types.ContainerRemoveOptions{
+				Force: true,
+			}); err != nil {
+				log.Printf("[Orchestrator] Warning: Failed to remove orphaned container %s: %v", container.ID[:12], err)
+				// Continue with other containers
+			} else {
+				orphanCount++
+			}
+		}
+	}
+
+	if orphanCount > 0 {
+		log.Printf("[Orchestrator] Cleaned up %d orphaned worker containers", orphanCount)
+	} else {
+		log.Printf("[Orchestrator] No orphaned worker containers found")
+	}
+
+	return nil
 }
 
 // LaunchWorker creates and starts an ephemeral worker container
