@@ -357,6 +357,12 @@ func (env *E2EEnvironment) WaitForArtefactByType(artefactType string) *blackboar
 
 				env.T.Logf("✓ Found artefact: type=%s, id=%s, payload=%s", artefact.Type, artefact.ID, artefact.Payload)
 				return artefact
+			} else {
+				env.T.Logf("✗ other artefact: type=%s, id=%s, v=%s payload=%s",
+					data["type"],
+					data["id"],
+					data["version"],
+					data["payload"])
 			}
 		}
 
