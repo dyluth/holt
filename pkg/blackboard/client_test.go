@@ -1055,3 +1055,100 @@ func TestSubscribeWorkflowEvents(t *testing.T) {
 		assert.NotNil(t, sub.Errors())
 	})
 }
+
+// M3.5: Test GetClaimsByStatus
+func TestGetClaimsByStatus(t *testing.T) {
+	client, _ := setupTestClient(t)
+	ctx := context.Background()
+
+	t.Run("returns empty slice when no claims match", func(t *testing.T) {
+		claims, err := client.GetClaimsByStatus(ctx, []string{"pending_review", "pending_parallel"})
+		require.NoError(t, err)
+		assert.Empty(t, claims)
+	})
+
+	t.Run("retrieves claims with matching statuses", func(t *testing.T) {
+		// Create test claims with different statuses
+		claim1 := &Claim{
+			ID:                    uuid.New().String(),
+			ArtefactID:            uuid.New().String(),
+			Status:                ClaimStatusPendingReview,
+			GrantedReviewAgents:   []string{},
+			GrantedParallelAgents: []string{},
+			GrantedExclusiveAgent: "",
+		}
+
+		claim2 := &Claim{
+			ID:                    uuid.New().String(),
+			ArtefactID:            uuid.New().String(),
+			Status:                ClaimStatusPendingParallel,
+			GrantedReviewAgents:   []string{},
+			GrantedParallelAgents: []string{"agent-1"},
+			GrantedExclusiveAgent: "",
+		}
+
+		claim3 := &Claim{
+			ID:                    uuid.New().String(),
+			ArtefactID:            uuid.New().String(),
+			Status:                ClaimStatusComplete,
+			GrantedReviewAgents:   []string{},
+			GrantedParallelAgents: []string{},
+			GrantedExclusiveAgent: "",
+		}
+
+		// Create claims in Redis
+		require.NoError(t, client.CreateClaim(ctx, claim1))
+		require.NoError(t, client.CreateClaim(ctx, claim2))
+		require.NoError(t, client.CreateClaim(ctx, claim3))
+
+		// Query for pending_review and pending_parallel claims
+		claims, err := client.GetClaimsByStatus(ctx, []string{"pending_review", "pending_parallel"})
+		require.NoError(t, err)
+		assert.Len(t, claims, 2)
+
+		// Verify correct claims returned
+		claimIDs := make(map[string]bool)
+		for _, claim := range claims {
+			claimIDs[claim.ID] = true
+		}
+		assert.True(t, claimIDs[claim1.ID])
+		assert.True(t, claimIDs[claim2.ID])
+		assert.False(t, claimIDs[claim3.ID]) // Complete claim should not be returned
+	})
+
+	t.Run("handles single status filter", func(t *testing.T) {
+		claim := &Claim{
+			ID:                    uuid.New().String(),
+			ArtefactID:            uuid.New().String(),
+			Status:                ClaimStatusPendingExclusive,
+			GrantedReviewAgents:   []string{},
+			GrantedParallelAgents: []string{},
+			GrantedExclusiveAgent: "agent-exclusive",
+		}
+
+		require.NoError(t, client.CreateClaim(ctx, claim))
+
+		claims, err := client.GetClaimsByStatus(ctx, []string{"pending_exclusive"})
+		require.NoError(t, err)
+		assert.Len(t, claims, 1)
+		assert.Equal(t, claim.ID, claims[0].ID)
+	})
+
+	t.Run("includes pending_assignment status", func(t *testing.T) {
+		claim := &Claim{
+			ID:                    uuid.New().String(),
+			ArtefactID:            uuid.New().String(),
+			Status:                ClaimStatusPendingAssignment,
+			GrantedReviewAgents:   []string{},
+			GrantedParallelAgents: []string{},
+			GrantedExclusiveAgent: "agent-feedback",
+		}
+
+		require.NoError(t, client.CreateClaim(ctx, claim))
+
+		claims, err := client.GetClaimsByStatus(ctx, []string{"pending_assignment"})
+		require.NoError(t, err)
+		assert.Len(t, claims, 1)
+		assert.Equal(t, ClaimStatusPendingAssignment, claims[0].Status)
+	})
+}

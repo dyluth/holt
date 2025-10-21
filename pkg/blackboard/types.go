@@ -65,6 +65,17 @@ type Claim struct {
 	// M3.3: Feedback loop support
 	AdditionalContextIDs []string `json:"additional_context_ids,omitempty"` // Review artefact IDs for feedback claims
 	TerminationReason    string   `json:"termination_reason,omitempty"`     // Explicit reason when status=terminated
+
+	// M3.5: Phase state persistence (for orchestrator restart resilience)
+	PhaseState *PhaseState `json:"phase_state,omitempty"` // Current phase execution state
+
+	// M3.5: Grant queue persistence (for controller-worker max_concurrent pausing)
+	GrantQueue *GrantQueue `json:"grant_queue,omitempty"` // Queue metadata when paused at max_concurrent
+
+	// M3.5: Grant tracking (for re-triggering on restart)
+	LastGrantAgent    string `json:"last_grant_agent,omitempty"`    // Last agent granted this claim
+	LastGrantTime     int64  `json:"last_grant_time,omitempty"`     // Unix timestamp of last grant
+	ArtefactExpected  bool   `json:"artefact_expected,omitempty"`   // Whether we're waiting for artefact from granted agent
 }
 
 // ClaimStatus defines the lifecycle state of a claim.
@@ -115,6 +126,24 @@ const (
 type Bid struct {
 	AgentName string  `json:"agent_name"` // Logical name of the agent
 	BidType   BidType `json:"bid_type"`   // Type of bid submitted
+}
+
+// PhaseState represents persisted phase execution state for restart resilience (M3.5).
+// Stored as JSON-encoded fields in the Claim Redis hash.
+type PhaseState struct {
+	Current       string            `json:"current"`        // Current phase: "review", "parallel", or "exclusive"
+	GrantedAgents []string          `json:"granted_agents"` // Agents granted in this phase
+	Received      map[string]string `json:"received"`       // agentRole → artefactID (received artefacts)
+	AllBids       map[string]BidType `json:"all_bids"`      // agentName → bidType (all original bids)
+	StartTime     int64             `json:"start_time"`     // Unix timestamp when phase started
+}
+
+// GrantQueue represents grant queue metadata for paused claims (M3.5).
+// Used when controller-worker agents hit max_concurrent limit.
+type GrantQueue struct {
+	PausedAt  int64  `json:"paused_at"`  // Unix timestamp when claim was paused
+	AgentName string `json:"agent_name"` // Agent name that would be granted
+	Position  int    `json:"position"`   // Reserved for future display/debugging (not populated in M3.5)
 }
 
 // Validate checks if the Artefact has valid field values.

@@ -723,6 +723,62 @@ func (c *Client) PublishWorkflowEvent(ctx context.Context, eventType string, dat
 	return c.publishWorkflowEvent(ctx, eventType, data)
 }
 
+// GetClaimsByStatus retrieves all claims with the specified statuses (M3.5).
+// Used for orchestrator startup recovery to scan Redis for active claims.
+// Returns empty slice if no claims match the specified statuses.
+//
+// Implementation: Uses Redis SCAN to iterate over claim keys, then filters by status.
+// This is efficient for moderate claim counts (<10000) but may need optimization for larger datasets.
+func (c *Client) GetClaimsByStatus(ctx context.Context, statuses []string) ([]*Claim, error) {
+	if len(statuses) == 0 {
+		return []*Claim{}, nil
+	}
+
+	// Build status set for O(1) lookup
+	statusSet := make(map[ClaimStatus]bool)
+	for _, status := range statuses {
+		statusSet[ClaimStatus(status)] = true
+	}
+
+	// Scan for all claim keys using pattern matching
+	pattern := ClaimKey(c.instanceName, "*")
+	var claims []*Claim
+
+	// Use SCAN to iterate over keys matching the pattern
+	iter := c.rdb.Scan(ctx, 0, pattern, 0).Iterator()
+	for iter.Next(ctx) {
+		key := iter.Val()
+
+		// Fetch claim from Redis
+		hashData, err := c.rdb.HGetAll(ctx, key).Result()
+		if err != nil {
+			return nil, fmt.Errorf("failed to read claim from Redis: %w", err)
+		}
+
+		// Skip if key no longer exists (race condition)
+		if len(hashData) == 0 {
+			continue
+		}
+
+		// Deserialize claim
+		claim, err := HashToClaim(hashData)
+		if err != nil {
+			return nil, fmt.Errorf("failed to deserialize claim: %w", err)
+		}
+
+		// Filter by status
+		if statusSet[claim.Status] {
+			claims = append(claims, claim)
+		}
+	}
+
+	if err := iter.Err(); err != nil {
+		return nil, fmt.Errorf("failed to scan claim keys: %w", err)
+	}
+
+	return claims, nil
+}
+
 // IsNotFound returns true if the error is a Redis "key not found" error (redis.Nil).
 // Use this to check if GetArtefact, GetClaim, or GetLatestVersion returned "not found".
 func IsNotFound(err error) bool {
