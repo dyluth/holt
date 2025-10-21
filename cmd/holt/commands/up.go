@@ -20,6 +20,7 @@ import (
 	"github.com/dyluth/holt/internal/instance"
 	"github.com/dyluth/holt/internal/printer"
 	"github.com/google/uuid"
+	"github.com/redis/go-redis/v9"
 	"github.com/spf13/cobra"
 )
 
@@ -135,7 +136,12 @@ func runUp(cmd *cobra.Command, args []string) error {
 		}
 	}
 
-	// Phase 5: Resource Creation
+	// Phase 5: M3.5 Stale Lock Detection
+	if err := detectAndHandleStaleLock(ctx, cli, targetInstanceName); err != nil {
+		return err
+	}
+
+	// Phase 6: Resource Creation
 	runID := uuid.New().String()
 	if err := createInstance(ctx, cli, cfg, targetInstanceName, runID, workspacePath); err != nil {
 		// Attempt rollback on failure
@@ -692,4 +698,103 @@ func getDockerSocketGroups() []string {
 	// Using GID is more reliable than group name across different systems
 	gid := strconv.FormatUint(uint64(stat.Gid), 10)
 	return []string{gid}
+}
+
+// detectAndHandleStaleLock checks for stale orchestrator locks and handles takeover (M3.5).
+// Connects to Redis to check the instance lock. If lock exists but is stale (>30s old),
+// assumes previous orchestrator crashed and proceeds with takeover.
+func detectAndHandleStaleLock(ctx context.Context, cli *client.Client, instanceName string) error {
+	printer.Info("Detecting instance state...\n")
+
+	// Check if Redis container exists for this instance
+	redisName := dockerpkg.RedisContainerName(instanceName)
+	containers, err := cli.ContainerList(ctx, container.ListOptions{
+		All: true,
+		Filters: filters.NewArgs(
+			filters.Arg("name", redisName),
+		),
+	})
+	if err != nil {
+		return fmt.Errorf("failed to check for existing Redis: %w", err)
+	}
+
+	if len(containers) == 0 {
+		// No Redis container - this is a fresh instance start
+		printer.Info("  ✓ No existing instance found (fresh start)\n")
+		return nil
+	}
+
+	// Redis exists - check if it's running
+	redisContainer := containers[0]
+	if redisContainer.State != "running" {
+		// Redis exists but not running - likely from failed previous start
+		printer.Info("  ⚠ Found stopped Redis container from previous run\n")
+		printer.Info("  ✓ Will clean up and start fresh\n")
+		return nil
+	}
+
+	// Redis is running - check for orchestrator lock
+	// We need to connect to Redis to read the lock key
+	// Get Redis port from container labels
+	redisPort := redisContainer.Labels[dockerpkg.LabelRedisPort]
+	if redisPort == "" {
+		// Old instance without port label - can't check lock, proceed with warning
+		printer.Warning("  ⚠ Cannot check orchestrator lock (old instance format)\n")
+		return nil
+	}
+
+	// Connect to Redis using go-redis
+	redisClient := redis.NewClient(&redis.Options{
+		Addr: fmt.Sprintf("localhost:%s", redisPort),
+	})
+	defer redisClient.Close()
+
+	// Test connection
+	if err := redisClient.Ping(ctx).Err(); err != nil {
+		printer.Warning("  ⚠ Cannot connect to Redis to check lock: %v\n", err)
+		return nil // Non-fatal - proceed with instance start
+	}
+
+	// Check for orchestrator lock
+	lockKey := fmt.Sprintf("holt:%s:lock", instanceName)
+	lockValue, err := redisClient.Get(ctx, lockKey).Result()
+	if err != nil {
+		// No lock or error reading - safe to proceed
+		printer.Info("  ✓ No active orchestrator lock\n")
+		return nil
+	}
+
+	// Lock exists - parse timestamp
+	// Expected format: "orchestrator:{timestamp}"
+	var timestamp int64
+	if _, err := fmt.Sscanf(lockValue, "orchestrator:%d", &timestamp); err != nil {
+		// Malformed lock - consider stale
+		printer.Warning("  ⚠ Found malformed orchestrator lock (will take over)\n")
+		return nil
+	}
+
+	// Check if lock is stale (>30s old)
+	age := time.Now().Unix() - timestamp
+	if age > 30 {
+		// Stale lock - previous orchestrator crashed
+		printer.Warning("  ⚠ Found stale orchestrator lock (age: %ds)\n", age)
+		printer.Info("  ✓ Taking over instance '%s' (previous orchestrator assumed crashed)\n", instanceName)
+
+		// Clean up the stale lock
+		if err := redisClient.Del(ctx, lockKey).Err(); err != nil {
+			printer.Warning("  ⚠ Failed to clear stale lock: %v\n", err)
+		}
+
+		return nil
+	}
+
+	// Lock is fresh - orchestrator is running
+	return printer.Error(
+		fmt.Sprintf("instance '%s' orchestrator is already running", instanceName),
+		fmt.Sprintf("Found active orchestrator lock (age: %ds, threshold: 30s)", age),
+		[]string{
+			fmt.Sprintf("Wait for the orchestrator to stop, or run: holt down --name %s", instanceName),
+			"If you're sure the orchestrator is not running, wait 30s for the lock to become stale",
+		},
+	)
 }
