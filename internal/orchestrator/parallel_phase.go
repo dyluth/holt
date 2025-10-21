@@ -6,7 +6,7 @@ import (
 	"log"
 	"time"
 
-	"github.com/dyluth/sett/pkg/blackboard"
+	"github.com/dyluth/holt/pkg/blackboard"
 )
 
 // GrantParallelPhase grants the claim to all agents that bid "claim" (parallel).

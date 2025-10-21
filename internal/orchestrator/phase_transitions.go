@@ -5,7 +5,7 @@ import (
 	"fmt"
 	"log"
 
-	"github.com/dyluth/sett/pkg/blackboard"
+	"github.com/dyluth/holt/pkg/blackboard"
 )
 
 // TransitionToNextPhase atomically transitions a claim to the next phase.

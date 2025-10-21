@@ -7,7 +7,7 @@
 
 Associated phase: \[Heartbeat | Single Agent | Coordination | Human-in-the-Loop\]  
 Status: \[Draft | In Review | Approved\]  
-***Template purpose:*** *This* document is a blueprint for a single, implementable milestone. Its purpose is to provide an unambiguous specification for a developer (human *or AI) to build a feature that is consistent with Sett's architecture and guiding principles.*
+***Template purpose:*** *This* document is a blueprint for a single, implementable milestone. Its purpose is to provide an unambiguous specification for a developer (human *or AI) to build a feature that is consistent with Holt's architecture and guiding principles.*
 
 ## **1\. The 'why': goal and success criteria**
 
@@ -23,7 +23,7 @@ Status: \[Draft | In Review | Approved\]
 
 \<\!-- List 2-3 specific, observable outcomes that will prove this milestone is complete. Frame these as executable end-to-end tests.
 
-* e.g., "A user can run sett logs my-agent and the live logs from the agent container are streamed to the terminal."
+* e.g., "A user can run holt logs my-agent and the live logs from the agent container are streamed to the terminal."
 
 **Validation questions:**
 * Can each success criterion be automated as a test?
@@ -43,7 +43,7 @@ Status: \[Draft | In Review | Approved\]
 *This section is a mandatory checklist. For each component, detail the required changes. If a component is not affected, state "No changes."*
 
 **Critical validation questions for this entire section:**
-* Have I explicitly considered EVERY component (Blackboard, Orchestrator, Cub, CLI)?
+* Have I explicitly considered EVERY component (Blackboard, Orchestrator, Pup, CLI)?
 * For components marked "No changes" - am I absolutely certain this feature doesn't affect them?
 * Do my changes maintain the contracts and interfaces defined in the design documents?
 * Will this feature work correctly with both single-instance and scaled agents (controller-worker pattern)?
@@ -59,13 +59,13 @@ Status: \[Draft | In Review | Approved\]
 
 * New/modified logic:  
   \<\!-- Describe changes to the orchestrator's core loop. How does it handle new artefact types? Does this impact the "Full Consensus Model" or the phased lifecycle? \--\>  
-* New/modified configurations (sett.yml):  
-  \<\!-- Define any new fields that must be added to the sett.yml file to support this feature. \--\>
+* New/modified configurations (holt.yml):  
+  \<\!-- Define any new fields that must be added to the holt.yml file to support this feature. \--\>
 
-### **2.3. Agent cub changes**
+### **2.3. Agent pup changes**
 
 * New/modified logic:  
-  \<\!-- Describe changes to the cub's concurrent loops. Does it need to handle new claim types? \--\>  
+  \<\!-- Describe changes to the pup's concurrent loops. Does it need to handle new claim types? \--\>  
 * Changes to the tool execution contract (stdin/stdout):  
   \<\!-- Specify any modifications to the JSON passed to or expected from the agent's command script. \--\>
 
@@ -86,7 +86,7 @@ Status: \[Draft | In Review | Approved\]
 * Have I considered alternative approaches and justified why this approach is best?
 * Are there any assumptions that could prove incorrect?
 * What are the biggest risks to successful implementation?
-* How does this approach align with Sett's architectural principles?
+* How does this approach align with Holt's architectural principles?
   \--\>
 
 ### **3.2. Implementation steps**
@@ -94,8 +94,8 @@ Status: \[Draft | In Review | Approved\]
 \<\!-- Provide a high-level, phased checklist of implementation steps, broken down by component.
 
 * \[Orchestrator\] Implement new claim status transition...  
-* \[Cub\] Add logic to handle new stdin field...  
-* \[CLI\] Create the new sett xyz command...  
+* \[Pup\] Add logic to handle new stdin field...  
+* \[CLI\] Create the new holt xyz command...  
   \--\>
 
 ### **3.3. Performance & resource considerations**
@@ -115,8 +115,8 @@ Status: \[Draft | In Review | Approved\]
   \<\!-- Describe how the components will be tested together (e.g., "Test that when the CLI creates X, the orchestrator correctly creates Y."). \--\>  
 * Performance tests:  
   \<\!-- Define tests to verify performance requirements are met under expected load. \--\>  
-* E2E tests (sett tests):  
-  \<\!-- Define at least one end-to-end user story test. Specify the initial state (the sett forage command) and the final state to be asserted (e.g., specific artefacts on the blackboard, files in the workspace). \--\>
+* E2E tests (holt tests):  
+  \<\!-- Define at least one end-to-end user story test. Specify the initial state (the holt forage command) and the final state to be asserted (e.g., specific artefacts on the blackboard, files in the workspace). \--\>
 
 ## **4\. Principle compliance check**
 
@@ -168,8 +168,8 @@ Status: \[Draft | In Review | Approved\]
 * \[ \] Performance requirements from section 3.3 are met and verified.  
 * \[ \] Overall test coverage has not decreased.  
 * \[ \] The Makefile has been updated with any new build, test, or run commands.  
-* \[ \] All new CLI commands, flags, and sett.yml fields are documented.  
-* \[ \] The developer onboarding time (git clone to running sett up) remains under 10 minutes.  
+* \[ \] All new CLI commands, flags, and holt.yml fields are documented.  
+* \[ \] The developer onboarding time (git clone to running holt up) remains under 10 minutes.  
 * \[ \] All TODOs from the specification documents relevant to this milestone have been resolved.
 * \[ \] All failure modes identified in section 6.1 have been implemented and tested.
 * \[ \] Concurrency considerations from section 6.2 have been addressed.

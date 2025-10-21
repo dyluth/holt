@@ -1,10 +1,10 @@
 // Package blackboard provides type-safe Go definitions and Redis schema patterns
-// for the Sett blackboard architecture. The blackboard is the central shared state
-// system where all Sett components (orchestrator, cubs, CLI) interact via well-defined
+// for the Holt blackboard architecture. The blackboard is the central shared state
+// system where all Holt components (orchestrator, pups, CLI) interact via well-defined
 // data structures stored in Redis.
 //
 // All Redis keys and channels are namespaced by instance name to enable multiple
-// Sett instances to safely coexist on a single Redis server.
+// Holt instances to safely coexist on a single Redis server.
 package blackboard
 
 import (
@@ -14,7 +14,7 @@ import (
 )
 
 // Artefact represents an immutable work product on the blackboard.
-// Artefacts are the fundamental unit of state in Sett - every piece of work,
+// Artefacts are the fundamental unit of state in Holt - every piece of work,
 // decision, and result is represented as an artefact with complete provenance.
 type Artefact struct {
 	ID              string         `json:"id"`               // UUID - unique identifier for this artefact
@@ -24,7 +24,7 @@ type Artefact struct {
 	Type            string         `json:"type"`             // User-defined domain type (e.g., "CodeCommit", "DesignSpec")
 	Payload         string         `json:"payload"`          // Main content (git hash, JSON, text)
 	SourceArtefacts []string       `json:"source_artefacts"` // Array of artefact UUIDs this was derived from
-	ProducedByRole  string         `json:"produced_by_role"` // Agent's role from sett.yml or "user"
+	ProducedByRole  string         `json:"produced_by_role"` // Agent's role from holt.yml or "user"
 }
 
 // StructuralType defines the role an artefact plays in the orchestration flow.
@@ -63,8 +63,8 @@ type Claim struct {
 	GrantedExclusiveAgent string      `json:"granted_exclusive_agent"` // Single agent name granted exclusive access
 
 	// M3.3: Feedback loop support
-	AdditionalContextIDs  []string    `json:"additional_context_ids,omitempty"`  // Review artefact IDs for feedback claims
-	TerminationReason     string      `json:"termination_reason,omitempty"`      // Explicit reason when status=terminated
+	AdditionalContextIDs []string `json:"additional_context_ids,omitempty"` // Review artefact IDs for feedback claims
+	TerminationReason    string   `json:"termination_reason,omitempty"`     // Explicit reason when status=terminated
 }
 
 // ClaimStatus defines the lifecycle state of a claim.

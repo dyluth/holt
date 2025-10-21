@@ -1,3 +1,4 @@
+//go:build integration
 // +build integration
 
 package testutil
@@ -16,8 +17,8 @@ import (
 
 	"github.com/docker/docker/api/types/container"
 	"github.com/docker/docker/client"
-	"github.com/dyluth/sett/internal/instance"
-	"github.com/dyluth/sett/pkg/blackboard"
+	"github.com/dyluth/holt/internal/instance"
+	"github.com/dyluth/holt/pkg/blackboard"
 	"github.com/redis/go-redis/v9"
 	"github.com/stretchr/testify/require"
 )
@@ -32,8 +33,8 @@ type ArtefactResult struct {
 // E2EEnvironment represents an isolated E2E test environment
 type E2EEnvironment struct {
 	T            *testing.T
-	TmpDir       string              // Container path for file operations
-	TmpDirHost   string              // Host path for Docker bind mounts (DinD only)
+	TmpDir       string // Container path for file operations
+	TmpDirHost   string // Host path for Docker bind mounts (DinD only)
 	OriginalDir  string
 	InstanceName string
 	DockerClient *client.Client
@@ -74,8 +75,8 @@ func detectHostPathForApp() string {
 }
 
 // SetupE2EEnvironment creates a fully isolated E2E test environment
-// with temp directory, Git repo, sett.yml, and unique instance name
-func SetupE2EEnvironment(t *testing.T, settYML string) *E2EEnvironment {
+// with temp directory, Git repo, holt.yml, and unique instance name
+func SetupE2EEnvironment(t *testing.T, holtYML string) *E2EEnvironment {
 	ctx := context.Background()
 
 	// Create isolated temporary directory in a location accessible to Docker host
@@ -106,7 +107,7 @@ func SetupE2EEnvironment(t *testing.T, settYML string) *E2EEnvironment {
 				// Detect host path for Docker bind mounts
 				hostPath := detectHostPathForApp()
 				if hostPath != "" {
-					// Translate container path to host path: /app/... -> /Users/cam/github/sett/...
+					// Translate container path to host path: /app/... -> /Users/cam/github/holt/...
 					tmpDirHost = filepath.Join(hostPath, tmpDir[len("/app"):])
 				} else {
 					// If detection fails, use container path and hope for the best
@@ -149,8 +150,8 @@ func SetupE2EEnvironment(t *testing.T, settYML string) *E2EEnvironment {
 	require.NoError(t, cmd.Run(), "Failed to initialize Git repository")
 
 	// Configure Git
-	exec.Command("git", "-C", tmpDir, "config", "user.email", "test@sett.local").Run()
-	exec.Command("git", "-C", tmpDir, "config", "user.name", "Sett Test").Run()
+	exec.Command("git", "-C", tmpDir, "config", "user.email", "test@holt.local").Run()
+	exec.Command("git", "-C", tmpDir, "config", "user.name", "Holt Test").Run()
 
 	// Create initial commit (required for clean workspace check)
 	testFile := filepath.Join(tmpDir, "README.md")
@@ -158,13 +159,13 @@ func SetupE2EEnvironment(t *testing.T, settYML string) *E2EEnvironment {
 	exec.Command("git", "-C", tmpDir, "add", ".").Run()
 	exec.Command("git", "-C", tmpDir, "commit", "-m", "Initial commit").Run()
 
-	// Write sett.yml
-	settYMLPath := filepath.Join(tmpDir, "sett.yml")
-	require.NoError(t, os.WriteFile(settYMLPath, []byte(settYML), 0644), "Failed to write sett.yml")
+	// Write holt.yml
+	holtYMLPath := filepath.Join(tmpDir, "holt.yml")
+	require.NoError(t, os.WriteFile(holtYMLPath, []byte(holtYML), 0644), "Failed to write holt.yml")
 
-	// Commit sett.yml so workspace is clean
-	exec.Command("git", "-C", tmpDir, "add", "sett.yml").Run()
-	exec.Command("git", "-C", tmpDir, "commit", "-m", "Add sett.yml").Run()
+	// Commit holt.yml so workspace is clean
+	exec.Command("git", "-C", tmpDir, "add", "holt.yml").Run()
+	exec.Command("git", "-C", tmpDir, "commit", "-m", "Add holt.yml").Run()
 
 	// Fix permissions for Docker container access (critical for CI environments)
 	// Containers may run as different users, so we need world-readable/writable files
@@ -248,16 +249,16 @@ func (env *E2EEnvironment) InitializeBlackboardClient() {
 // containerNameSuffix: "orchestrator", "redis", or "agent-{agent-name}"
 func (env *E2EEnvironment) WaitForContainer(containerNameSuffix string) {
 	// Container naming patterns:
-	// - orchestrator/redis: sett-{component}-{instance-name}
-	// - agents: sett-agent-{instance-name}-{agent-name}
+	// - orchestrator/redis: holt-{component}-{instance-name}
+	// - agents: holt-agent-{instance-name}-{agent-name}
 	var fullName string
 	if containerNameSuffix == "orchestrator" || containerNameSuffix == "redis" {
-		fullName = fmt.Sprintf("sett-%s-%s", containerNameSuffix, env.InstanceName)
+		fullName = fmt.Sprintf("holt-%s-%s", containerNameSuffix, env.InstanceName)
 	} else {
 		// Agent pattern: containerNameSuffix is "agent-{agent-name}"
-		// Result: sett-agent-{instance-name}-{agent-name}
+		// Result: holt-agent-{instance-name}-{agent-name}
 		agentName := containerNameSuffix[6:] // Remove "agent-" prefix
-		fullName = fmt.Sprintf("sett-agent-%s-%s", env.InstanceName, agentName)
+		fullName = fmt.Sprintf("holt-agent-%s-%s", env.InstanceName, agentName)
 	}
 
 	var lastState string
@@ -316,7 +317,7 @@ func (env *E2EEnvironment) WaitForArtefactByType(artefactType string) *blackboar
 
 	for i := 0; i < 60; i++ {
 		// Scan for artefacts using Redis SCAN
-		pattern := fmt.Sprintf("sett:%s:artefact:*", env.InstanceName)
+		pattern := fmt.Sprintf("holt:%s:artefact:*", env.InstanceName)
 		iter := env.BBClient.RedisClient().Scan(env.Ctx, 0, pattern, 0).Iterator()
 
 		allArtefacts = allArtefacts[:0] // Reset for this iteration
@@ -339,13 +340,13 @@ func (env *E2EEnvironment) WaitForArtefactByType(artefactType string) *blackboar
 			if data["type"] == artefactType {
 				// Parse artefact
 				artefact := &blackboard.Artefact{
-					ID:               data["id"],
-					LogicalID:        data["logical_id"],
-					StructuralType:   blackboard.StructuralType(data["structural_type"]),
-					Type:             data["type"],
-					Payload:          data["payload"],
-					ProducedByRole:   data["produced_by_role"],
-					SourceArtefacts:  []string{}, // Simplified for now
+					ID:              data["id"],
+					LogicalID:       data["logical_id"],
+					StructuralType:  blackboard.StructuralType(data["structural_type"]),
+					Type:            data["type"],
+					Payload:         data["payload"],
+					ProducedByRole:  data["produced_by_role"],
+					SourceArtefacts: []string{}, // Simplified for now
 				}
 
 				if versionStr, ok := data["version"]; ok {
@@ -371,7 +372,7 @@ func (env *E2EEnvironment) WaitForArtefactByType(artefactType string) *blackboar
 	}
 
 	// If we found a ToolExecutionFailure, try to extract and display its payload
-	pattern := fmt.Sprintf("sett:%s:artefact:*", env.InstanceName)
+	pattern := fmt.Sprintf("holt:%s:artefact:*", env.InstanceName)
 	iter := env.BBClient.RedisClient().Scan(env.Ctx, 0, pattern, 0).Iterator()
 	for iter.Next(env.Ctx) {
 		key := iter.Val()
@@ -390,9 +391,9 @@ func (env *E2EEnvironment) WaitForArtefactByType(artefactType string) *blackboar
 	for _, containerSuffix := range []string{"orchestrator", "agent-git-agent"} {
 		var fullName string
 		if containerSuffix == "orchestrator" {
-			fullName = fmt.Sprintf("sett-orchestrator-%s", env.InstanceName)
+			fullName = fmt.Sprintf("holt-orchestrator-%s", env.InstanceName)
 		} else {
-			fullName = fmt.Sprintf("sett-agent-%s-git-agent", env.InstanceName)
+			fullName = fmt.Sprintf("holt-agent-%s-git-agent", env.InstanceName)
 		}
 
 		logs, logErr := env.DockerClient.ContainerLogs(env.Ctx, fullName, container.LogsOptions{
@@ -454,8 +455,8 @@ func (env *E2EEnvironment) CreateDirtyWorkspace() {
 	env.T.Logf("✓ Created dirty file: uncommitted.txt")
 }
 
-// DefaultSettYML returns a minimal sett.yml with no agents
-func DefaultSettYML() string {
+// DefaultHoltYML returns a minimal holt.yml with no agents
+func DefaultHoltYML() string {
 	return `version: "1.0"
 agents: []
 services:
@@ -464,8 +465,8 @@ services:
 `
 }
 
-// GitAgentSettYML returns a sett.yml with example-git-agent configured
-func GitAgentSettYML() string {
+// GitAgentHoltYML returns a holt.yml with example-git-agent configured
+func GitAgentHoltYML() string {
 	return `version: "1.0"
 agents:
   git-agent:
@@ -481,8 +482,8 @@ services:
 `
 }
 
-// EchoAgentSettYML returns a sett.yml with example-agent (echo) configured
-func EchoAgentSettYML() string {
+// EchoAgentHoltYML returns a holt.yml with example-agent (echo) configured
+func EchoAgentHoltYML() string {
 	return `version: "1.0"
 agents:
   echo-agent:
@@ -498,8 +499,8 @@ services:
 `
 }
 
-// ThreePhaseSettYML returns a sett.yml with review, parallel, and exclusive agents (M3.2)
-func ThreePhaseSettYML() string {
+// ThreePhaseHoltYML returns a holt.yml with review, parallel, and exclusive agents (M3.2)
+func ThreePhaseHoltYML() string {
 	return `version: "1.0"
 agents:
   reviewer:
@@ -544,7 +545,7 @@ func (env *E2EEnvironment) CreateTestAgent(agentName, runScript string) {
 // GetProjectRoot returns the project root directory for building Docker images
 func GetProjectRoot() string {
 	// When running tests, we need to go up from internal/testutil to project root
-	// This works because tests compile to a binary in the cmd/sett/commands directory
+	// This works because tests compile to a binary in the cmd/holt/commands directory
 	root, err := os.Getwd()
 	if err != nil {
 		return "."

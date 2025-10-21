@@ -1,22 +1,22 @@
 # Blackboard Package
 
-Type-safe Go definitions and Redis schema patterns for the Sett blackboard architecture.
+Type-safe Go definitions and Redis schema patterns for the Holt blackboard architecture.
 
 ## Purpose
 
-The blackboard is the central shared state system where all Sett components (orchestrator, cubs, CLI) interact via well-defined data structures stored in Redis.
+The blackboard is the central shared state system where all Holt components (orchestrator, pups, CLI) interact via well-defined data structures stored in Redis.
 
 ## Installation
 
 ```bash
-go get github.com/dyluth/sett/pkg/blackboard
+go get github.com/dyluth/holt/pkg/blackboard
 ```
 
 ## Quick Start
 
 ```go
 import (
-	"github.com/dyluth/sett/pkg/blackboard"
+	"github.com/dyluth/holt/pkg/blackboard"
 	"github.com/google/uuid"
 )
 
@@ -38,7 +38,7 @@ if err := artefact.Validate(); err != nil {
 
 // Generate Redis key
 key := blackboard.ArtefactKey("default-1", artefact.ID)
-// Returns: "sett:default-1:artefact:<uuid>"
+// Returns: "holt:default-1:artefact:<uuid>"
 
 // Convert to Redis hash format
 hash, err := blackboard.ArtefactToHash(artefact)
@@ -69,14 +69,14 @@ All keys are namespaced by instance name:
 
 ```
 # Instance-specific keys
-sett:{instance_name}:artefact:{uuid}       # Artefact data
-sett:{instance_name}:claim:{uuid}          # Claim data
-sett:{instance_name}:claim:{uuid}:bids     # Bid data
-sett:{instance_name}:thread:{logical_id}   # Version tracking (ZSET)
+holt:{instance_name}:artefact:{uuid}       # Artefact data
+holt:{instance_name}:claim:{uuid}          # Claim data
+holt:{instance_name}:claim:{uuid}:bids     # Bid data
+holt:{instance_name}:thread:{logical_id}   # Version tracking (ZSET)
 
 # Pub/Sub channels
-sett:{instance_name}:artefact_events       # Artefact creation events
-sett:{instance_name}:claim_events          # Claim creation events
+holt:{instance_name}:artefact_events       # Artefact creation events
+holt:{instance_name}:claim_events          # Claim creation events
 ```
 
 ## Helper Functions
@@ -138,7 +138,7 @@ Full API documentation available via godoc:
 
 ```bash
 godoc -http=:6060
-# Navigate to localhost:6060/pkg/github.com/dyluth/sett/pkg/blackboard/
+# Navigate to localhost:6060/pkg/github.com/dyluth/holt/pkg/blackboard/
 ```
 
 ## License

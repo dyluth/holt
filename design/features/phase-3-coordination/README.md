@@ -25,7 +25,7 @@
 - Automatic review-based claim reassignment to original producer
 - Feedback claims bypass bidding (pending_assignment status)
 - Context assembly includes Review artefacts for agent feedback
-- Automatic version management (Cub increments version transparently)
+- Automatic version management (Pup increments version transparently)
 - Configurable iteration limits (`orchestrator.max_review_iterations`)
 - Graceful termination with Failure artefacts for max iterations/missing agents
 - Complete audit trail with termination reasons
@@ -40,7 +40,7 @@
 - Stateless grant pausing when at max_concurrent limit
 - Worker failure detection with Failure artefact creation
 - Docker socket mounting for orchestrator container management
-- Mode detection: SETT_MODE=controller → controller, --execute-claim → worker
+- Mode detection: HOLT_MODE=controller → controller, --execute-claim → worker
 - **Status**: Fully implemented with E2E tests and backward compatibility
 
 ### **M3.5+: Future Milestones** 🔜 **PENDING DESIGN**
@@ -100,7 +100,7 @@ See "Future Milestones" section below for planned enhancements.
 make docker-orchestrator
 
 # 2. Run E2E tests
-go test -tags=integration ./cmd/sett/commands -run TestE2E_Phase3 -v
+go test -tags=integration ./cmd/holt/commands -run TestE2E_Phase3 -v
 ```
 
 The E2E tests will automatically build the required agent images (example-reviewer-agent, example-parallel-agent, example-git-agent) during test execution.
@@ -160,7 +160,7 @@ The following limitations are **by design** in M3.2 and should be addressed in f
 
 **Impact**:
 - Cannot have multiple agents with the same role (e.g., two "Coder" agents)
-- M3.1 configs with duplicate roles will fail validation at `sett up` time
+- M3.1 configs with duplicate roles will fail validation at `holt up` time
 - Clear error message: `duplicate agent role 'X' found (agents 'A' and 'B'): all agents must have unique roles in Phase 3`
 
 **Rationale**: Enables reliable artefact attribution using `produced_by_role` field for phase completion tracking.
@@ -233,7 +233,7 @@ The following requirements have been identified as immediate priorities for Phas
 - Review rejection automatically creates feedback claims assigned to original producer
 - Feedback claims bypass bidding via `pending_assignment` status
 - Context assembly includes Review artefacts for agent feedback
-- Cub automatically manages versioning (logical_id preservation, version increment)
+- Pup automatically manages versioning (logical_id preservation, version increment)
 - Configurable iteration limits prevent infinite loops (`orchestrator.max_review_iterations`)
 - Graceful termination with Failure artefacts and clear termination reasons
 - Complete audit trail of all feedback iterations
@@ -255,13 +255,13 @@ The following requirements have been identified as immediate priorities for Phas
 - ✅ Concurrency limit enforcement with stateless pause mechanism
 - ✅ Failure artefact creation on worker exit code ≠ 0
 - ✅ Docker socket mounting: /var/run/docker.sock:/var/run/docker.sock
-- ✅ SETT_MODE environment variable for controller identification
+- ✅ HOLT_MODE environment variable for controller identification
 - ✅ Full backward compatibility (traditional agents unaffected)
 - ✅ Comprehensive E2E tests (basic flow, concurrency, backward compat)
 
 **Key Design Decisions**:
-- Explicit `mode: "controller"` in sett.yml for clarity
-- Command-line claim delivery: `cub --execute-claim <claim_id>`
+- Explicit `mode: "controller"` in holt.yml for clarity
+- Command-line claim delivery: `pup --execute-claim <claim_id>`
 - Orchestrator owns worker lifecycle (centralized control)
 - No automatic retries (M3.4 scope limit)
 - Stateless grant pausing (persistent queue deferred to M3.5)
@@ -306,7 +306,7 @@ The following requirements have been identified as immediate priorities for Phas
 - Logs clear timeout event for operational monitoring
 
 **Implementation Considerations**:
-- Add timeout configuration to sett.yml (per-agent or per-phase)
+- Add timeout configuration to holt.yml (per-agent or per-phase)
 - Track grant time in phase state
 - Periodic check for timed-out grants
 - Graceful handling of agents that complete after timeout

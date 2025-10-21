@@ -3,9 +3,9 @@
 **Phase Goal**: One agent can claim and execute work with full Git integration.
 
 **Phase Success Criteria**:
-- `sett forage --goal "test"` creates initial artefact
+- `holt forage --goal "test"` creates initial artefact
 - Orchestrator creates corresponding claim
-- Agent cub bids on claim and wins
+- Agent pup bids on claim and wins
 - Agent executes work and creates Git commit artefact
 - Full audit trail visible on blackboard (GoalDefined → CodeCommit)
 - Git workspace integration functional (clean repo validation, commit workflow)
@@ -16,18 +16,18 @@
 
 Phase 2 is broken down into **5 implementable milestones** that build the single-agent execution system in dependency order:
 
-### **M2.1: Agent Cub Foundation**
+### **M2.1: Agent Pup Foundation**
 **Status**: Design Complete ✅
 **Dependencies**: M1.1, M1.2
 **Estimated Effort**: Medium
 
-**Goal**: Establish the agent cub binary with foundational concurrent architecture, configuration management, and health monitoring infrastructure.
+**Goal**: Establish the agent pup binary with foundational concurrent architecture, configuration management, and health monitoring infrastructure.
 
 **Scope**:
-- New binary `cmd/cub/main.go` with entrypoint
+- New binary `cmd/pup/main.go` with entrypoint
 - Configuration loading from environment variables:
-  - `SETT_INSTANCE_NAME` (required)
-  - `SETT_AGENT_NAME` (required)
+  - `HOLT_INSTANCE_NAME` (required)
+  - `HOLT_AGENT_NAME` (required)
   - `REDIS_URL` (required)
 - Redis blackboard connection using existing `pkg/blackboard` client
 - Health check HTTP server (`GET /healthz`) with Redis PING
@@ -39,15 +39,15 @@ Phase 2 is broken down into **5 implementable milestones** that build the single
 - Fail-fast configuration validation
 
 **Deliverables**:
-- `cmd/cub/main.go` - Cub binary entrypoint
-- `internal/cub/config.go` - Configuration struct, LoadConfig(), Validate()
-- `internal/cub/engine.go` - Engine struct, Start(), goroutine methods
-- `internal/cub/health.go` - HealthServer, /healthz handler
+- `cmd/pup/main.go` - Pup binary entrypoint
+- `internal/pup/config.go` - Configuration struct, LoadConfig(), Validate()
+- `internal/pup/engine.go` - Engine struct, Start(), goroutine methods
+- `internal/pup/health.go` - HealthServer, /healthz handler
 - Unit tests for config validation, health checks, engine lifecycle (90%+ coverage)
 - Integration tests with testcontainers-go (binary + Redis, no Docker image)
-- Makefile targets: `build-cub`, `test-cub`
+- Makefile targets: `build-pup`, `test-pup`
 
-**Design Document**: ✅ [M2.1-agent-cub-foundation.md](./M2.1-agent-cub-foundation.md)
+**Design Document**: ✅ [M2.1-agent-pup-foundation.md](./M2.1-agent-pup-foundation.md)
 
 ---
 
@@ -59,35 +59,35 @@ Phase 2 is broken down into **5 implementable milestones** that build the single
 **Goal**: Implement claim event subscription, bidding logic, and enhance orchestrator with full consensus model and granting.
 
 **Scope**:
-- **Agent Cub enhancements:**
-  - Claim Watcher subscribes to `sett:{instance}:claim_events` Pub/Sub channel
+- **Agent Pup enhancements:**
+  - Claim Watcher subscribes to `holt:{instance}:claim_events` Pub/Sub channel
   - Implement basic bidding logic: submit "exclusive" bid for any new claim
-  - Bid submission via Redis HSET to `sett:{instance}:claim:{uuid}:bids`
+  - Bid submission via Redis HSET to `holt:{instance}:claim:{uuid}:bids`
   - Poll claim status after bidding to detect grant
 - **Orchestrator enhancements (M1.5 updates):**
   - Implement full consensus model: wait for bid from all known agents (single agent in Phase 2)
-  - Load agent registry from `sett.yml` configuration
+  - Load agent registry from `holt.yml` configuration
   - Implement claim granting logic for exclusive phase
   - Update claim status: `pending_review` → `pending_exclusive` → `complete`
   - Publish granted claim to enable agent to proceed
 - **CLI enhancements:**
-  - Parse agent definitions from `sett.yml`
-  - Launch agent containers with cub entrypoint
+  - Parse agent definitions from `holt.yml`
+  - Launch agent containers with pup entrypoint
   - Pass required environment variables to agent containers
   - Mount workspace (read-only for M2.2, read-write in M2.4)
 - **Docker integration:**
-  - Create example agent Dockerfile with cub binary
-  - Container naming conventions: `sett-{instance}-agent-{name}`
+  - Create example agent Dockerfile with pup binary
+  - Container naming conventions: `holt-{instance}-agent-{name}`
   - Network integration: agents connect to Redis
 
 **Deliverables**:
-- `internal/cub/watcher.go` - Claim Watcher with Pub/Sub and bidding
+- `internal/pup/watcher.go` - Claim Watcher with Pub/Sub and bidding
 - `internal/orchestrator/consensus.go` - Full consensus bidding model
 - `internal/orchestrator/granting.go` - Claim granting logic
-- `cmd/sett/commands/up.go` - Enhanced to launch agent containers
+- `cmd/holt/commands/up.go` - Enhanced to launch agent containers
 - `agents/example-echo-agent/Dockerfile` - Example agent image
-- Integration tests: cub receives claim event, submits bid, orchestrator grants
-- E2E test: `sett up` launches agent, agent connects and bids on test claim
+- Integration tests: pup receives claim event, submits bid, orchestrator grants
+- E2E test: `holt up` launches agent, agent connects and bids on test claim
 
 **Design Document**: `M2.2-claim-watching-bidding.md`
 
@@ -105,7 +105,7 @@ Phase 2 is broken down into **5 implementable milestones** that build the single
   - Read granted claim from work queue channel
   - Fetch target artefact from blackboard
   - Format tool input (JSON to stdin): `{"claim_type": "exclusive", "target_artefact": {...}, "context_chain": []}`
-  - Execute agent-specific command script (from `sett.yml` agent definition)
+  - Execute agent-specific command script (from `holt.yml` agent definition)
   - Parse tool output (JSON from stdout): `{"artefact_type": "...", "artefact_payload": "...", "summary": "..."}`
   - Create and post new artefact to blackboard
   - Publish artefact to `artefact_events` channel
@@ -124,8 +124,8 @@ Phase 2 is broken down into **5 implementable milestones** that build the single
   - Claim termination on agent failure
 
 **Deliverables**:
-- `internal/cub/executor.go` - Work Executor loop, tool command execution
-- `internal/cub/contract.go` - Tool contract types (stdin/stdout JSON schemas)
+- `internal/pup/executor.go` - Work Executor loop, tool command execution
+- `internal/pup/contract.go` - Tool contract types (stdin/stdout JSON schemas)
 - `agents/example-echo-agent/run.sh` - Echo agent script
 - `agents/example-echo-agent/Dockerfile` - Updated with run.sh
 - Integration tests: claim → grant → execute → artefact creation
@@ -140,18 +140,18 @@ Phase 2 is broken down into **5 implementable milestones** that build the single
 **Dependencies**: M2.3
 **Estimated Effort**: Large
 
-**Goal**: Implement the context assembly algorithm (the "brain" of the cub) and Git-based agent execution with workspace integration.
+**Goal**: Implement the context assembly algorithm (the "brain" of the pup) and Git-based agent execution with workspace integration.
 
 **Scope**:
 - **Context assembly algorithm:**
   - Breadth-first traversal of `source_artefacts` graph
-  - Thread tracking: for each logical_id, fetch latest version via `sett:{instance}:thread:{logical_id}` ZSET
+  - Thread tracking: for each logical_id, fetch latest version via `holt:{instance}:thread:{logical_id}` ZSET
   - De-duplication: use map keyed by logical_id
   - Depth limit: 10 levels maximum (safety valve)
   - Assemble context_chain array for tool input
 - **Git workspace integration:**
   - **CLI enhancements:**
-    - Verify clean Git repository before `sett up`
+    - Verify clean Git repository before `holt up`
     - Detect workspace path (Git repository root)
     - Mount workspace into agent containers as volume
     - Validate no uncommitted changes or untracked files
@@ -169,12 +169,12 @@ Phase 2 is broken down into **5 implementable milestones** that build the single
   - Artefact type: "CodeCommit"
 - **Workspace validation:**
   - Pre-flight checks: `.git` exists, working directory clean
-  - Error handling: fail `sett up` if workspace invalid
+  - Error handling: fail `holt up` if workspace invalid
 
 **Deliverables**:
-- `internal/cub/context.go` - Context assembly algorithm
-- `internal/cub/thread.go` - Thread tracking and latest version lookup
-- `cmd/sett/commands/up.go` - Git workspace validation and mounting
+- `internal/pup/context.go` - Context assembly algorithm
+- `internal/pup/thread.go` - Thread tracking and latest version lookup
+- `cmd/holt/commands/up.go` - Git workspace validation and mounting
 - `internal/git/` - Git workspace validation utilities
 - `agents/example-git-agent/run.sh` - Git-based agent script
 - `agents/example-git-agent/Dockerfile` - Git-enabled agent image
@@ -195,7 +195,7 @@ Phase 2 is broken down into **5 implementable milestones** that build the single
 
 **Scope**:
 - **End-to-end test suite:**
-  - Complete workflow: `sett forage --goal "create hello.txt"` → orchestrator creates claim → Git agent bids → executes → creates file → commits → posts CodeCommit artefact
+  - Complete workflow: `holt forage --goal "create hello.txt"` → orchestrator creates claim → Git agent bids → executes → creates file → commits → posts CodeCommit artefact
   - Verify audit trail: GoalDefined artefact → CodeCommit artefact with source_artefacts chain
   - Validate Git commit exists in repository with correct hash
   - Verify workspace remains clean after execution
@@ -203,10 +203,10 @@ Phase 2 is broken down into **5 implementable milestones** that build the single
   - Agent script fails (non-zero exit) → Failure artefact created, claim terminated
   - Agent script outputs invalid JSON → Failure artefact created
   - Agent container crashes → orchestrator detects failure, creates Failure artefact
-  - Redis unavailable → agent health check fails, cub exits gracefully
-  - Git workspace dirty → `sett up` fails with clear error message
+  - Redis unavailable → agent health check fails, pup exits gracefully
+  - Git workspace dirty → `holt up` fails with clear error message
 - **Performance validation:**
-  - Startup time: `sett up` completes in <10 seconds
+  - Startup time: `holt up` completes in <10 seconds
   - Claim-to-execution latency: <2 seconds from claim creation to agent execution start
   - Context assembly: handles 10-level graph in <1 second
 - **Documentation updates:**
@@ -216,12 +216,12 @@ Phase 2 is broken down into **5 implementable milestones** that build the single
   - Update troubleshooting guide with agent-related issues
 - **Regression testing:**
   - Verify all Phase 1 tests still pass
-  - Verify multi-instance support still works (multiple setts with different agents)
+  - Verify multi-instance support still works (multiple holts with different agents)
 
 **Deliverables**:
-- `cmd/sett/commands/e2e_test.go` - Complete Phase 2 E2E test suite
+- `cmd/holt/commands/e2e_test.go` - Complete Phase 2 E2E test suite
 - `cmd/orchestrator/orchestrator_integration_test.go` - Enhanced with agent scenarios
-- `internal/cub/cub_integration_test.go` - Comprehensive failure scenario tests
+- `internal/pup/pup_integration_test.go` - Comprehensive failure scenario tests
 - Updated `README.md` with Phase 2 completion status
 - Updated `docs/agent-development.md` (new guide for creating agents)
 - Updated `docs/troubleshooting.md` with agent-related issues
@@ -248,7 +248,7 @@ Phase 2 is broken down into **5 implementable milestones** that build the single
               ┌────────────┘       └────────────┐
               ▼                                 ▼
    ┌─────────────────────┐         ┌─────────────────────┐
-   │  M1.5: Orchestrator │         │  M2.1: Agent Cub    │
+   │  M1.5: Orchestrator │         │  M2.1: Agent Pup    │
    │  Claim Engine       │         │  Foundation         │
    └──────────┬──────────┘         └──────────┬──────────┘
               │                                 │
@@ -257,7 +257,7 @@ Phase 2 is broken down into **5 implementable milestones** that build the single
               │         ┌─────────────────────┐
               │         │  M2.2: Claim        │
               │         │  Watching & Bidding │
-              └─────────►  (Orch + Cub + CLI) │
+              └─────────►  (Orch + Pup + CLI) │
                         └──────────┬──────────┘
                                    │
                                    ▼
@@ -284,7 +284,7 @@ Phase 2 is broken down into **5 implementable milestones** that build the single
 The milestones must be implemented in strict sequential order due to dependencies:
 
 **Wave 1: Foundation**
-- **M2.1**: Agent Cub Foundation (depends on M1.1, M1.2)
+- **M2.1**: Agent Pup Foundation (depends on M1.1, M1.2)
 
 **Wave 2: Integration**
 - **M2.2**: Claim Watching & Bidding (depends on M2.1, M1.5)
@@ -302,20 +302,20 @@ The milestones must be implemented in strict sequential order due to dependencie
 
 Phase 2 is complete when:
 - ✅ All 5 milestones have their Definition of Done satisfied
-- ✅ End-to-end test passes: `sett forage --goal "create hello.txt"` → agent bids → executes → creates Git commit artefact
+- ✅ End-to-end test passes: `holt forage --goal "create hello.txt"` → agent bids → executes → creates Git commit artefact
 - ✅ Full audit trail visible on blackboard:
   - GoalDefined artefact with `type: "GoalDefined"`, `payload: "create hello.txt"`
   - CodeCommit artefact with `type: "CodeCommit"`, `payload: "<commit-hash>"`, `source_artefacts: [GoalDefined.id]`
 - ✅ Git workspace integration functional:
-  - `sett up` validates clean repository
+  - `holt up` validates clean repository
   - Agent creates file `hello.txt` in workspace
   - Agent commits changes with proper message
   - Workspace remains clean after execution
-- ✅ Agent cub lifecycle management:
-  - Cub connects to Redis and stays healthy
-  - Cub bids on claims reliably
-  - Cub executes work and posts artefacts
-  - Cub shuts down gracefully on `sett down`
+- ✅ Agent pup lifecycle management:
+  - Pup connects to Redis and stays healthy
+  - Pup bids on claims reliably
+  - Pup executes work and posts artefacts
+  - Pup shuts down gracefully on `holt down`
 - ✅ No regressions in Phase 1 tests
 - ✅ All core data structures are implemented and tested
 - ✅ Documentation is complete (agent development guide, updated README)
@@ -329,7 +329,7 @@ Each milestone includes:
 - **E2E tests**: User-facing workflows from CLI perspective
 
 **Phase 2 E2E Test Suite** (M2.5):
-1. **Agent cub foundation**: Cub starts, connects to Redis, responds to health checks, shuts down gracefully
+1. **Agent pup foundation**: Pup starts, connects to Redis, responds to health checks, shuts down gracefully
 2. **Bidding workflow**: Orchestrator creates claim → agent receives event → agent bids → orchestrator grants
 3. **Echo agent execution**: Echo agent receives claim → executes → posts EchoSuccess artefact
 4. **Git agent execution**: Git agent receives claim → assembles context → creates file → commits → posts CodeCommit artefact
@@ -356,12 +356,12 @@ We build up complexity gradually:
 **Rationale**: Incremental complexity reduces integration risk and makes debugging easier.
 
 ### **Context Assembly Algorithm**
-The breadth-first graph traversal with thread tracking (logical_id → latest version) is the core intelligence of the cub. This ensures agents always receive the most recent context without manual version management.
+The breadth-first graph traversal with thread tracking (logical_id → latest version) is the core intelligence of the pup. This ensures agents always receive the most recent context without manual version management.
 
-**Rationale**: Aligns with Sett's immutable artefact model while providing stateful-like behavior through graph traversal.
+**Rationale**: Aligns with Holt's immutable artefact model while providing stateful-like behavior through graph traversal.
 
 ### **Fail-Fast Configuration Validation**
-All environment variable validation happens at cub startup, before any Redis connection or goroutine launch. Invalid configuration causes immediate exit with clear error messages.
+All environment variable validation happens at pup startup, before any Redis connection or goroutine launch. Invalid configuration causes immediate exit with clear error messages.
 
 **Rationale**: Provides fast feedback loop for developers and prevents partial initialization failures.
 
@@ -377,12 +377,12 @@ All environment variable validation happens at cub startup, before any Redis con
 ### **Deferred to Phase 4: "Human-in-the-Loop"**
 - Question/Answer artefacts
 - Human approval gates
-- `sett questions` and `sett answer` commands
+- `holt questions` and `holt answer` commands
 - Interactive workflows
 
 ### **Future Enhancements (Beyond Phase 4)**
-- Dynamic agent registration (currently static from `sett.yml`)
-- Agent hot-reloading (currently requires `sett down && sett up`)
+- Dynamic agent registration (currently static from `holt.yml`)
+- Agent hot-reloading (currently requires `holt down && holt up`)
 - Advanced context assembly (custom graph traversal strategies)
 - LLM-based bidding strategies
 - Artefact retention policies
@@ -425,13 +425,13 @@ All environment variable validation happens at cub startup, before any Redis con
 - ✅ All Phase 1 tests continue to pass (no regressions)
 
 ### **Performance Metrics**
-- ✅ Cub startup time: <1 second
+- ✅ Pup startup time: <1 second
 - ✅ Claim-to-execution latency: <2 seconds
 - ✅ Context assembly (10-level graph): <1 second
 - ✅ Git commit operation: <5 seconds
 
 ### **Quality Metrics**
-- ✅ Test coverage: 90%+ for all new packages (`internal/cub`, `internal/git`)
+- ✅ Test coverage: 90%+ for all new packages (`internal/pup`, `internal/git`)
 - ✅ Zero race conditions detected (all tests pass with `-race`)
 - ✅ Zero goroutine leaks (verified in integration tests)
 

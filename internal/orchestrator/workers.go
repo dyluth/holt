@@ -12,9 +12,9 @@ import (
 	"github.com/docker/docker/api/types/container"
 	"github.com/docker/docker/api/types/mount"
 	"github.com/docker/docker/client"
-	"github.com/dyluth/sett/internal/config"
-	dockerpkg "github.com/dyluth/sett/internal/docker"
-	"github.com/dyluth/sett/pkg/blackboard"
+	"github.com/dyluth/holt/internal/config"
+	dockerpkg "github.com/dyluth/holt/internal/docker"
+	"github.com/dyluth/holt/pkg/blackboard"
 	"github.com/google/uuid"
 )
 
@@ -22,7 +22,7 @@ import (
 // M3.4: Workers are ephemeral containers launched on-demand to execute granted claims
 type WorkerState struct {
 	ContainerID   string    // Docker container ID
-	ContainerName string    // sett-{instance}-{agent}-worker-{claim-short-id}
+	ContainerName string    // holt-{instance}-{agent}-worker-{claim-short-id}
 	ClaimID       string    // Claim being executed
 	Role          string    // Agent role
 	AgentName     string    // Original agent name (e.g., "coder-controller")
@@ -34,10 +34,10 @@ type WorkerState struct {
 // WorkerManager handles worker lifecycle management for the orchestrator
 // M3.4: Manages Docker container creation, monitoring, and cleanup for workers
 type WorkerManager struct {
-	dockerClient      *client.Client
-	instanceName      string
-	workspacePath     string
-	networkName       string
+	dockerClient       *client.Client
+	instanceName       string
+	workspacePath      string
+	networkName        string
 	redisContainerName string
 
 	activeWorkers map[string]*WorkerState // key: container_id
@@ -63,7 +63,7 @@ func NewWorkerManager(dockerClient *client.Client, instanceName, workspacePath s
 func (wm *WorkerManager) LaunchWorker(ctx context.Context, claim *blackboard.Claim, agentName string, agent config.Agent, bbClient *blackboard.Client) error {
 	// Generate worker container name
 	shortClaimID := claim.ID[:8] // First 8 chars of UUID
-	containerName := fmt.Sprintf("sett-%s-%s-worker-%s", wm.instanceName, agentName, shortClaimID)
+	containerName := fmt.Sprintf("holt-%s-%s-worker-%s", wm.instanceName, agentName, shortClaimID)
 
 	wm.logEvent("worker_launching", map[string]interface{}{
 		"container_name": containerName,
@@ -78,20 +78,20 @@ func (wm *WorkerManager) LaunchWorker(ctx context.Context, claim *blackboard.Cla
 	containerConfig := &container.Config{
 		Image: agent.Worker.Image,
 		// M3.4: Worker is launched with --execute-claim flag
-		// Note: Image has ENTRYPOINT ["/app/cub"], so Cmd only contains arguments
+		// Note: Image has ENTRYPOINT ["/app/pup"], so Cmd only contains arguments
 		Cmd: []string{"--execute-claim", claim.ID},
 		Env: []string{
-			fmt.Sprintf("SETT_INSTANCE_NAME=%s", wm.instanceName),
-			fmt.Sprintf("SETT_AGENT_NAME=%s", agentName),
-			fmt.Sprintf("SETT_AGENT_ROLE=%s", agent.Role),
+			fmt.Sprintf("HOLT_INSTANCE_NAME=%s", wm.instanceName),
+			fmt.Sprintf("HOLT_AGENT_NAME=%s", agentName),
+			fmt.Sprintf("HOLT_AGENT_ROLE=%s", agent.Role),
 			fmt.Sprintf("REDIS_URL=%s", redisURL),
-			fmt.Sprintf("SETT_BIDDING_STRATEGY=%s", agent.BiddingStrategy),
-			// NOTE: No SETT_MODE for workers - the --execute-claim flag is sufficient
+			fmt.Sprintf("HOLT_BIDDING_STRATEGY=%s", agent.BiddingStrategy),
+			// NOTE: No HOLT_MODE for workers - the --execute-claim flag is sufficient
 		},
 		Labels: dockerpkg.BuildLabels(wm.instanceName, uuid.New().String(), wm.workspacePath, "worker"),
 	}
 
-	// Add SETT_AGENT_COMMAND environment variable if configured
+	// Add HOLT_AGENT_COMMAND environment variable if configured
 	if len(agent.Worker.Command) > 0 {
 		commandJSON := fmt.Sprintf("[\"%s\"]", agent.Worker.Command[0])
 		if len(agent.Worker.Command) > 1 {
@@ -105,7 +105,7 @@ func (wm *WorkerManager) LaunchWorker(ctx context.Context, claim *blackboard.Cla
 			}
 			commandJSON += "]"
 		}
-		containerConfig.Env = append(containerConfig.Env, fmt.Sprintf("SETT_AGENT_COMMAND=%s", commandJSON))
+		containerConfig.Env = append(containerConfig.Env, fmt.Sprintf("HOLT_AGENT_COMMAND=%s", commandJSON))
 	}
 
 	// Build host config

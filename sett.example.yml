@@ -1,5 +1,5 @@
-# Example Sett configuration for M3.1+ (multi-agent support)
-# Copy this to sett.yml and customize as needed
+# Example Holt configuration for M3.1+ (multi-agent support)
+# Copy this to holt.yml and customize as needed
 
 version: "1.0"
 
@@ -25,4 +25,4 @@ agents:
 #   redis:
 #     image: "redis:7-alpine"
 #   orchestrator:
-#     image: "sett-orchestrator:latest"
+#     image: "holt-orchestrator:latest"

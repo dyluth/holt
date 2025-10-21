@@ -13,30 +13,30 @@
 
 Phase 2 is broken down into **5 implementable milestones** that build single-agent functionality:
 
-### **M2.1: Agent Cub Foundation**
+### **M2.1: Agent Pup Foundation**
 **Status**: Design Complete ✅
 **Dependencies**: M1.1, M1.2
 **Estimated Effort**: Medium
 
-**Goal**: Establish the agent cub binary with foundational concurrent architecture, configuration management, and health monitoring.
+**Goal**: Establish the agent pup binary with foundational concurrent architecture, configuration management, and health monitoring.
 
 **Scope**:
-- New binary `cmd/cub/main.go` with entrypoint
-- Configuration loading from environment variables (`SETT_INSTANCE_NAME`, `SETT_AGENT_NAME`, `REDIS_URL`)
+- New binary `cmd/pup/main.go` with entrypoint
+- Configuration loading from environment variables (`HOLT_INSTANCE_NAME`, `HOLT_AGENT_NAME`, `REDIS_URL`)
 - Redis blackboard connection using `pkg/blackboard` client
 - Health check endpoint (`/healthz`) with Redis PING
 - Two-goroutine architecture structure (Claim Watcher, Work Executor) with placeholder work
 - Graceful shutdown handling (SIGINT/SIGTERM)
 
 **Deliverables**:
-- `cmd/cub/main.go` - Cub binary entrypoint
-- `internal/cub/config.go` - Configuration loading and validation
-- `internal/cub/engine.go` - Concurrent engine with goroutine structure
-- `internal/cub/health.go` - Health check HTTP server
+- `cmd/pup/main.go` - Pup binary entrypoint
+- `internal/pup/config.go` - Configuration loading and validation
+- `internal/pup/engine.go` - Concurrent engine with goroutine structure
+- `internal/pup/health.go` - Health check HTTP server
 - Unit and integration tests (90%+ coverage)
-- Makefile targets: `build-cub`, `test-cub`
+- Makefile targets: `build-pup`, `test-pup`
 
-**Design Document**: ✅ [M2.1-agent-cub-foundation.md](./M2.1-agent-cub-foundation.md)
+**Design Document**: ✅ [M2.1-agent-pup-foundation.md](./M2.1-agent-pup-foundation.md)
 
 ---
 
@@ -48,7 +48,7 @@ Phase 2 is broken down into **5 implementable milestones** that build single-age
 **Goal**: Implement claim event subscription, bidding logic, and orchestrator full consensus model.
 
 **Scope**:
-- Cub subscribes to `claim_events` Pub/Sub channel
+- Pup subscribes to `claim_events` Pub/Sub channel
 - Basic bidding logic (submit "exclusive" bid for any new claim)
 - Orchestrator enhancement: full consensus model (wait for single agent's bid)
 - Orchestrator enhancement: claim granting logic
@@ -58,7 +58,7 @@ Phase 2 is broken down into **5 implementable milestones** that build single-age
 - Enhanced Claim Watcher goroutine with Pub/Sub subscription
 - Bid submission logic
 - Enhanced orchestrator claim engine (consensus + granting)
-- Integration tests: cub receives claim, submits bid, orchestrator grants
+- Integration tests: pup receives claim, submits bid, orchestrator grants
 
 **Design Document**: `M2.2-claim-watching-bidding.md`
 
@@ -121,7 +121,7 @@ Phase 2 is broken down into **5 implementable milestones** that build single-age
 **Goal**: Complete Phase 2 with full integration testing and validation.
 
 **Scope**:
-- End-to-end test: `sett forage` → orchestrator creates claim → agent bids → agent executes → creates Git commit artefact
+- End-to-end test: `holt forage` → orchestrator creates claim → agent bids → agent executes → creates Git commit artefact
 - Failure scenario testing (agent failures, container crashes)
 - Performance validation
 - Documentation updates
@@ -152,7 +152,7 @@ Phase 2 is broken down into **5 implementable milestones** that build single-age
                │
                ▼
     ┌─────────────────────┐
-    │  M2.1: Agent Cub    │◄──────────┐
+    │  M2.1: Agent Pup    │◄──────────┐
     │  Foundation         │           │
     └──────────┬──────────┘           │
                │                      │
@@ -191,7 +191,7 @@ Phase 2 is broken down into **5 implementable milestones** that build single-age
 
 ## **Testing Requirements**
 
-- Agent cub unit and integration tests (90%+ coverage)
+- Agent pup unit and integration tests (90%+ coverage)
 - Git workflow end-to-end testing
 - Container execution testing
 - Blackboard state verification
@@ -207,7 +207,7 @@ Phase 2 is broken down into **5 implementable milestones** that build single-age
 
 Phase 2 is complete when:
 - ✅ All 5 milestones have their Definition of Done satisfied
-- ✅ End-to-end test passes: `sett forage --goal "test"` → agent bids → executes → creates Git commit artefact
+- ✅ End-to-end test passes: `holt forage --goal "test"` → agent bids → executes → creates Git commit artefact
 - ✅ Full audit trail visible on blackboard (artefact chain from GoalDefined to CodeCommit)
 - ✅ Git workspace integration functional (clean repo validation, commit workflow)
 - ✅ No regressions in Phase 1 tests
@@ -215,7 +215,7 @@ Phase 2 is complete when:
 
 ## **Deliverables**
 
-- Functional agent cub binary (`cmd/cub`)
+- Functional agent pup binary (`cmd/pup`)
 - Working agent container execution
 - Git integration with commit workflow
 - Single-agent end-to-end workflow

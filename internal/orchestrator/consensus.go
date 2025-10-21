@@ -5,7 +5,7 @@ import (
 	"log"
 	"time"
 
-	"github.com/dyluth/sett/pkg/blackboard"
+	"github.com/dyluth/holt/pkg/blackboard"
 )
 
 // WaitForConsensus implements the full consensus bidding model for M3.1.
@@ -101,10 +101,10 @@ func (e *Engine) validateAndSanitizeBids(claimID string, bids map[string]blackbo
 				agentName, bidType, claimID)
 
 			e.logEvent("invalid_bid", map[string]interface{}{
-				"claim_id":      claimID,
-				"agent_name":    agentName,
-				"bid_type":      string(bidType),
-				"action_taken":  "treated_as_ignore",
+				"claim_id":     claimID,
+				"agent_name":   agentName,
+				"bid_type":     string(bidType),
+				"action_taken": "treated_as_ignore",
 			})
 
 			sanitized[agentName] = blackboard.BidTypeIgnore

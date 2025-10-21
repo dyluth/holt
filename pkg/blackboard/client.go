@@ -23,7 +23,7 @@ type Client struct {
 //
 // Parameters:
 //   - redisOpts: Redis connection options (address, password, DB, etc.)
-//   - instanceName: Sett instance identifier (must not be empty)
+//   - instanceName: Holt instance identifier (must not be empty)
 //
 // Returns an error if instanceName is empty.
 func NewClient(redisOpts *redis.Options, instanceName string) (*Client, error) {
@@ -57,9 +57,9 @@ func (c *Client) RedisClient() *redis.Client {
 
 // CreateArtefact writes an artefact to Redis and publishes an event.
 // Validates the artefact before writing. Returns error if validation fails or Redis operation fails.
-// Publishes full artefact JSON to sett:{instance}:artefact_events after successful write.
+// Publishes full artefact JSON to holt:{instance}:artefact_events after successful write.
 //
-// The artefact is stored as a Redis hash at sett:{instance}:artefact:{id}.
+// The artefact is stored as a Redis hash at holt:{instance}:artefact:{id}.
 // This method is idempotent - writing the same artefact twice is safe.
 func (c *Client) CreateArtefact(ctx context.Context, a *Artefact) error {
 	// Validate artefact
@@ -132,7 +132,7 @@ func (c *Client) ArtefactExists(ctx context.Context, artefactID string) (bool, e
 
 // CreateClaim writes a claim to Redis and publishes an event.
 // Validates the claim before writing.
-// Publishes full claim JSON to sett:{instance}:claim_events after successful write.
+// Publishes full claim JSON to holt:{instance}:claim_events after successful write.
 // Also creates an index mapping artefact_id to claim_id for idempotency checks.
 func (c *Client) CreateClaim(ctx context.Context, claim *Claim) error {
 	// Validate claim
@@ -252,7 +252,7 @@ func (c *Client) GetClaimByArtefactID(ctx context.Context, artefactID string) (*
 }
 
 // SetBid records an agent's bid on a claim and publishes a bid_submitted event.
-// Uses HSET on sett:{instance}:claim:{claim_id}:bids with key=agentName, value=bidType.
+// Uses HSET on holt:{instance}:claim:{claim_id}:bids with key=agentName, value=bidType.
 // Validates the bid type before writing.
 // Publishes bid_submitted event to workflow_events channel after successful write.
 func (c *Client) SetBid(ctx context.Context, claimID string, agentName string, bidType BidType) error {
@@ -302,7 +302,7 @@ func (c *Client) GetAllBids(ctx context.Context, claimID string) (map[string]Bid
 
 // AddVersionToThread adds an artefact to a version thread.
 // Uses ZADD with score=version to maintain sorted order.
-// Threads are stored as ZSETs at sett:{instance}:thread:{logical_id}.
+// Threads are stored as ZSETs at holt:{instance}:thread:{logical_id}.
 func (c *Client) AddVersionToThread(ctx context.Context, logicalID string, artefactID string, version int) error {
 	key := ThreadKey(c.instanceName, logicalID)
 	score := ThreadScore(version)

@@ -1,0 +1,695 @@
+package commands
+
+import (
+	"context"
+	"encoding/json"
+	"fmt"
+	"os"
+	"strconv"
+	"syscall"
+	"time"
+
+	"github.com/docker/docker/api/types"
+	"github.com/docker/docker/api/types/container"
+	"github.com/docker/docker/api/types/filters"
+	"github.com/docker/docker/client"
+	"github.com/docker/go-connections/nat"
+	"github.com/dyluth/holt/internal/config"
+	dockerpkg "github.com/dyluth/holt/internal/docker"
+	"github.com/dyluth/holt/internal/git"
+	"github.com/dyluth/holt/internal/instance"
+	"github.com/dyluth/holt/internal/printer"
+	"github.com/google/uuid"
+	"github.com/spf13/cobra"
+)
+
+var (
+	upInstanceName string
+	upForce        bool
+)
+
+var upCmd = &cobra.Command{
+	Use:   "up",
+	Short: "Start a Holt instance",
+	Long: `Start a new Holt instance in the current Git repository.
+
+Creates and starts:
+  • Isolated Docker network
+  • Redis container (blackboard storage)
+  • Orchestrator container (claim coordinator)
+
+The instance name is auto-generated (default-N) unless specified with --name.
+Workspace safety checks prevent multiple instances on the same directory unless --force is used.`,
+	RunE: runUp,
+}
+
+func init() {
+	upCmd.Flags().StringVarP(&upInstanceName, "name", "n", "", "Instance name (auto-generated if omitted)")
+	upCmd.Flags().BoolVarP(&upForce, "force", "f", false, "Bypass workspace collision check")
+	rootCmd.AddCommand(upCmd)
+}
+
+func runUp(cmd *cobra.Command, args []string) error {
+	ctx := context.Background()
+
+	// Phase 1: Environment Validation
+	if err := validateEnvironment(); err != nil {
+		return err
+	}
+
+	// Phase 2: Configuration Validation
+	cfg, err := config.Load("holt.yml")
+	if err != nil {
+		return printer.Error(
+			"holt.yml not found or invalid",
+			"No configuration file found in the current directory.",
+			[]string{
+				"Initialize your project first:\n  holt init",
+				"Then retry: holt up",
+			},
+		)
+	}
+
+	// Create Docker client
+	cli, err := dockerpkg.NewClient(ctx)
+	if err != nil {
+		return err
+	}
+	defer cli.Close()
+
+	// Phase 3: Instance Name Determination
+	targetInstanceName := upInstanceName
+	if targetInstanceName == "" {
+		// Auto-generate default-N name
+		targetInstanceName, err = instance.GenerateDefaultName(ctx, cli)
+		if err != nil {
+			return fmt.Errorf("failed to generate instance name: %w", err)
+		}
+	}
+
+	// Validate instance name
+	if err := instance.ValidateName(targetInstanceName); err != nil {
+		return err
+	}
+
+	// Check for name collision
+	nameCollision, err := instance.CheckNameCollision(ctx, cli, targetInstanceName)
+	if err != nil {
+		return err
+	}
+	if nameCollision {
+		return printer.Error(
+			fmt.Sprintf("instance '%s' already exists", targetInstanceName),
+			"Found existing containers with this instance name.",
+			[]string{
+				fmt.Sprintf("Stop the existing instance: holt down --name %s", targetInstanceName),
+				"Choose a different name: holt up --name other-name",
+			},
+		)
+	}
+
+	// Phase 4: Workspace Safety Check
+	workspacePath, err := instance.GetCanonicalWorkspacePath()
+	if err != nil {
+		return fmt.Errorf("failed to get workspace path: %w", err)
+	}
+
+	if !upForce {
+		collision, err := instance.CheckWorkspaceCollision(ctx, cli, workspacePath, targetInstanceName)
+		if err != nil {
+			return fmt.Errorf("failed to check workspace collision: %w", err)
+		}
+		if collision != nil {
+			return printer.ErrorWithContext(
+				"workspace in use",
+				fmt.Sprintf("Another instance '%s' is already running on this workspace:", collision.InstanceName),
+				map[string]string{
+					"Workspace": collision.WorkspacePath,
+					"Instance":  collision.InstanceName,
+				},
+				[]string{
+					fmt.Sprintf("Stop the other instance: holt down --name %s", collision.InstanceName),
+					"Use --force to bypass this check (not recommended)",
+				},
+			)
+		}
+	}
+
+	// Phase 5: Resource Creation
+	runID := uuid.New().String()
+	if err := createInstance(ctx, cli, cfg, targetInstanceName, runID, workspacePath); err != nil {
+		// Attempt rollback on failure
+		printer.Info("\nResource creation failed. Rolling back...\n")
+		if rollbackErr := rollbackInstance(ctx, cli, targetInstanceName); rollbackErr != nil {
+			printer.Warning("rollback encountered errors: %v\n", rollbackErr)
+		}
+		return fmt.Errorf("failed to create instance: %w", err)
+	}
+
+	// Success message
+	printUpSuccess(targetInstanceName, workspacePath, cfg)
+
+	return nil
+}
+
+func validateEnvironment() error {
+	// Check Git context
+	checker := git.NewChecker()
+	if err := checker.ValidateGitContext(); err != nil {
+		return printer.Error(
+			"not a Git repository",
+			"Holt requires initialization from within a Git repository.",
+			[]string{"Run these commands in order:\n  1. git init\n  2. holt init\n  3. holt up"},
+		)
+	}
+
+	return nil
+}
+
+func createInstance(ctx context.Context, cli *client.Client, cfg *config.HoltConfig, instanceName, runID, workspacePath string) error {
+	// Step 1: Validate all agent images exist
+	if err := validateAgentImages(ctx, cli, cfg); err != nil {
+		return err
+	}
+
+	// Step 2: Allocate Redis port
+	redisPort, err := instance.FindNextAvailablePort(ctx, cli)
+	if err != nil {
+		return fmt.Errorf("failed to allocate Redis port: %w", err)
+	}
+
+	printer.Success("Allocated Redis port: %d\n", redisPort)
+
+	// Step 2: Create isolated network
+	networkName := dockerpkg.NetworkName(instanceName)
+	networkLabels := dockerpkg.BuildLabels(instanceName, runID, workspacePath, "")
+
+	_, err = cli.NetworkCreate(ctx, networkName, types.NetworkCreate{
+		Driver: "bridge",
+		Labels: networkLabels,
+	})
+	if err != nil {
+		return fmt.Errorf("failed to create network '%s': %w", networkName, err)
+	}
+
+	printer.Success("Created network: %s\n", networkName)
+
+	// Step 3: Start Redis container with port mapping
+	redisImage := "redis:7-alpine"
+	if cfg.Services != nil && cfg.Services.Redis != nil && cfg.Services.Redis.Image != "" {
+		redisImage = cfg.Services.Redis.Image
+	}
+
+	redisName := dockerpkg.RedisContainerName(instanceName)
+	redisLabels := dockerpkg.BuildLabels(instanceName, runID, workspacePath, "redis")
+	// Add Redis port label
+	redisLabels[dockerpkg.LabelRedisPort] = fmt.Sprintf("%d", redisPort)
+
+	redisResp, err := cli.ContainerCreate(ctx, &container.Config{
+		Image:  redisImage,
+		Labels: redisLabels,
+		ExposedPorts: nat.PortSet{
+			"6379/tcp": struct{}{},
+		},
+	}, &container.HostConfig{
+		NetworkMode: container.NetworkMode(networkName),
+		PortBindings: nat.PortMap{
+			"6379/tcp": []nat.PortBinding{
+				{
+					HostIP:   "127.0.0.1",
+					HostPort: fmt.Sprintf("%d", redisPort),
+				},
+			},
+		},
+	}, nil, nil, redisName)
+	if err != nil {
+		return fmt.Errorf("failed to create Redis container: %w", err)
+	}
+
+	if err := cli.ContainerStart(ctx, redisResp.ID, container.StartOptions{}); err != nil {
+		return fmt.Errorf("failed to start Redis container: %w", err)
+	}
+
+	printer.Success("Started Redis container: %s (port %d)\n", redisName, redisPort)
+
+	// Step 4: Verify orchestrator image exists
+	orchestratorImage := "holt-orchestrator:latest"
+	if err := verifyOrchestratorImage(ctx, cli, orchestratorImage); err != nil {
+		return err
+	}
+
+	// Step 5: Start Orchestrator container with pre-built image
+	orchestratorName := dockerpkg.OrchestratorContainerName(instanceName)
+	orchestratorLabels := dockerpkg.BuildLabels(instanceName, runID, workspacePath, "orchestrator")
+
+	// Use Redis container name as hostname (Docker DNS)
+	redisURL := fmt.Sprintf("redis://%s:6379", redisName)
+
+	// M3.4: Get Docker socket GID for worker management permissions
+	dockerGroups := getDockerSocketGroups()
+
+	orchestratorResp, err := cli.ContainerCreate(ctx, &container.Config{
+		Image:  orchestratorImage,
+		Labels: orchestratorLabels,
+		Env: []string{
+			fmt.Sprintf("HOLT_INSTANCE_NAME=%s", instanceName),
+			fmt.Sprintf("REDIS_URL=%s", redisURL),
+			// M3.4: Pass host workspace path for worker mounts
+			fmt.Sprintf("HOST_WORKSPACE_PATH=%s", workspacePath),
+		},
+	}, &container.HostConfig{
+		NetworkMode: container.NetworkMode(networkName),
+		Binds: []string{
+			fmt.Sprintf("%s:/workspace:ro", workspacePath),
+			// M3.4: Mount Docker socket for worker management
+			"/var/run/docker.sock:/var/run/docker.sock",
+		},
+		// M3.4: Grant Docker socket access (required for worker launching)
+		// Only add group if we successfully detected the socket's GID
+		GroupAdd: dockerGroups,
+	}, nil, nil, orchestratorName)
+	if err != nil {
+		return fmt.Errorf("failed to create orchestrator container: %w", err)
+	}
+
+	if err := cli.ContainerStart(ctx, orchestratorResp.ID, container.StartOptions{}); err != nil {
+		return fmt.Errorf("failed to start orchestrator container: %w", err)
+	}
+
+	printer.Success("Started orchestrator container: %s\n", orchestratorName)
+
+	// Step 6: Launch agent containers
+	if err := launchAgentContainers(ctx, cli, cfg, instanceName, runID, workspacePath, networkName, redisName); err != nil {
+		return fmt.Errorf("failed to launch agent containers: %w", err)
+	}
+
+	return nil
+}
+
+func rollbackInstance(ctx context.Context, cli *client.Client, instanceName string) error {
+	timeout := 10
+
+	// Find all containers for this instance
+	containers, err := cli.ContainerList(ctx, container.ListOptions{
+		All: true,
+		Filters: filters.NewArgs(
+			filters.Arg("label", fmt.Sprintf("%s=%s", dockerpkg.LabelInstanceName, instanceName)),
+		),
+	})
+	if err != nil {
+		return fmt.Errorf("failed to list containers: %w", err)
+	}
+
+	// Stop and remove containers
+	for _, c := range containers {
+		printer.Info("  Stopping %s...\n", c.Names[0])
+		_ = cli.ContainerStop(ctx, c.ID, container.StopOptions{Timeout: &timeout})
+
+		printer.Info("  Removing %s...\n", c.Names[0])
+		if err := cli.ContainerRemove(ctx, c.ID, container.RemoveOptions{Force: true}); err != nil {
+			printer.Warning("failed to remove %s: %v\n", c.Names[0], err)
+		}
+	}
+
+	// Remove network
+	networks, err := cli.NetworkList(ctx, types.NetworkListOptions{
+		Filters: filters.NewArgs(
+			filters.Arg("label", fmt.Sprintf("%s=%s", dockerpkg.LabelInstanceName, instanceName)),
+		),
+	})
+	if err != nil {
+		return fmt.Errorf("failed to list networks: %w", err)
+	}
+
+	for _, net := range networks {
+		printer.Info("  Removing network %s...\n", net.Name)
+		if err := cli.NetworkRemove(ctx, net.ID); err != nil {
+			printer.Warning("failed to remove network %s: %v\n", net.Name, err)
+		}
+	}
+
+	return nil
+}
+
+func printUpSuccess(instanceName, workspacePath string, cfg *config.HoltConfig) {
+	agentCount := len(cfg.Agents)
+	printer.Success("\nInstance '%s' started successfully (%d agents ready)\n\n", instanceName, agentCount)
+	printer.Info("Containers:\n")
+	printer.Info("  • %s (running)\n", dockerpkg.RedisContainerName(instanceName))
+	printer.Info("  • %s (running)\n", dockerpkg.OrchestratorContainerName(instanceName))
+
+	// List agent containers
+	for agentName, agent := range cfg.Agents {
+		printer.Info("  • %s (running, healthy, bidding_strategy=%s)\n",
+			dockerpkg.AgentContainerName(instanceName, agentName),
+			agent.BiddingStrategy)
+	}
+
+	printer.Info("\n")
+	printer.Info("Network:\n")
+	printer.Info("  • %s\n", dockerpkg.NetworkName(instanceName))
+	printer.Info("\n")
+	printer.Info("Workspace: %s\n", workspacePath)
+	printer.Info("\n")
+	printer.Info("Next steps:\n")
+	printer.Info("  1. Run 'holt forage --goal \"your goal\"' to start a workflow\n")
+	if len(cfg.Agents) > 0 {
+		// Get first agent name for example
+		var firstAgent string
+		for name := range cfg.Agents {
+			firstAgent = name
+			break
+		}
+		printer.Info("  2. Run 'holt logs %s' to view agent logs\n", firstAgent)
+		printer.Info("  3. Run 'holt down --name %s' when finished\n", instanceName)
+	} else {
+		printer.Info("  2. Run 'holt list' to view all instances\n")
+		printer.Info("  3. Run 'holt down --name %s' when finished\n", instanceName)
+	}
+}
+
+func verifyOrchestratorImage(ctx context.Context, cli *client.Client, imageName string) error {
+	// Check if the image exists locally
+	images, err := cli.ImageList(ctx, types.ImageListOptions{})
+	if err != nil {
+		return fmt.Errorf("failed to list Docker images: %w", err)
+	}
+
+	// Look for the orchestrator image
+	for _, image := range images {
+		for _, tag := range image.RepoTags {
+			if tag == imageName {
+				printer.Success("Found orchestrator image: %s\n", imageName)
+				return nil
+			}
+		}
+	}
+
+	// Image not found - return helpful error
+	return printer.Error(
+		fmt.Sprintf("orchestrator image '%s' not found", imageName),
+		"",
+		[]string{"Please run 'make docker-orchestrator' to build it first."},
+	)
+}
+
+func validateAgentImages(ctx context.Context, cli *client.Client, cfg *config.HoltConfig) error {
+	if len(cfg.Agents) == 0 {
+		return nil
+	}
+
+	// Get list of all local images
+	images, err := cli.ImageList(ctx, types.ImageListOptions{})
+	if err != nil {
+		return fmt.Errorf("failed to list Docker images: %w", err)
+	}
+
+	// Build set of available image tags
+	availableImages := make(map[string]bool)
+	for _, image := range images {
+		for _, tag := range image.RepoTags {
+			availableImages[tag] = true
+		}
+	}
+
+	// Validate each agent image exists
+	var missingImages []string
+	for agentName, agent := range cfg.Agents {
+		if !availableImages[agent.Image] {
+			missingImages = append(missingImages, fmt.Sprintf("%s (for agent '%s')", agent.Image, agentName))
+		}
+	}
+
+	if len(missingImages) > 0 {
+		return printer.Error(
+			"agent images not found",
+			fmt.Sprintf("The following agent images are not available locally:\n  - %s",
+				missingImages[0]),
+			[]string{
+				"Build the agent images first:",
+				"  cd agents/<agent-dir>",
+				"  docker build -t <image-name> .",
+				"",
+				"Then retry: holt up",
+			},
+		)
+	}
+
+	printer.Success("Validated %d agent image(s)\n", len(cfg.Agents))
+	return nil
+}
+
+// M3.1: launchAgentContainersParallel launches all agent containers in parallel with fail-fast.
+// Uses goroutines + WaitGroup for concurrent startup.
+// Validates health checks before reporting success.
+// Returns error immediately on first failure (fail-fast) and triggers rollback.
+func launchAgentContainers(ctx context.Context, cli *client.Client, cfg *config.HoltConfig, instanceName, runID, workspacePath, networkName, redisName string) error {
+	if len(cfg.Agents) == 0 {
+		return nil
+	}
+
+	// Create cancellable context for fail-fast behavior
+	launchCtx, cancel := context.WithCancel(ctx)
+	defer cancel()
+
+	// Channels for collecting results
+	type launchResult struct {
+		agentName string
+		err       error
+	}
+	resultChan := make(chan launchResult, len(cfg.Agents))
+
+	// Launch all agents in parallel
+	agentCount := 0
+	for agentName, agent := range cfg.Agents {
+		agentCount++
+		// Launch each agent in a goroutine
+		go func(name string, agentCfg config.Agent) {
+			err := launchAgentContainer(launchCtx, cli, instanceName, runID, workspacePath, networkName, redisName, name, agentCfg)
+			resultChan <- launchResult{agentName: name, err: err}
+		}(agentName, agent)
+	}
+
+	// Collect results - fail fast on first error
+	var containerNames []string
+	for i := 0; i < agentCount; i++ {
+		result := <-resultChan
+		if result.err != nil {
+			// Fail-fast: cancel other launches and return error
+			cancel()
+			return fmt.Errorf("failed to launch agent '%s': %w", result.agentName, result.err)
+		}
+		containerNames = append(containerNames, dockerpkg.AgentContainerName(instanceName, result.agentName))
+	}
+
+	printer.Success("Started %d agent container(s) in parallel\n", agentCount)
+
+	// M3.1: Validate all agents are healthy before reporting success
+	if err := validateAllAgentsHealthy(ctx, cli, containerNames); err != nil {
+		return fmt.Errorf("agent health check failed: %w", err)
+	}
+
+	printer.Success("All agents healthy\n")
+
+	return nil
+}
+
+func launchAgentContainer(ctx context.Context, cli *client.Client, instanceName, runID, workspacePath, networkName, redisName, agentName string, agent config.Agent) error {
+	containerName := dockerpkg.AgentContainerName(instanceName, agentName)
+	labels := dockerpkg.BuildLabels(instanceName, runID, workspacePath, "agent")
+	labels[dockerpkg.LabelAgentName] = agentName
+
+	// Determine workspace mode (default to ro)
+	workspaceMode := "ro"
+	if agent.Workspace != nil && agent.Workspace.Mode != "" {
+		workspaceMode = agent.Workspace.Mode
+	}
+
+	// Build environment variables
+	redisURL := fmt.Sprintf("redis://%s:6379", redisName)
+	env := []string{
+		fmt.Sprintf("HOLT_INSTANCE_NAME=%s", instanceName),
+		fmt.Sprintf("HOLT_AGENT_NAME=%s", agentName),
+		fmt.Sprintf("HOLT_AGENT_ROLE=%s", agent.Role),
+		fmt.Sprintf("REDIS_URL=%s", redisURL),
+		fmt.Sprintf("HOLT_BIDDING_STRATEGY=%s", agent.BiddingStrategy), // M3.1
+	}
+
+	// M3.4: Set HOLT_MODE for controller agents
+	if agent.Mode == "controller" {
+		env = append(env, "HOLT_MODE=controller")
+	}
+
+	// Add HOLT_AGENT_COMMAND as JSON array
+	if len(agent.Command) > 0 {
+		commandJSON, err := json.Marshal(agent.Command)
+		if err != nil {
+			return fmt.Errorf("failed to marshal agent command to JSON: %w", err)
+		}
+		env = append(env, fmt.Sprintf("HOLT_AGENT_COMMAND=%s", commandJSON))
+	}
+
+	// Add custom environment variables from config
+	if len(agent.Environment) > 0 {
+		env = append(env, agent.Environment...)
+	}
+
+	// Create container
+	resp, err := cli.ContainerCreate(ctx, &container.Config{
+		Image:  agent.Image,
+		Labels: labels,
+		Env:    env,
+		Cmd:    agent.Command,
+	}, &container.HostConfig{
+		NetworkMode: container.NetworkMode(networkName),
+		Binds: []string{
+			fmt.Sprintf("%s:/workspace:%s", workspacePath, workspaceMode),
+		},
+	}, nil, nil, containerName)
+	if err != nil {
+		return fmt.Errorf("failed to create container: %w", err)
+	}
+
+	// Start container
+	if err := cli.ContainerStart(ctx, resp.ID, container.StartOptions{}); err != nil {
+		return fmt.Errorf("failed to start container: %w", err)
+	}
+
+	printer.Success("Started agent container: %s\n", containerName)
+	return nil
+}
+
+// validateAllAgentsHealthy validates that all agent containers pass health checks.
+// M3.1: Uses docker exec to check /healthz endpoint inside each container.
+// Implements retry logic with exponential backoff (5 attempts over ~10s).
+// Total timeout: 30 seconds for all agents.
+// Fail-fast: Returns error immediately on first health check failure.
+func validateAllAgentsHealthy(ctx context.Context, cli *client.Client, containerNames []string) error {
+	// Create timeout context (30 seconds total)
+	healthCtx, cancel := context.WithTimeout(ctx, 30*time.Second)
+	defer cancel()
+
+	printer.Info("Validating agent health checks...\n")
+
+	// Check each agent health in parallel
+	type healthResult struct {
+		containerName string
+		err           error
+	}
+	resultChan := make(chan healthResult, len(containerNames))
+
+	for _, containerName := range containerNames {
+		go func(name string) {
+			err := validateAgentHealth(healthCtx, cli, name)
+			resultChan <- healthResult{containerName: name, err: err}
+		}(containerName)
+	}
+
+	// Collect results - fail fast on first error
+	for i := 0; i < len(containerNames); i++ {
+		result := <-resultChan
+		if result.err != nil {
+			return fmt.Errorf("agent %s failed health check: %w", result.containerName, result.err)
+		}
+		printer.Info("  ✓ %s (healthy)\n", result.containerName)
+	}
+
+	return nil
+}
+
+// validateAgentHealth checks if a single agent container is healthy.
+// Retries up to 5 times with exponential backoff: 100ms, 200ms, 400ms, 800ms, 1600ms.
+func validateAgentHealth(ctx context.Context, cli *client.Client, containerName string) error {
+	maxAttempts := 5
+	backoff := 100 * time.Millisecond
+
+	for attempt := 1; attempt <= maxAttempts; attempt++ {
+		// Try health check
+		err := checkHealthEndpoint(ctx, cli, containerName)
+		if err == nil {
+			return nil // Success!
+		}
+
+		// Check if context cancelled (timeout or fail-fast)
+		if ctx.Err() != nil {
+			return fmt.Errorf("health check cancelled: %w", ctx.Err())
+		}
+
+		// Last attempt failed - return error
+		if attempt == maxAttempts {
+			return fmt.Errorf("health check failed after %d attempts: %w", maxAttempts, err)
+		}
+
+		// Wait before retry with exponential backoff
+		time.Sleep(backoff)
+		backoff *= 2
+	}
+
+	return fmt.Errorf("health check failed after %d attempts", maxAttempts)
+}
+
+// checkHealthEndpoint uses docker exec to check the /healthz endpoint inside a container.
+// Uses wget -q -O- http://localhost:8080/healthz to fetch health status.
+func checkHealthEndpoint(ctx context.Context, cli *client.Client, containerName string) error {
+	// Create exec instance
+	execConfig := types.ExecConfig{
+		Cmd:          []string{"wget", "-q", "-O-", "http://localhost:8080/healthz"},
+		AttachStdout: true,
+		AttachStderr: true,
+	}
+
+	execID, err := cli.ContainerExecCreate(ctx, containerName, execConfig)
+	if err != nil {
+		return fmt.Errorf("failed to create exec: %w", err)
+	}
+
+	// Start exec
+	resp, err := cli.ContainerExecAttach(ctx, execID.ID, types.ExecStartCheck{})
+	if err != nil {
+		return fmt.Errorf("failed to start exec: %w", err)
+	}
+	defer resp.Close()
+
+	// Wait for completion
+	err = cli.ContainerExecStart(ctx, execID.ID, types.ExecStartCheck{})
+	if err != nil {
+		return fmt.Errorf("failed to exec start: %w", err)
+	}
+
+	// Check exit code
+	inspectResp, err := cli.ContainerExecInspect(ctx, execID.ID)
+	if err != nil {
+		return fmt.Errorf("failed to inspect exec: %w", err)
+	}
+
+	if inspectResp.ExitCode != 0 {
+		return fmt.Errorf("health check returned non-zero exit code: %d", inspectResp.ExitCode)
+	}
+
+	return nil
+}
+
+// getDockerSocketGroups returns the GID of /var/run/docker.sock for container access.
+// Returns empty slice if unable to detect (graceful degradation - orchestrator will
+// warn about Docker unavailability but continue without worker management).
+func getDockerSocketGroups() []string {
+	// Stat the Docker socket to get its GID
+	fileInfo, err := os.Stat("/var/run/docker.sock")
+	if err != nil {
+		// Socket doesn't exist or can't be accessed - not fatal
+		// Orchestrator will run but worker management will be disabled
+		return []string{}
+	}
+
+	// Get the GID from the file info
+	stat, ok := fileInfo.Sys().(*syscall.Stat_t)
+	if !ok {
+		// Can't get stat info - return empty (graceful degradation)
+		return []string{}
+	}
+
+	// Return GID as string (Docker accepts both group names and GIDs)
+	// Using GID is more reliable than group name across different systems
+	gid := strconv.FormatUint(uint64(stat.Gid), 10)
+	return []string{gid}
+}

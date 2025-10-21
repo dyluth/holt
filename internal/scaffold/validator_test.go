@@ -25,21 +25,21 @@ func TestCheckExisting(t *testing.T) {
 			wantErr: false,
 		},
 		{
-			name: "existing sett.yml only",
+			name: "existing holt.yml only",
 			setupFunc: func() (string, func()) {
 				tmpDir, err := os.MkdirTemp("", "scaffold-test-*")
 				if err != nil {
 					t.Fatal(err)
 				}
-				settYml := filepath.Join(tmpDir, "sett.yml")
-				if err := os.WriteFile(settYml, []byte("version: '1.0'"), 0644); err != nil {
+				holtYml := filepath.Join(tmpDir, "holt.yml")
+				if err := os.WriteFile(holtYml, []byte("version: '1.0'"), 0644); err != nil {
 					os.RemoveAll(tmpDir)
 					t.Fatal(err)
 				}
 				return tmpDir, func() { os.RemoveAll(tmpDir) }
 			},
 			wantErr: true,
-			errMsg:  "sett.yml",
+			errMsg:  "holt.yml",
 		},
 		{
 			name: "existing agents/ directory only",
@@ -59,14 +59,14 @@ func TestCheckExisting(t *testing.T) {
 			errMsg:  "agents/",
 		},
 		{
-			name: "both sett.yml and agents/ exist",
+			name: "both holt.yml and agents/ exist",
 			setupFunc: func() (string, func()) {
 				tmpDir, err := os.MkdirTemp("", "scaffold-test-*")
 				if err != nil {
 					t.Fatal(err)
 				}
-				settYml := filepath.Join(tmpDir, "sett.yml")
-				if err := os.WriteFile(settYml, []byte("version: '1.0'"), 0644); err != nil {
+				holtYml := filepath.Join(tmpDir, "holt.yml")
+				if err := os.WriteFile(holtYml, []byte("version: '1.0'"), 0644); err != nil {
 					os.RemoveAll(tmpDir)
 					t.Fatal(err)
 				}

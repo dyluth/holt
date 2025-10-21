@@ -1,4 +1,4 @@
-# Example sett.yml with M3.4 Controller-Worker Pattern
+# Example holt.yml with M3.4 Controller-Worker Pattern
 # This demonstrates horizontal scaling with controller-worker architecture
 
 version: "1.0"
@@ -21,14 +21,14 @@ agents:
     role: "Coder"
     mode: "controller"  # This container only bids, never executes
     image: "coder:latest"
-    command: ["/app/cub"]  # Controller runs cub in bidder-only mode
+    command: ["/app/pup"]  # Controller runs pup in bidder-only mode
     bidding_strategy: "exclusive"
 
     # Worker configuration for ephemeral execution containers
     worker:
       image: "coder:latest"  # Can differ from controller image
       max_concurrent: 3      # Maximum parallel workers (default: 1)
-      command: ["/app/cub"]  # Worker command (launched with --execute-claim flag)
+      command: ["/app/pup"]  # Worker command (launched with --execute-claim flag)
       workspace:
         mode: rw  # Workers need write access for code changes
 
@@ -37,13 +37,13 @@ agents:
     role: "Tester"
     mode: "controller"
     image: "tester:latest"
-    command: ["/app/cub"]
+    command: ["/app/pup"]
     bidding_strategy: "claim"
 
     worker:
       image: "tester:latest"
       max_concurrent: 5  # More parallel testers allowed
-      command: ["/app/cub"]
+      command: ["/app/pup"]
       workspace:
         mode: ro  # Tests only read code
 
@@ -51,4 +51,4 @@ services:
   redis:
     image: redis:7-alpine
   orchestrator:
-    image: sett-orchestrator:latest
+    image: holt-orchestrator:latest

@@ -1,17 +1,17 @@
 // Package blackboard provides type-safe Go definitions and Redis schema patterns
-// for the Sett blackboard architecture.
+// for the Holt blackboard architecture.
 //
 // # Overview
 //
-// The blackboard is the central shared state system where all Sett components
-// (orchestrator, cubs, CLI) interact via well-defined data structures stored in Redis.
+// The blackboard is the central shared state system where all Holt components
+// (orchestrator, pups, CLI) interact via well-defined data structures stored in Redis.
 // It implements the Blackboard architectural pattern - a shared workspace where
 // independent agents collaborate by reading and writing structured data.
 //
 // # Core Concepts
 //
 // Artefacts are immutable work products that represent the fundamental unit of state
-// in Sett. Every piece of work, decision, and result is represented as an artefact
+// in Holt. Every piece of work, decision, and result is represented as an artefact
 // with complete provenance tracking via source_artefacts and produced_by_role fields.
 //
 // Claims represent the orchestrator's decision about how an artefact should be processed.
@@ -23,12 +23,12 @@
 // # Multi-Instance Support
 //
 // All Redis keys and Pub/Sub channels are namespaced by instance name to enable
-// multiple Sett instances to safely coexist on a single Redis server without
+// multiple Holt instances to safely coexist on a single Redis server without
 // interference. Each instance has complete isolation of its data and events.
 //
 // # Usage Example
 //
-//	import "github.com/dyluth/sett/pkg/blackboard"
+//	import "github.com/dyluth/holt/pkg/blackboard"
 //
 //	// Create an artefact
 //	artefact := &blackboard.Artefact{
@@ -49,7 +49,7 @@
 //
 //	// Generate Redis key for this artefact
 //	key := blackboard.ArtefactKey("default-1", artefact.ID)
-//	// key = "sett:default-1:artefact:<uuid>"
+//	// key = "holt:default-1:artefact:<uuid>"
 //
 //	// Convert to Redis hash format for storage (M1.2 will do this)
 //	hash, err := blackboard.ArtefactToHash(artefact)
@@ -59,17 +59,17 @@
 //
 // # Redis Schema
 //
-// All Redis keys follow the pattern: sett:{instance_name}:{entity}:{uuid}
+// All Redis keys follow the pattern: holt:{instance_name}:{entity}:{uuid}
 //
-// Artefacts: sett:{instance_name}:artefact:{artefact_id}
-// Claims: sett:{instance_name}:claim:{claim_id}
-// Claim Bids: sett:{instance_name}:claim:{claim_id}:bids
-// Threads: sett:{instance_name}:thread:{logical_id}
+// Artefacts: holt:{instance_name}:artefact:{artefact_id}
+// Claims: holt:{instance_name}:claim:{claim_id}
+// Claim Bids: holt:{instance_name}:claim:{claim_id}:bids
+// Threads: holt:{instance_name}:thread:{logical_id}
 //
-// Pub/Sub channels: sett:{instance_name}:{event_type}_events
+// Pub/Sub channels: holt:{instance_name}:{event_type}_events
 //
-// Artefact Events: sett:{instance_name}:artefact_events
-// Claim Events: sett:{instance_name}:claim_events
+// Artefact Events: holt:{instance_name}:artefact_events
+// Claim Events: holt:{instance_name}:claim_events
 //
 // # Design Principles
 //

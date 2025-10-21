@@ -5,7 +5,7 @@ import (
 	"fmt"
 	"log"
 
-	"github.com/dyluth/sett/pkg/blackboard"
+	"github.com/dyluth/holt/pkg/blackboard"
 	"github.com/google/uuid"
 )
 
@@ -44,12 +44,12 @@ func (e *Engine) CreateFeedbackClaim(ctx context.Context, originalClaim *blackbo
 
 	// Create feedback claim
 	feedbackClaim := &blackboard.Claim{
-		ID:                   uuid.New().String(),
-		ArtefactID:           targetArtefact.ID, // Target is the original work, not the Review
-		Status:               blackboard.ClaimStatusPendingAssignment,
+		ID:                    uuid.New().String(),
+		ArtefactID:            targetArtefact.ID, // Target is the original work, not the Review
+		Status:                blackboard.ClaimStatusPendingAssignment,
 		GrantedExclusiveAgent: producerAgent,
-		AdditionalContextIDs: reviewIDs, // Inject Review artefacts into context
-		GrantedReviewAgents:  []string{},
+		AdditionalContextIDs:  reviewIDs, // Inject Review artefacts into context
+		GrantedReviewAgents:   []string{},
 		GrantedParallelAgents: []string{},
 	}
 
@@ -114,10 +114,10 @@ func (e *Engine) terminateMaxIterations(ctx context.Context, claim *blackboard.C
 	claim.TerminationReason = fmt.Sprintf("Terminated after reaching max review iterations (%d).", maxIterations)
 
 	e.logEvent("claim_terminated_max_iterations", map[string]interface{}{
-		"claim_id":   claim.ID,
+		"claim_id":    claim.ID,
 		"artefact_id": artefact.ID,
-		"iterations": iterations + 1,
-		"failure_id": failure.ID,
+		"iterations":  iterations + 1,
+		"failure_id":  failure.ID,
 	})
 
 	log.Printf("[Orchestrator] Claim %s terminated: max iterations (%d) reached",
@@ -163,7 +163,7 @@ func (e *Engine) terminateMissingAgent(ctx context.Context, claim *blackboard.Cl
 }
 
 // formatReviewRejectionReason creates human-readable termination reason for review feedback.
-// M3.3: Used when setting claim.TerminationReason after review rejection.
+// M3.3: Used when holting claim.TerminationReason after review rejection.
 func formatReviewRejectionReason(feedbackArtefacts []*blackboard.Artefact) string {
 	ids := make([]string, len(feedbackArtefacts))
 	for i, art := range feedbackArtefacts {

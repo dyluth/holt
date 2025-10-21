@@ -5,8 +5,8 @@ import (
 	"testing"
 
 	"github.com/alicebob/miniredis/v2"
-	"github.com/dyluth/sett/internal/config"
-	"github.com/dyluth/sett/pkg/blackboard"
+	"github.com/dyluth/holt/internal/config"
+	"github.com/dyluth/holt/pkg/blackboard"
 	"github.com/google/uuid"
 	"github.com/redis/go-redis/v9"
 	"github.com/stretchr/testify/assert"
@@ -26,7 +26,7 @@ func setupTestEngineWithMaxIterations(t *testing.T, maxIterations int) (*Engine,
 	require.NoError(t, err)
 	t.Cleanup(func() { bbClient.Close() })
 
-	cfg := &config.SettConfig{
+	cfg := &config.HoltConfig{
 		Version: "1.0",
 		Orchestrator: &config.OrchestratorConfig{
 			MaxReviewIterations: &maxIterations,
@@ -370,7 +370,7 @@ func TestCheckPendingAssignmentClaims(t *testing.T) {
 	v2Artefact := &blackboard.Artefact{
 		ID:              uuid.New().String(),
 		LogicalID:       targetArtefact.LogicalID, // Same thread
-		Version:         2,                         // Incremented version
+		Version:         2,                        // Incremented version
 		StructuralType:  blackboard.StructuralTypeStandard,
 		Type:            "CodeCommit",
 		Payload:         "v2-hash",

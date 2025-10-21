@@ -19,8 +19,8 @@ type FileInfo struct {
 	Permissions os.FileMode
 }
 
-// Initialize creates the Sett project structure
-// If force is true, it will remove existing sett.yml and agents/ directory
+// Initialize creates the Holt project structure
+// If force is true, it will remove existing holt.yml and agents/ directory
 func Initialize(force bool) error {
 	// Handle --force flag
 	if force {
@@ -55,11 +55,11 @@ func Initialize(force bool) error {
 
 // handleForce removes existing files if --force was specified
 func handleForce() error {
-	// Remove sett.yml if it exists
-	if _, err := os.Stat("sett.yml"); err == nil {
-		fmt.Println("⚠️  Removing existing sett.yml...")
-		if err := os.Remove("sett.yml"); err != nil {
-			return fmt.Errorf("failed to remove sett.yml: %w", err)
+	// Remove holt.yml if it exists
+	if _, err := os.Stat("holt.yml"); err == nil {
+		fmt.Println("⚠️  Removing existing holt.yml...")
+		if err := os.Remove("holt.yml"); err != nil {
+			return fmt.Errorf("failed to remove holt.yml: %w", err)
 		}
 	}
 
@@ -78,14 +78,14 @@ func handleForce() error {
 func getTemplateFiles() ([]FileInfo, error) {
 	files := []FileInfo{}
 
-	// sett.yml
-	settYml, err := templatesFS.ReadFile("templates/sett.yml.tmpl")
+	// holt.yml
+	holtYml, err := templatesFS.ReadFile("templates/holt.yml.tmpl")
 	if err != nil {
-		return nil, fmt.Errorf("failed to read sett.yml template: %w", err)
+		return nil, fmt.Errorf("failed to read holt.yml template: %w", err)
 	}
 	files = append(files, FileInfo{
-		Path:        "sett.yml",
-		Content:     settYml,
+		Path:        "holt.yml",
+		Content:     holtYml,
 		Permissions: 0644,
 	})
 
@@ -154,15 +154,15 @@ func writeFiles(files []FileInfo) error {
 
 // validateCreatedFiles validates that created files are correct
 func validateCreatedFiles() error {
-	// Validate sett.yml is valid YAML
-	content, err := os.ReadFile("sett.yml")
+	// Validate holt.yml is valid YAML
+	content, err := os.ReadFile("holt.yml")
 	if err != nil {
-		return fmt.Errorf("failed to read created sett.yml: %w", err)
+		return fmt.Errorf("failed to read created holt.yml: %w", err)
 	}
 
 	var yamlData interface{}
 	if err := yaml.Unmarshal(content, &yamlData); err != nil {
-		return fmt.Errorf("created sett.yml is not valid YAML: %w", err)
+		return fmt.Errorf("created holt.yml is not valid YAML: %w", err)
 	}
 
 	return nil
@@ -170,15 +170,15 @@ func validateCreatedFiles() error {
 
 // PrintSuccess prints the success message with created files
 func PrintSuccess() {
-	fmt.Println("\n✅ Successfully initialized Sett project!")
+	fmt.Println("\n✅ Successfully initialized Holt project!")
 	fmt.Println("\nCreated:")
-	fmt.Println("  ✓ sett.yml")
+	fmt.Println("  ✓ holt.yml")
 	fmt.Println("  ✓ agents/example-agent/Dockerfile")
 	fmt.Println("  ✓ agents/example-agent/run.sh")
 	fmt.Println("  ✓ agents/example-agent/README.md")
 	fmt.Println("\nNext steps:")
-	fmt.Println("  1. Add '.sett/' to your .gitignore file")
-	fmt.Println("  2. Customize sett.yml to add your own agents")
-	fmt.Println("  3. Run 'sett up' to start the Sett orchestrator")
-	fmt.Println("\nFor more information, visit: https://docs.sett.ai/getting-started")
+	fmt.Println("  1. Add '.holt/' to your .gitignore file")
+	fmt.Println("  2. Customize holt.yml to add your own agents")
+	fmt.Println("  3. Run 'holt up' to start the Holt orchestrator")
+	fmt.Println("\nFor more information, visit: https://docs.holt.ai/getting-started")
 }

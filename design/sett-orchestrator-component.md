@@ -1,4 +1,4 @@
-# **The Sett Orchestrator Component: Design & Specification**
+# **The Holt Orchestrator Component: Design & Specification**
 
 **Purpose**: Orchestrator component logic, algorithms, and implementation details  
 **Scope**: Component-specific - read when implementing orchestrator features  
@@ -7,7 +7,7 @@
 
 ## **1. Core purpose**
 
-The Orchestrator is the central coordination engine of Sett. It is a lightweight, event-driven component that serves as a non-intelligent traffic cop, managing the lifecycle of Claims and coordinating agent work without making domain-specific decisions.
+The Orchestrator is the central coordination engine of Holt. It is a lightweight, event-driven component that serves as a non-intelligent traffic cop, managing the lifecycle of Claims and coordinating agent work without making domain-specific decisions.
 
 Its fundamental purpose is to:
 - Watch for new Artefacts on the blackboard
@@ -16,7 +16,7 @@ Its fundamental purpose is to:
 - Manage the phased execution of granted Claims
 - Handle failures and maintain system integrity
 
-The Orchestrator does **not** contain business logic or domain knowledge. All intelligence for bidding and work execution resides within the Agent Cubs.
+The Orchestrator does **not** contain business logic or domain knowledge. All intelligence for bidding and work execution resides within the Agent Pups.
 
 ## **2. System bootstrapping**
 
@@ -26,14 +26,14 @@ The Orchestrator becomes active after the CLI initiates a workflow. The CLI is t
 
 The Orchestrator relies on the CLI to ensure prerequisites are met:
 * A clean, initialised Git repository is required
-* When `sett forage` is run, the CLI performs critical checks:
+* When `holt forage` is run, the CLI performs critical checks:
   * Verifies that a `.git` directory exists
   * Verifies that the Git working directory is clean (no uncommitted changes or untracked files)
 * The root of this verified Git repository becomes the workspace mounted into agent containers
 
 ### **Initial workflow trigger**
 
-1. The `sett forage --goal "Create a REST API"` command connects to the Redis instance
+1. The `holt forage --goal "Create a REST API"` command connects to the Redis instance
 2. The CLI creates the very first Artefact on the blackboard with these properties:
    * `structural_type`: Standard
    * `type`: GoalDefined (a special, reserved type)
@@ -57,7 +57,7 @@ The Orchestrator operates as a pure event-driven system:
 The Orchestrator implements a "full consensus" bidding model to ensure deterministic, debuggable workflows:
 
 1. **Bid collection**: The Orchestrator waits until it has received a bid (including explicit 'ignore' bids) from every known agent
-2. **Agent registry**: The list of "known agents" comes from the sett.yml configuration loaded at startup
+2. **Agent registry**: The list of "known agents" comes from the holt.yml configuration loaded at startup
 3. **Timeout handling**: V1 does not implement bid timeouts - the system waits indefinitely for all agents to respond
 4. **Deterministic processing**: This ensures workflows are completely reproducible and debuggable
 
@@ -149,15 +149,15 @@ The Orchestrator is responsible for:
 ### **5.2. Claim state management**
 
 The Orchestrator maintains Claims through their complete lifecycle:
-* **Creation**: Writing new Claim objects to `sett:{instance_name}:claim:{uuid}`
+* **Creation**: Writing new Claim objects to `holt:{instance_name}:claim:{uuid}`
 * **Status updates**: Atomic updates to claim status fields
-* **Bid collection**: Reading from `sett:{instance_name}:claim:{uuid}:bids` to gather agent responses
+* **Bid collection**: Reading from `holt:{instance_name}:claim:{uuid}:bids` to gather agent responses
 * **Granted agent tracking**: Maintaining lists of granted agents for each phase
 
 ### **5.3. Agent registry management**
 
 The Orchestrator must maintain an accurate registry of known agents:
-* **Startup initialization**: Load agent list from sett.yml configuration
+* **Startup initialization**: Load agent list from holt.yml configuration
 * **Bid validation**: Ensure bids come only from known agents
 * **Consensus enforcement**: Require bids from all registered agents before proceeding
 
@@ -196,14 +196,14 @@ The Orchestrator ensures blackboard consistency:
 ### **7.1. Environment variables**
 
 The Orchestrator requires these environment variables:
-* **SETT_INSTANCE_NAME**: The name of the sett instance (e.g., my-first-sett)
-* **REDIS_URL**: Connection string for the blackboard (e.g., redis://sett-my-first-sett-redis:6379)
-* **SETT_CONFIG_PATH**: Path to the sett.yml configuration file
+* **HOLT_INSTANCE_NAME**: The name of the holt instance (e.g., my-first-holt)
+* **REDIS_URL**: Connection string for the blackboard (e.g., redis://holt-my-first-holt-redis:6379)
+* **HOLT_CONFIG_PATH**: Path to the holt.yml configuration file
 
 ### **7.2. Configuration loading**
 
 The Orchestrator loads configuration at startup:
-* **Agent registry**: Reads the complete list of agents from sett.yml
+* **Agent registry**: Reads the complete list of agents from holt.yml
 * **Service overrides**: Applies any service-level configuration overrides
 * **Validation**: Ensures configuration is valid and complete before starting
 
@@ -232,9 +232,9 @@ The Orchestrator supports operational debugging:
 
 ## **9. Integration with other components**
 
-### **9.1. Agent Cub coordination**
+### **9.1. Agent Pup coordination**
 
-The Orchestrator coordinates with Agent Cubs through:
+The Orchestrator coordinates with Agent Pups through:
 * **Claim notifications**: Publishing new claim IDs to `claim_events` channel
 * **Bid collection**: Reading bids from claim-specific Redis hashes
 * **Work assignment**: Implicit work assignment through claim grants

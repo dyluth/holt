@@ -1,6 +1,6 @@
-# Sett Troubleshooting Guide
+# Holt Troubleshooting Guide
 
-**Target Audience:** Developers encountering issues with Sett workflows
+**Target Audience:** Developers encountering issues with Holt workflows
 
 **Scope:** Common problems, causes, solutions, and debugging commands
 
@@ -8,7 +8,7 @@
 
 ## Table of Contents
 
-1. [Sett Won't Start](#sett-wont-start)
+1. [Holt Won't Start](#holt-wont-start)
 2. [Agent Won't Execute](#agent-wont-execute)
 3. [Git Workspace Errors](#git-workspace-errors)
 4. [Blackboard State Issues](#blackboard-state-issues)
@@ -19,28 +19,28 @@
 
 ---
 
-## Sett Won't Start
+## Holt Won't Start
 
-### Error: "sett.yml not found or invalid"
+### Error: "holt.yml not found or invalid"
 
 **Symptoms:**
 ```
-❌ sett.yml not found or invalid
+❌ holt.yml not found or invalid
    No configuration file found in the current directory.
 ```
 
-**Cause:** No `sett.yml` file in current directory, or file has syntax errors.
+**Cause:** No `holt.yml` file in current directory, or file has syntax errors.
 
 **Solution:**
 ```bash
 # Initialize new project
-sett init
+holt init
 
-# Or verify sett.yml exists
-ls -la sett.yml
+# Or verify holt.yml exists
+ls -la holt.yml
 
 # Check YAML syntax
-cat sett.yml
+cat holt.yml
 ```
 
 ---
@@ -67,7 +67,7 @@ git commit -m "Work in progress"
 git stash
 
 # Option 3: Force start (use with caution)
-sett up --force
+holt up --force
 ```
 
 **Debug Commands:**
@@ -100,11 +100,11 @@ git diff
 docker ps | grep redis
 
 # Check Redis logs
-sett logs redis
+holt logs redis
 
-# Restart Sett instance
-sett down
-sett up
+# Restart Holt instance
+holt down
+holt up
 
 # Check for port conflicts
 netstat -an | grep 6379
@@ -113,13 +113,13 @@ netstat -an | grep 6379
 **Debug Commands:**
 ```bash
 # List all containers for this instance
-docker ps -a --filter "name=sett-"
+docker ps -a --filter "name=holt-"
 
 # Inspect Redis container
-docker inspect sett-{instance}-redis
+docker inspect holt-{instance}-redis
 
 # Test Redis connectivity
-docker exec sett-{instance}-redis redis-cli PING
+docker exec holt-{instance}-redis redis-cli PING
 ```
 
 ---
@@ -137,14 +137,14 @@ docker exec sett-{instance}-redis redis-cli PING
 **Solution:**
 ```bash
 # Stop existing instance
-sett down --name default-1
+holt down --name default-1
 
 # Or use different name
-sett up --name my-instance
+holt up --name my-instance
 
 # Or list and clean up
-sett list
-sett down --name <old-instance>
+holt list
+holt down --name <old-instance>
 ```
 
 ---
@@ -154,21 +154,21 @@ sett down --name <old-instance>
 **Symptoms:**
 ```
 ❌ workspace already in use by instance default-1
-   Another Sett instance is running in this directory.
+   Another Holt instance is running in this directory.
 ```
 
-**Cause:** Another Sett instance is already running in this Git repository.
+**Cause:** Another Holt instance is already running in this Git repository.
 
 **Solution:**
 ```bash
 # Check running instances
-sett list
+holt list
 
 # Stop the instance using this workspace
-sett down
+holt down
 
 # Or run in different directory
-cd ../other-project && sett up
+cd ../other-project && holt up
 ```
 
 ---
@@ -179,9 +179,9 @@ cd ../other-project && sett up
 
 **Symptoms:**
 - `docker ps` doesn't show agent container
-- `sett logs <agent>` shows "container not found"
+- `holt logs <agent>` shows "container not found"
 
-**Cause:** Docker image not built, configuration error in sett.yml, or Docker daemon issue.
+**Cause:** Docker image not built, configuration error in holt.yml, or Docker daemon issue.
 
 **Solution:**
 ```bash
@@ -191,11 +191,11 @@ docker images | grep <agent-name>
 # Build agent image
 docker build -t <agent-name>:latest -f agents/<agent-name>/Dockerfile .
 
-# Check sett.yml configuration
-cat sett.yml | grep -A 5 agents:
+# Check holt.yml configuration
+cat holt.yml | grep -A 5 agents:
 
 # Restart instance
-sett down && sett up
+holt down && holt up
 ```
 
 **Debug Commands:**
@@ -207,10 +207,10 @@ docker info
 docker ps -a --filter "name=agent"
 
 # Inspect agent container
-docker inspect sett-{instance}-agent-{agent-name}
+docker inspect holt-{instance}-agent-{agent-name}
 
 # Check container logs
-docker logs sett-{instance}-agent-{agent-name}
+docker logs holt-{instance}-agent-{agent-name}
 ```
 
 ---
@@ -227,7 +227,7 @@ docker logs sett-{instance}-agent-{agent-name}
 **Solution:**
 ```bash
 # Check agent logs for bidding activity
-sett logs <agent-name>
+holt logs <agent-name>
 
 # Look for lines like:
 # "Received claim event"
@@ -235,19 +235,19 @@ sett logs <agent-name>
 # "Executing work for claim"
 
 # Verify agent container is healthy
-docker exec sett-{instance}-agent-{agent-name} wget -O- http://localhost:8080/healthz
+docker exec holt-{instance}-agent-{agent-name} wget -O- http://localhost:8080/healthz
 ```
 
 **Debug Commands:**
 ```bash
 # Check blackboard for claims
-sett hoard
+holt hoard
 
 # Query Redis directly for bids
-docker exec sett-{instance}-redis redis-cli HGETALL sett:{instance}:claim:{claim-id}:bids
+docker exec holt-{instance}-redis redis-cli HGETALL holt:{instance}:claim:{claim-id}:bids
 
 # Check orchestrator logs
-sett logs orchestrator
+holt logs orchestrator
 ```
 
 ---
@@ -256,7 +256,7 @@ sett logs orchestrator
 
 **Symptoms:**
 ```bash
-sett hoard
+holt hoard
 # Shows Failure artefact instead of expected result
 ```
 
@@ -265,7 +265,7 @@ sett hoard
 **Solution:**
 ```bash
 # Check agent logs for stderr output
-sett logs <agent-name>
+holt logs <agent-name>
 
 # Look for error messages like:
 # "exit code: 1"
@@ -282,10 +282,10 @@ agents/<agent-name>/run.sh < test-input.json | jq .
 **Debug Commands:**
 ```bash
 # Get Failure artefact details
-sett hoard | grep -A 10 "Failure"
+holt hoard | grep -A 10 "Failure"
 
 # Check artefact payload for error details
-docker exec sett-{instance}-redis redis-cli HGET sett:{instance}:artefact:{id} payload
+docker exec holt-{instance}-redis redis-cli HGET holt:{instance}:artefact:{id} payload
 ```
 
 ---
@@ -315,7 +315,7 @@ commit_hash=$(git rev-parse HEAD)  # BEFORE commit
 git commit -m "message"
 
 # Check workspace mount in container
-docker inspect sett-{instance}-agent-{agent-name} | grep -A 10 Mounts
+docker inspect holt-{instance}-agent-{agent-name} | grep -A 10 Mounts
 ```
 
 **Debug Commands:**
@@ -324,10 +324,10 @@ docker inspect sett-{instance}-agent-{agent-name} | grep -A 10 Mounts
 git log --oneline -20
 
 # Verify workspace is mounted correctly
-docker exec sett-{instance}-agent-{agent-name} ls -la /workspace
+docker exec holt-{instance}-agent-{agent-name} ls -la /workspace
 
 # Check git config in container
-docker exec sett-{instance}-agent-{agent-name} git config --list
+docker exec holt-{instance}-agent-{agent-name} git config --list
 ```
 
 ---
@@ -339,7 +339,7 @@ docker exec sett-{instance}-agent-{agent-name} git config --list
 **Symptoms:**
 ```
 ❌ not a Git repository
-   Sett requires a Git repository to manage workflows.
+   Holt requires a Git repository to manage workflows.
 ```
 
 **Cause:** Current directory is not a Git repository.
@@ -354,8 +354,8 @@ echo "# Project" > README.md
 git add .
 git commit -m "Initial commit"
 
-# Then initialize Sett
-sett init
+# Then initialize Holt
+holt init
 ```
 
 ---
@@ -372,8 +372,8 @@ error: cannot open .git/COMMIT_EDITMSG: Permission denied
 
 **Solution:**
 ```bash
-# Verify workspace mode in sett.yml
-cat sett.yml
+# Verify workspace mode in holt.yml
+cat holt.yml
 # Should have:
 agents:
   my-agent:
@@ -387,7 +387,7 @@ ls -la
 chmod -R 755 .git
 
 # Restart instance
-sett down && sett up
+holt down && holt up
 ```
 
 ---
@@ -403,18 +403,18 @@ sett down && sett up
 **Solution:**
 ```bash
 # Verify only one instance running in this workspace
-sett list
+holt list
 
 # Check git log for agent commits
-git log --oneline --author="Sett"
+git log --oneline --author="Holt"
 
 # Verify mounts
-docker inspect sett-{instance}-agent-{agent-name} | grep -A 10 "Mounts"
+docker inspect holt-{instance}-agent-{agent-name} | grep -A 10 "Mounts"
 
 # Restart with clean state
-sett down
+holt down
 git status  # Should be clean
-sett up
+holt up
 ```
 
 ---
@@ -425,7 +425,7 @@ sett up
 
 **Symptoms:**
 ```bash
-sett hoard
+holt hoard
 # Shows empty or unexpected results
 ```
 
@@ -434,28 +434,28 @@ sett hoard
 **Solution:**
 ```bash
 # Verify instance name
-sett list
+holt list
 
 # Check for specific instance
-sett hoard --name <instance-name>
+holt hoard --name <instance-name>
 
 # Verify Redis contains data
-docker exec sett-{instance}-redis redis-cli KEYS "sett:*"
+docker exec holt-{instance}-redis redis-cli KEYS "holt:*"
 
 # Check orchestrator logs
-sett logs orchestrator
+holt logs orchestrator
 ```
 
 **Debug Commands:**
 ```bash
 # List all artefacts in Redis
-docker exec sett-{instance}-redis redis-cli KEYS "sett:{instance}:artefact:*"
+docker exec holt-{instance}-redis redis-cli KEYS "holt:{instance}:artefact:*"
 
 # Get specific artefact
-docker exec sett-{instance}-redis redis-cli HGETALL "sett:{instance}:artefact:{uuid}"
+docker exec holt-{instance}-redis redis-cli HGETALL "holt:{instance}:artefact:{uuid}"
 
 # Count artefacts
-docker exec sett-{instance}-redis redis-cli KEYS "sett:{instance}:artefact:*" | wc -l
+docker exec holt-{instance}-redis redis-cli KEYS "holt:{instance}:artefact:*" | wc -l
 ```
 
 ---
@@ -470,19 +470,19 @@ Claim never progresses from `pending_exclusive` to `complete`.
 **Solution:**
 ```bash
 # Check claim status
-docker exec sett-{instance}-redis redis-cli HGET sett:{instance}:claim:{uuid} status
+docker exec holt-{instance}-redis redis-cli HGET holt:{instance}:claim:{uuid} status
 
 # Check if bids were submitted
-docker exec sett-{instance}-redis redis-cli HGETALL sett:{instance}:claim:{uuid}:bids
+docker exec holt-{instance}-redis redis-cli HGETALL holt:{instance}:claim:{uuid}:bids
 
 # Verify orchestrator is running
-sett logs orchestrator
+holt logs orchestrator
 
 # Verify agent is running
-sett logs <agent-name>
+holt logs <agent-name>
 
 # Restart if needed
-sett down && sett up
+holt down && holt up
 ```
 
 ---
@@ -507,18 +507,18 @@ Failure artefact payload:
 
 **Solution:**
 ```bash
-# Option 1: Increase iteration limit in sett.yml
-cat >> sett.yml <<EOF
+# Option 1: Increase iteration limit in holt.yml
+cat >> holt.yml <<EOF
 orchestrator:
   max_review_iterations: 5  # Increase from default 3
 EOF
 
 # Option 2: Investigate why agent and reviewer disagree
 # Check review feedback in audit trail
-sett hoard | grep -A 5 "Review"
+holt hoard | grep -A 5 "Review"
 
 # Check agent's iterations
-docker exec sett-{instance}-redis redis-cli KEYS "sett:{instance}:thread:*"
+docker exec holt-{instance}-redis redis-cli KEYS "holt:{instance}:thread:*"
 
 # Option 3: Fix agent or reviewer logic
 # - Update agent to better address feedback
@@ -528,13 +528,13 @@ docker exec sett-{instance}-redis redis-cli KEYS "sett:{instance}:thread:*"
 **Debug Commands:**
 ```bash
 # View iteration history for an artefact
-sett hoard | grep -B 2 -A 5 "version"
+holt hoard | grep -B 2 -A 5 "version"
 
 # Check termination reason
-docker exec sett-{instance}-redis redis-cli HGET sett:{instance}:claim:{uuid} termination_reason
+docker exec holt-{instance}-redis redis-cli HGET holt:{instance}:claim:{uuid} termination_reason
 
 # View Failure artefact details
-docker exec sett-{instance}-redis redis-cli HGETALL sett:{instance}:artefact:{failure-uuid}
+docker exec holt-{instance}-redis redis-cli HGETALL holt:{instance}:artefact:{failure-uuid}
 ```
 
 ---
@@ -551,17 +551,17 @@ docker exec sett-{instance}-redis redis-cli HGETALL sett:{instance}:artefact:{fa
 **Solution:**
 ```bash
 # Verify orchestrator has M3.3 code
-docker exec sett-{instance}-orchestrator /app/orchestrator --version
+docker exec holt-{instance}-orchestrator /app/orchestrator --version
 # Should show version with M3.3 support
 
 # Rebuild orchestrator with M3.3
 make docker-orchestrator
 
 # Restart instance
-sett down && sett up
+holt down && holt up
 
 # Check orchestrator logs for feedback events
-sett logs orchestrator | grep "feedback_claim"
+holt logs orchestrator | grep "feedback_claim"
 ```
 
 **Expected Log Messages:**
@@ -574,12 +574,12 @@ sett logs orchestrator | grep "feedback_claim"
 **Debug Commands:**
 ```bash
 # Check for feedback claims in Redis
-docker exec sett-{instance}-redis redis-cli KEYS "sett:{instance}:claim:*"
-docker exec sett-{instance}-redis redis-cli HGET sett:{instance}:claim:{uuid} status
+docker exec holt-{instance}-redis redis-cli KEYS "holt:{instance}:claim:*"
+docker exec holt-{instance}-redis redis-cli HGET holt:{instance}:claim:{uuid} status
 # Look for "pending_assignment" status
 
 # Check for termination reasons
-docker exec sett-{instance}-redis redis-cli HGET sett:{instance}:claim:{uuid} termination_reason
+docker exec holt-{instance}-redis redis-cli HGET holt:{instance}:claim:{uuid} termination_reason
 ```
 
 ---
@@ -591,21 +591,21 @@ docker exec sett-{instance}-redis redis-cli HGET sett:{instance}:claim:{uuid} te
 - New artefact created with version=1 instead of version=2
 - Logical IDs don't match (breaks thread continuity)
 
-**Cause:** Cub not detecting feedback claim, or missing M3.3 Cub code.
+**Cause:** Pup not detecting feedback claim, or missing M3.3 Pup code.
 
 **Solution:**
 ```bash
-# Verify agent Cub has M3.3 code
-docker exec sett-{instance}-agent-{agent-name} /app/cub --version
+# Verify agent Pup has M3.3 code
+docker exec holt-{instance}-agent-{agent-name} /app/pup --version
 
-# Rebuild agent images with M3.3 Cub
+# Rebuild agent images with M3.3 Pup
 docker build -t {agent-name}:latest -f agents/{agent-name}/Dockerfile .
 
 # Restart instance
-sett down && sett up
+holt down && holt up
 
 # Verify version progression in audit trail
-sett hoard | grep -A 3 "logical_id"
+holt hoard | grep -A 3 "logical_id"
 ```
 
 **Expected Behavior:**
@@ -623,13 +623,13 @@ After more feedback:
 **Debug Commands:**
 ```bash
 # Check artefact version progression
-docker exec sett-{instance}-redis redis-cli ZRANGE sett:{instance}:thread:{logical-id} 0 -1 WITHSCORES
+docker exec holt-{instance}-redis redis-cli ZRANGE holt:{instance}:thread:{logical-id} 0 -1 WITHSCORES
 
 # Verify claim has additional_context_ids (feedback claim indicator)
-docker exec sett-{instance}-redis redis-cli HGET sett:{instance}:claim:{uuid} additional_context_ids
+docker exec holt-{instance}-redis redis-cli HGET holt:{instance}:claim:{uuid} additional_context_ids
 
-# Check Cub logs for version management
-sett logs {agent-name} | grep "Creating rework artefact"
+# Check Pup logs for version management
+holt logs {agent-name} | grep "Creating rework artefact"
 ```
 
 ---
@@ -642,12 +642,12 @@ Failure artefact payload:
 "Cannot create feedback claim: agent with role 'Coder' no longer exists in configuration"
 ```
 
-**Cause:** Original agent that produced work was removed from `sett.yml` before feedback loop completed.
+**Cause:** Original agent that produced work was removed from `holt.yml` before feedback loop completed.
 
 **Solution:**
 ```bash
-# Option 1: Re-add the agent to sett.yml
-cat >> sett.yml <<EOF
+# Option 1: Re-add the agent to holt.yml
+cat >> holt.yml <<EOF
 agents:
   coder-agent:
     role: "Coder"
@@ -659,16 +659,16 @@ EOF
 
 # Option 2: Manually terminate the stuck workflow
 # (Orchestrator already created Failure artefact)
-sett hoard  # Verify Failure artefact exists
+holt hoard  # Verify Failure artefact exists
 
 # Restart with corrected configuration
-sett down && sett up
+holt down && holt up
 ```
 
 **Prevention:**
 - Don't remove agents from configuration during active workflows
 - Wait for workflows to complete before changing agent configuration
-- Monitor `sett hoard` before modifying `sett.yml`
+- Monitor `holt hoard` before modifying `holt.yml`
 
 ---
 
@@ -704,7 +704,7 @@ docker info
 Error: port 6379 is already allocated
 ```
 
-**Cause:** Another service using Redis default port or multiple Sett instances.
+**Cause:** Another service using Redis default port or multiple Holt instances.
 
 **Solution:**
 ```bash
@@ -712,7 +712,7 @@ Error: port 6379 is already allocated
 lsof -i :6379
 
 # Stop conflicting service
-# Or let Sett auto-assign different port (it does this automatically)
+# Or let Holt auto-assign different port (it does this automatically)
 
 # If needed, manually stop old containers
 docker ps -a | grep redis
@@ -742,9 +742,9 @@ docker system prune -a
 docker images
 docker rmi <unused-images>
 
-# Remove old Sett containers
-docker ps -a | grep sett-
-docker rm $(docker ps -a -q --filter "name=sett-")
+# Remove old Holt containers
+docker ps -a | grep holt-
+docker rm $(docker ps -a -q --filter "name=holt-")
 ```
 
 ---
@@ -753,7 +753,7 @@ docker rm $(docker ps -a -q --filter "name=sett-")
 
 **Symptoms:**
 ```
-Container sett-{instance}-orchestrator is unhealthy
+Container holt-{instance}-orchestrator is unhealthy
 ```
 
 **Cause:** Redis connection lost, application crash, or startup timeout.
@@ -761,16 +761,16 @@ Container sett-{instance}-orchestrator is unhealthy
 **Solution:**
 ```bash
 # Check container logs
-docker logs sett-{instance}-orchestrator
+docker logs holt-{instance}-orchestrator
 
 # Check health endpoint
-docker exec sett-{instance}-orchestrator wget -O- http://localhost:8080/healthz
+docker exec holt-{instance}-orchestrator wget -O- http://localhost:8080/healthz
 
 # Restart container
-docker restart sett-{instance}-orchestrator
+docker restart holt-{instance}-orchestrator
 
 # Or restart entire instance
-sett down && sett up
+holt down && holt up
 ```
 
 ---
@@ -780,7 +780,7 @@ sett down && sett up
 ### Slow Startup Time
 
 **Symptoms:**
-`sett up` takes > 10 seconds.
+`holt up` takes > 10 seconds.
 
 **Cause:** Images not cached, slow network, or resource constraints.
 
@@ -794,7 +794,7 @@ docker pull redis:7-alpine
 docker pull golang:1.24-alpine
 
 # Check Docker resources (Docker Desktop)
-# Settings → Resources → increase CPU/Memory
+# Holtings → Resources → increase CPU/Memory
 ```
 
 ---
@@ -809,10 +809,10 @@ Agent takes > 5 seconds to produce artefact.
 **Solution:**
 ```bash
 # Check agent logs for timing
-sett logs <agent-name>
+holt logs <agent-name>
 
 # Monitor container resources
-docker stats sett-{instance}-agent-{agent-name}
+docker stats holt-{instance}-agent-{agent-name}
 
 # Optimize agent script
 # - Cache LLM responses
@@ -828,16 +828,16 @@ docker stats sett-{instance}-agent-{agent-name}
 
 ```bash
 # List running instances
-sett list
+holt list
 
 # View all artefacts
-sett hoard
+holt hoard
 
 # View agent logs
-sett logs <agent-name>
+holt logs <agent-name>
 
 # View orchestrator logs
-sett logs orchestrator
+holt logs orchestrator
 
 # Check Git status
 git status
@@ -850,43 +850,43 @@ docker ps -a
 
 ```bash
 # Execute shell in agent container
-docker exec -it sett-{instance}-agent-{agent-name} /bin/sh
+docker exec -it holt-{instance}-agent-{agent-name} /bin/sh
 
 # Check environment variables
-docker exec sett-{instance}-agent-{agent-name} env
+docker exec holt-{instance}-agent-{agent-name} env
 
 # Inspect container configuration
-docker inspect sett-{instance}-agent-{agent-name}
+docker inspect holt-{instance}-agent-{agent-name}
 
 # View container resource usage
 docker stats --no-stream
 
 # Check Docker networks
 docker network ls
-docker network inspect sett-{instance}
+docker network inspect holt-{instance}
 ```
 
 ### Redis Debugging
 
 ```bash
 # Connect to Redis CLI
-docker exec -it sett-{instance}-redis redis-cli
+docker exec -it holt-{instance}-redis redis-cli
 
 # Inside Redis CLI:
 # List all keys
-KEYS sett:*
+KEYS holt:*
 
 # Get artefact
-HGETALL sett:{instance}:artefact:{uuid}
+HGETALL holt:{instance}:artefact:{uuid}
 
 # Get claim
-HGETALL sett:{instance}:claim:{uuid}
+HGETALL holt:{instance}:claim:{uuid}
 
 # Get bids
-HGETALL sett:{instance}:claim:{uuid}:bids
+HGETALL holt:{instance}:claim:{uuid}:bids
 
 # Count artefacts
-KEYS sett:{instance}:artefact:* | wc -l
+KEYS holt:{instance}:artefact:* | wc -l
 
 # Monitor real-time activity
 MONITOR
@@ -898,8 +898,8 @@ MONITOR
 # View commit history
 git log --oneline --all --graph
 
-# Find commits by Sett agents
-git log --oneline --grep="sett-agent"
+# Find commits by Holt agents
+git log --oneline --grep="holt-agent"
 
 # Check current branch and status
 git status
@@ -915,13 +915,13 @@ git log --diff-filter=A -- <filename>
 
 ```bash
 # Test Redis connectivity from orchestrator
-docker exec sett-{instance}-orchestrator ping redis
+docker exec holt-{instance}-orchestrator ping redis
 
 # Test DNS resolution
-docker exec sett-{instance}-agent-{agent-name} nslookup redis
+docker exec holt-{instance}-agent-{agent-name} nslookup redis
 
 # Check network connectivity
-docker exec sett-{instance}-agent-{agent-name} wget -O- http://redis:6379
+docker exec holt-{instance}-agent-{agent-name} wget -O- http://redis:6379
 ```
 
 ---
@@ -932,14 +932,14 @@ If you've tried the solutions above and still have issues:
 
 1. **Check logs systematically:**
    ```bash
-   sett logs orchestrator > orch.log
-   sett logs <agent-name> > agent.log
-   docker logs sett-{instance}-redis > redis.log
+   holt logs orchestrator > orch.log
+   holt logs <agent-name> > agent.log
+   docker logs holt-{instance}-redis > redis.log
    ```
 
 2. **Gather diagnostic info:**
    ```bash
-   sett list
+   holt list
    docker ps -a
    git status
    docker version
@@ -947,12 +947,12 @@ If you've tried the solutions above and still have issues:
 
 3. **Create minimal reproduction:**
    - Fresh Git repo
-   - Minimal sett.yml
+   - Minimal holt.yml
    - Simple test agent
    - Document exact steps
 
 4. **Report issue:**
-   - GitHub: https://github.com/anthropics/sett/issues
+   - GitHub: https://github.com/anthropics/holt/issues
    - Include logs, configuration, and reproduction steps
 
 ---
@@ -961,21 +961,21 @@ If you've tried the solutions above and still have issues:
 
 | Problem | First Command to Run |
 |---------|---------------------|
-| Sett won't start | `git status && cat sett.yml` |
-| Agent not executing | `sett logs <agent-name>` |
-| Missing artefacts | `sett hoard && docker ps` |
+| Holt won't start | `git status && cat holt.yml` |
+| Agent not executing | `holt logs <agent-name>` |
+| Missing artefacts | `holt hoard && docker ps` |
 | Git errors | `git status && ls -la .git` |
-| Container issues | `docker ps -a \| grep sett-` |
-| Redis problems | `docker logs sett-{instance}-redis` |
+| Container issues | `docker ps -a \| grep holt-` |
+| Redis problems | `docker logs holt-{instance}-redis` |
 | Permission errors | `ls -la && docker inspect <container>` |
 | Performance issues | `docker stats` |
-| Max iterations (M3.3) | `sett hoard \| grep Failure` |
-| Feedback loop (M3.3) | `sett logs orchestrator \| grep feedback` |
-| Version not incrementing (M3.3) | `sett logs <agent> \| grep "rework artefact"` |
+| Max iterations (M3.3) | `holt hoard \| grep Failure` |
+| Feedback loop (M3.3) | `holt logs orchestrator \| grep feedback` |
+| Version not incrementing (M3.3) | `holt logs <agent> \| grep "rework artefact"` |
 
 ---
 
 **Next Steps:**
 - [Agent Development Guide](./agent-development.md)
 - [Project Context](../PROJECT_CONTEXT.md)
-- [System Specification](../design/sett-system-specification.md)
+- [System Specification](../design/holt-system-specification.md)

@@ -6,7 +6,7 @@ import (
 	"log"
 	"sort"
 
-	"github.com/dyluth/sett/pkg/blackboard"
+	"github.com/dyluth/holt/pkg/blackboard"
 )
 
 // GrantClaim determines the initial phase and grants the claim accordingly.
@@ -101,7 +101,6 @@ func SelectExclusiveWinner(bidders []string) string {
 	// Return first (alphabetically earliest)
 	return sorted[0]
 }
-
 
 // publishClaimGrantedEvent publishes a claim_granted event to the workflow_events channel.
 // Detects grant type from claim fields (exclusive, review, or parallel).

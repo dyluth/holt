@@ -4,7 +4,7 @@ import (
 	"log"
 	"time"
 
-	"github.com/dyluth/sett/pkg/blackboard"
+	"github.com/dyluth/holt/pkg/blackboard"
 )
 
 // PhaseState tracks the execution state of a single claim's current phase.
@@ -15,12 +15,12 @@ import (
 // claims in active phases will become stuck. This is documented as a known
 // limitation and will be addressed in a future milestone.
 type PhaseState struct {
-	ClaimID           string                      // The claim being tracked
-	Phase             string                      // Current phase: "review", "parallel", or "exclusive"
-	GrantedAgents     []string                    // Agents granted in this phase
-	ReceivedArtefacts map[string]string           // agentRole → artefactID
+	ClaimID           string                        // The claim being tracked
+	Phase             string                        // Current phase: "review", "parallel", or "exclusive"
+	GrantedAgents     []string                      // Agents granted in this phase
+	ReceivedArtefacts map[string]string             // agentRole → artefactID
 	AllBids           map[string]blackboard.BidType // All original bids (for phase transition logic)
-	StartTime         time.Time                   // When this phase started
+	StartTime         time.Time                     // When this phase started
 }
 
 // NewPhaseState creates a new phase state tracker for a claim.

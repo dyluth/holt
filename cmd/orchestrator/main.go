@@ -8,19 +8,19 @@ import (
 	"syscall"
 
 	"github.com/docker/docker/client"
-	"github.com/dyluth/sett/internal/config"
-	"github.com/dyluth/sett/internal/orchestrator"
-	"github.com/dyluth/sett/pkg/blackboard"
+	"github.com/dyluth/holt/internal/config"
+	"github.com/dyluth/holt/internal/orchestrator"
+	"github.com/dyluth/holt/pkg/blackboard"
 	"github.com/redis/go-redis/v9"
 )
 
 func main() {
 	// 1. Load environment variables
-	instanceName := os.Getenv("SETT_INSTANCE_NAME")
+	instanceName := os.Getenv("HOLT_INSTANCE_NAME")
 	redisURL := os.Getenv("REDIS_URL")
 
 	if instanceName == "" || redisURL == "" {
-		fmt.Fprintf(os.Stderr, "Error: SETT_INSTANCE_NAME and REDIS_URL must be set\n")
+		fmt.Fprintf(os.Stderr, "Error: HOLT_INSTANCE_NAME and REDIS_URL must be set\n")
 		os.Exit(1)
 	}
 
@@ -46,10 +46,10 @@ func main() {
 		os.Exit(1)
 	}
 
-	// 5. Load sett.yml configuration from workspace
-	cfg, err := config.Load("/workspace/sett.yml")
+	// 5. Load holt.yml configuration from workspace
+	cfg, err := config.Load("/workspace/holt.yml")
 	if err != nil {
-		fmt.Fprintf(os.Stderr, "Error: Failed to load sett.yml: %v\n", err)
+		fmt.Fprintf(os.Stderr, "Error: Failed to load holt.yml: %v\n", err)
 		os.Exit(1)
 	}
 

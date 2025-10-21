@@ -12,7 +12,7 @@ import (
 func TestLoad_ValidConfig(t *testing.T) {
 	// Create temporary directory
 	tmpDir := t.TempDir()
-	configPath := filepath.Join(tmpDir, "sett.yml")
+	configPath := filepath.Join(tmpDir, "holt.yml")
 
 	// Write valid config
 	validConfig := `version: "1.0"
@@ -37,7 +37,7 @@ agents:
 }
 
 func TestLoad_FileNotFound(t *testing.T) {
-	config, err := Load("/nonexistent/sett.yml")
+	config, err := Load("/nonexistent/holt.yml")
 	assert.Error(t, err)
 	assert.Nil(t, config)
 	assert.Contains(t, err.Error(), "failed to read config")
@@ -45,7 +45,7 @@ func TestLoad_FileNotFound(t *testing.T) {
 
 func TestLoad_InvalidYAML(t *testing.T) {
 	tmpDir := t.TempDir()
-	configPath := filepath.Join(tmpDir, "sett.yml")
+	configPath := filepath.Join(tmpDir, "holt.yml")
 
 	// Write invalid YAML
 	invalidYAML := `version: "1.0"
@@ -63,7 +63,7 @@ agents:
 }
 
 func TestValidate_UnsupportedVersion(t *testing.T) {
-	config := &SettConfig{
+	config := &HoltConfig{
 		Version: "2.0",
 		Agents: map[string]Agent{
 			"test": {
@@ -81,7 +81,7 @@ func TestValidate_UnsupportedVersion(t *testing.T) {
 }
 
 func TestValidate_NoAgents(t *testing.T) {
-	config := &SettConfig{
+	config := &HoltConfig{
 		Version: "1.0",
 		Agents:  map[string]Agent{},
 	}
@@ -224,7 +224,7 @@ func TestAgentValidate_ValidStrategies(t *testing.T) {
 
 func TestLoad_ComplexConfig(t *testing.T) {
 	tmpDir := t.TempDir()
-	configPath := filepath.Join(tmpDir, "sett.yml")
+	configPath := filepath.Join(tmpDir, "holt.yml")
 	buildContext := filepath.Join(tmpDir, "agent-build")
 	err := os.Mkdir(buildContext, 0755)
 	require.NoError(t, err)
@@ -311,7 +311,7 @@ services:
 
 // M3.2: Test unique role validation
 func TestValidate_DuplicateRoles(t *testing.T) {
-	config := &SettConfig{
+	config := &HoltConfig{
 		Version: "1.0",
 		Agents: map[string]Agent{
 			"agent-1": {
@@ -338,7 +338,7 @@ func TestValidate_DuplicateRoles(t *testing.T) {
 }
 
 func TestValidate_UniqueRoles(t *testing.T) {
-	config := &SettConfig{
+	config := &HoltConfig{
 		Version: "1.0",
 		Agents: map[string]Agent{
 			"reviewer": {
@@ -367,7 +367,7 @@ func TestValidate_UniqueRoles(t *testing.T) {
 }
 
 func TestValidate_MultipleDuplicateRoles(t *testing.T) {
-	config := &SettConfig{
+	config := &HoltConfig{
 		Version: "1.0",
 		Agents: map[string]Agent{
 			"agent-1": {
@@ -400,7 +400,7 @@ func TestValidate_MultipleDuplicateRoles(t *testing.T) {
 // M3.3: Orchestrator config validation tests
 
 func TestValidate_OrchestratorConfig_DefaultValue(t *testing.T) {
-	config := &SettConfig{
+	config := &HoltConfig{
 		Version: "1.0",
 		// Orchestrator section omitted - should default to 3
 		Agents: map[string]Agent{
@@ -421,8 +421,8 @@ func TestValidate_OrchestratorConfig_DefaultValue(t *testing.T) {
 }
 
 func TestValidate_OrchestratorConfig_DefaultWhenSectionExists(t *testing.T) {
-	config := &SettConfig{
-		Version: "1.0",
+	config := &HoltConfig{
+		Version:      "1.0",
 		Orchestrator: &OrchestratorConfig{
 			// max_review_iterations not specified - should default to 3
 		},
@@ -444,8 +444,8 @@ func TestValidate_OrchestratorConfig_DefaultWhenSectionExists(t *testing.T) {
 
 func TestValidate_OrchestratorConfig_ValidValues(t *testing.T) {
 	tests := []struct {
-		name           string
-		maxIterations  int
+		name          string
+		maxIterations int
 	}{
 		{"zero (unlimited)", 0},
 		{"one iteration", 1},
@@ -457,7 +457,7 @@ func TestValidate_OrchestratorConfig_ValidValues(t *testing.T) {
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			iterations := tt.maxIterations
-			config := &SettConfig{
+			config := &HoltConfig{
 				Version: "1.0",
 				Orchestrator: &OrchestratorConfig{
 					MaxReviewIterations: &iterations,
@@ -481,7 +481,7 @@ func TestValidate_OrchestratorConfig_ValidValues(t *testing.T) {
 
 func TestValidate_OrchestratorConfig_NegativeValue(t *testing.T) {
 	negativeValue := -1
-	config := &SettConfig{
+	config := &HoltConfig{
 		Version: "1.0",
 		Orchestrator: &OrchestratorConfig{
 			MaxReviewIterations: &negativeValue,
@@ -504,7 +504,7 @@ func TestValidate_OrchestratorConfig_NegativeValue(t *testing.T) {
 
 func TestLoad_WithOrchestratorConfig(t *testing.T) {
 	tmpDir := t.TempDir()
-	configPath := filepath.Join(tmpDir, "sett.yml")
+	configPath := filepath.Join(tmpDir, "holt.yml")
 
 	// Write config with orchestrator section
 	configWithOrchestrator := `version: "1.0"
@@ -757,7 +757,7 @@ func TestAgentValidate_TraditionalAgentNoMode(t *testing.T) {
 
 func TestLoad_WithControllerWorkerConfig(t *testing.T) {
 	tmpDir := t.TempDir()
-	configPath := filepath.Join(tmpDir, "sett.yml")
+	configPath := filepath.Join(tmpDir, "holt.yml")
 
 	// Write config with controller-worker pattern
 	controllerConfig := `version: "1.0"
@@ -800,7 +800,7 @@ agents:
 
 func TestLoad_MixedControllerAndTraditionalAgents(t *testing.T) {
 	tmpDir := t.TempDir()
-	configPath := filepath.Join(tmpDir, "sett.yml")
+	configPath := filepath.Join(tmpDir, "holt.yml")
 
 	// Write config with both controller and traditional agents
 	mixedConfig := `version: "1.0"

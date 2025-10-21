@@ -1,6 +1,6 @@
-# Example Multi-Agent Sett configuration for M3.2+ (Three-Phase Workflow)
+# Example Multi-Agent Holt configuration for M3.2+ (Three-Phase Workflow)
 # Demonstrates the complete review → parallel → exclusive phase execution model
-# Copy this to sett.yml and customize as needed
+# Copy this to holt.yml and customize as needed
 
 version: "1.0"
 
@@ -49,7 +49,7 @@ agents:
   #     mode: ro
 
 # IMPORTANT: All agents must have unique roles in Phase 3
-# Duplicate roles will cause validation errors at `sett up` time
+# Duplicate roles will cause validation errors at `holt up` time
 
 # Phase Skipping: If no agents bid for a phase, it's automatically skipped
 # Example: No "review" bids → workflow skips directly to parallel or exclusive
@@ -59,4 +59,4 @@ agents:
 #   redis:
 #     image: "redis:7-alpine"
 #   orchestrator:
-#     image: "sett-orchestrator:latest"
+#     image: "holt-orchestrator:latest"

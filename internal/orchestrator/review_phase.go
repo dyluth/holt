@@ -6,7 +6,7 @@ import (
 	"fmt"
 	"log"
 
-	"github.com/dyluth/sett/pkg/blackboard"
+	"github.com/dyluth/holt/pkg/blackboard"
 )
 
 // GrantReviewPhase grants the claim to all agents that bid "review".

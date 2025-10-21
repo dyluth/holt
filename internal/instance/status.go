@@ -4,7 +4,7 @@ import (
 	"github.com/docker/docker/api/types"
 )
 
-// Status represents the health status of a Sett instance
+// Status represents the health status of a Holt instance
 type Status string
 
 const (
@@ -40,7 +40,7 @@ func DetermineStatus(containers []types.Container) Status {
 	}
 }
 
-// InstanceInfo holds information about a Sett instance
+// InstanceInfo holds information about a Holt instance
 type InstanceInfo struct {
 	Name      string `json:"name"`
 	Status    Status `json:"status"`

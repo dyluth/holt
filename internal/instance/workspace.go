@@ -11,7 +11,7 @@ import (
 	"github.com/docker/docker/api/types"
 	"github.com/docker/docker/api/types/filters"
 	"github.com/docker/docker/client"
-	dockerpkg "github.com/dyluth/sett/internal/docker"
+	dockerpkg "github.com/dyluth/holt/internal/docker"
 )
 
 // GetCanonicalWorkspacePath gets the absolute, canonical workspace path from the Git repository.
@@ -114,7 +114,7 @@ type WorkspaceCollision struct {
 // The currentInstanceName parameter allows checking for collisions with other instances
 // (excluding the current instance being created/updated).
 func CheckWorkspaceCollision(ctx context.Context, cli *client.Client, workspacePath, currentInstanceName string) (*WorkspaceCollision, error) {
-	// Find all Sett containers
+	// Find all Holt containers
 	filter := filters.NewArgs()
 	filter.Add("label", fmt.Sprintf("%s=true", dockerpkg.LabelProject))
 

@@ -1,7 +1,7 @@
 # Example Parallel Agent Dockerfile for M3.2
 # Always outputs Standard artefact indicating parallel work completed
 
-# Build stage - compile the cub binary
+# Build stage - compile the pup binary
 FROM golang:1.24-alpine AS builder
 
 WORKDIR /build
@@ -10,13 +10,13 @@ WORKDIR /build
 COPY go.mod go.sum ./
 RUN go mod download
 
-# Copy cub source code
-COPY cmd/cub ./cmd/cub
-COPY internal/cub ./internal/cub
+# Copy pup source code
+COPY cmd/pup ./cmd/pup
+COPY internal/pup ./internal/pup
 COPY pkg/blackboard ./pkg/blackboard
 
-# Build the cub binary
-RUN CGO_ENABLED=0 GOOS=linux go build -o cub ./cmd/cub
+# Build the pup binary
+RUN CGO_ENABLED=0 GOOS=linux go build -o pup ./cmd/pup
 
 # Runtime stage - Alpine with wget for health checks
 FROM alpine:latest
@@ -26,8 +26,8 @@ RUN apk --no-cache add ca-certificates wget
 
 WORKDIR /app
 
-# Copy cub binary from builder
-COPY --from=builder /build/cub /app/cub
+# Copy pup binary from builder
+COPY --from=builder /build/pup /app/pup
 
 # Copy run script
 COPY agents/example-parallel-agent/run.sh /app/run.sh
@@ -37,5 +37,5 @@ RUN chmod +x /app/run.sh
 RUN adduser -D -u 1000 agent
 USER agent
 
-# Entrypoint is the cub binary
-ENTRYPOINT ["/app/cub"]
+# Entrypoint is the pup binary
+ENTRYPOINT ["/app/pup"]

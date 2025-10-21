@@ -1,10 +1,10 @@
 # Example Git Agent
 
-A reference implementation for Sett agents that produce CodeCommit artefacts through Git workflow integration.
+A reference implementation for Holt agents that produce CodeCommit artefacts through Git workflow integration.
 
 ## Purpose
 
-This agent demonstrates the canonical pattern for code-generating agents in Sett:
+This agent demonstrates the canonical pattern for code-generating agents in Holt:
 1. Receive context via stdin JSON
 2. Create or modify files in the Git workspace
 3. Commit changes with proper metadata
@@ -17,7 +17,7 @@ The git agent:
 - **Creates file** in `/workspace` with timestamped content
 - **Executes git workflow**: `git add` → `git commit` with descriptive message
 - **Returns commit hash** as CodeCommit artefact payload
-- **Validates commit** via cub's git validation (M2.4 feature)
+- **Validates commit** via pup's git validation (M2.4 feature)
 
 ## Building
 
@@ -27,11 +27,11 @@ From the project root directory:
 docker build -t example-git-agent:latest -f agents/example-git-agent/Dockerfile .
 ```
 
-**Note:** The Dockerfile context must be the project root (`.`) to access cub source code.
+**Note:** The Dockerfile context must be the project root (`.`) to access pup source code.
 
 ## Configuration
 
-Add to your `sett.yml`:
+Add to your `holt.yml`:
 
 ```yaml
 version: "1.0"
@@ -50,17 +50,17 @@ agents:
 # Build the agent image
 docker build -t example-git-agent:latest -f agents/example-git-agent/Dockerfile .
 
-# Start Sett instance (launches agent)
-sett up
+# Start Holt instance (launches agent)
+holt up
 
 # Trigger workflow with filename as goal
-sett forage --goal "my-file.txt"
+holt forage --goal "my-file.txt"
 
 # View agent logs
-sett logs git-agent
+holt logs git-agent
 
 # View artefacts (should see GoalDefined → CodeCommit chain)
-sett hoard
+holt hoard
 ```
 
 ## Git Workflow Pattern
@@ -97,20 +97,20 @@ EOF
 
 ```bash
 git add my-file.txt
-git commit -m "[sett-agent: git-agent] Created my-file.txt
+git commit -m "[holt-agent: git-agent] Created my-file.txt
 
 Claim-ID: artefact-uuid"
 ```
 
 **Commit Message Format** (recommended):
 ```
-[sett-agent: {agent-role}] {summary}
+[holt-agent: {agent-role}] {summary}
 
 Claim-ID: {claim-id}
 ```
 
 This format provides:
-- **Prefix** identifies Sett-generated commits
+- **Prefix** identifies Holt-generated commits
 - **Agent role** shows which agent made the change
 - **Claim ID** enables audit trail back to blackboard
 
@@ -131,7 +131,7 @@ commit_hash=$(git rev-parse HEAD)
 }
 ```
 
-### 6. Cub validates commit exists (M2.4)
+### 6. Pup validates commit exists (M2.4)
 
 ```bash
 git cat-file -e abc123def456...
@@ -217,9 +217,9 @@ CodeCommit (logical_id: B, version: 1, source_artefacts: [A])
 
 **Validation:**
 
-Sett validates workspace before launching agents:
+Holt validates workspace before launching agents:
 ```bash
-sett up  # Checks: .git exists, git status --porcelain is empty
+holt up  # Checks: .git exists, git status --porcelain is empty
 ```
 
 **Workspace mount:**
@@ -240,7 +240,7 @@ echo "content2" > file2.txt
 git add .
 
 # Single commit for atomic change
-git commit -m "[sett-agent: git-agent] Created multiple files
+git commit -m "[holt-agent: git-agent] Created multiple files
 
 Claim-ID: $claim_id"
 ```
@@ -266,7 +266,7 @@ set -e  # Exit on any error
 # Validate filename
 if [ -z "$filename" ]; then
   echo "Error: No filename provided" >&2
-  exit 1  # Cub will create Failure artefact
+  exit 1  # Pup will create Failure artefact
 fi
 
 # Check file doesn't already exist
@@ -294,9 +294,9 @@ git commit -m "message"
 commit_hash=$(git rev-parse HEAD)  # Gets NEW commit
 ```
 
-### Cub creates Failure artefact: "commit does not exist"
+### Pup creates Failure artefact: "commit does not exist"
 
-**Problem:** Git validation fails in cub
+**Problem:** Git validation fails in pup
 
 **Possible causes:**
 1. Agent returned hash from wrong repository
@@ -306,10 +306,10 @@ commit_hash=$(git rev-parse HEAD)  # Gets NEW commit
 **Debug:**
 ```bash
 # Check agent logs
-sett logs git-agent
+holt logs git-agent
 
 # Verify workspace mount
-docker inspect sett-{instance}-agent-git-agent | grep -A 10 Mounts
+docker inspect holt-{instance}-agent-git-agent | grep -A 10 Mounts
 
 # Check git history in workspace
 cd /path/to/workspace && git log --oneline
@@ -319,7 +319,7 @@ cd /path/to/workspace && git log --oneline
 
 **Problem:** Agent can't write to workspace
 
-**Solution:** Verify workspace mode is `rw` in sett.yml:
+**Solution:** Verify workspace mode is `rw` in holt.yml:
 ```yaml
 workspace:
   mode: rw  # Not ro (read-only)
@@ -350,7 +350,7 @@ echo "$generated_code" > implementation.go
 
 # Commit result
 git add implementation.go
-git commit -m "[sett-agent: code-generator] Implemented from requirements"
+git commit -m "[holt-agent: code-generator] Implemented from requirements"
 ```
 
 ## Further Reading

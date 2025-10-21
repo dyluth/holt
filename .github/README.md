@@ -1,6 +1,6 @@
 # GitHub Actions Workflows
 
-This directory contains the CI/CD workflows for the Sett project.
+This directory contains the CI/CD workflows for the Holt project.
 
 ## Workflows
 
@@ -11,7 +11,7 @@ This directory contains the CI/CD workflows for the Sett project.
 This is the primary CI workflow that runs on every push and pull request. It runs tests in parallel for faster feedback:
 
 **Jobs:**
-- **unit-tests**: Fast unit tests and cub tests (no Docker required)
+- **unit-tests**: Fast unit tests and pup tests (no Docker required)
 - **lint**: Code quality checks with `go vet` and `staticcheck`
 - **integration-tests**: Integration tests and E2E tests (requires Docker)
 - **all-tests**: Summary job that confirms all tests passed
@@ -27,7 +27,7 @@ This is the primary CI workflow that runs on every push and pull request. It run
 
 This workflow runs the complete test suite using `make test-all`, which includes:
 - Unit tests
-- Cub tests
+- Pup tests
 - Orchestrator integration tests
 - E2E tests (all Phase 1 and Phase 2 tests)
 - Performance tests
@@ -42,8 +42,8 @@ To run the same tests locally:
 # Quick unit tests
 make test
 
-# All cub tests
-make test-cub
+# All pup tests
+make test-pup
 
 # Integration tests (requires Docker)
 make test-integration

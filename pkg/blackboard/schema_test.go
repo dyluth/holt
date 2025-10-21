@@ -14,14 +14,14 @@ func TestArtefactKey(t *testing.T) {
 
 	key := ArtefactKey(instanceName, artefactID)
 
-	expected := "sett:default-1:artefact:" + artefactID
+	expected := "holt:default-1:artefact:" + artefactID
 	if key != expected {
 		t.Errorf("ArtefactKey() = %q, expected %q", key, expected)
 	}
 
 	// Verify format
-	if !strings.HasPrefix(key, "sett:") {
-		t.Error("artefact key should start with 'sett:'")
+	if !strings.HasPrefix(key, "holt:") {
+		t.Error("artefact key should start with 'holt:'")
 	}
 	if !strings.Contains(key, ":artefact:") {
 		t.Error("artefact key should contain ':artefact:'")
@@ -35,14 +35,14 @@ func TestClaimKey(t *testing.T) {
 
 	key := ClaimKey(instanceName, claimID)
 
-	expected := "sett:myproject:claim:" + claimID
+	expected := "holt:myproject:claim:" + claimID
 	if key != expected {
 		t.Errorf("ClaimKey() = %q, expected %q", key, expected)
 	}
 
 	// Verify format
-	if !strings.HasPrefix(key, "sett:") {
-		t.Error("claim key should start with 'sett:'")
+	if !strings.HasPrefix(key, "holt:") {
+		t.Error("claim key should start with 'holt:'")
 	}
 	if !strings.Contains(key, ":claim:") {
 		t.Error("claim key should contain ':claim:'")
@@ -56,14 +56,14 @@ func TestClaimBidsKey(t *testing.T) {
 
 	key := ClaimBidsKey(instanceName, claimID)
 
-	expected := "sett:default-1:claim:" + claimID + ":bids"
+	expected := "holt:default-1:claim:" + claimID + ":bids"
 	if key != expected {
 		t.Errorf("ClaimBidsKey() = %q, expected %q", key, expected)
 	}
 
 	// Verify format
-	if !strings.HasPrefix(key, "sett:") {
-		t.Error("claim bids key should start with 'sett:'")
+	if !strings.HasPrefix(key, "holt:") {
+		t.Error("claim bids key should start with 'holt:'")
 	}
 	if !strings.Contains(key, ":claim:") {
 		t.Error("claim bids key should contain ':claim:'")
@@ -80,14 +80,14 @@ func TestThreadKey(t *testing.T) {
 
 	key := ThreadKey(instanceName, logicalID)
 
-	expected := "sett:test-instance:thread:" + logicalID
+	expected := "holt:test-instance:thread:" + logicalID
 	if key != expected {
 		t.Errorf("ThreadKey() = %q, expected %q", key, expected)
 	}
 
 	// Verify format
-	if !strings.HasPrefix(key, "sett:") {
-		t.Error("thread key should start with 'sett:'")
+	if !strings.HasPrefix(key, "holt:") {
+		t.Error("thread key should start with 'holt:'")
 	}
 	if !strings.Contains(key, ":thread:") {
 		t.Error("thread key should contain ':thread:'")
@@ -100,14 +100,14 @@ func TestArtefactEventsChannel(t *testing.T) {
 
 	channel := ArtefactEventsChannel(instanceName)
 
-	expected := "sett:default:artefact_events"
+	expected := "holt:default:artefact_events"
 	if channel != expected {
 		t.Errorf("ArtefactEventsChannel() = %q, expected %q", channel, expected)
 	}
 
 	// Verify format
-	if !strings.HasPrefix(channel, "sett:") {
-		t.Error("artefact events channel should start with 'sett:'")
+	if !strings.HasPrefix(channel, "holt:") {
+		t.Error("artefact events channel should start with 'holt:'")
 	}
 	if !strings.HasSuffix(channel, ":artefact_events") {
 		t.Error("artefact events channel should end with ':artefact_events'")
@@ -120,14 +120,14 @@ func TestClaimEventsChannel(t *testing.T) {
 
 	channel := ClaimEventsChannel(instanceName)
 
-	expected := "sett:myproject:claim_events"
+	expected := "holt:myproject:claim_events"
 	if channel != expected {
 		t.Errorf("ClaimEventsChannel() = %q, expected %q", channel, expected)
 	}
 
 	// Verify format
-	if !strings.HasPrefix(channel, "sett:") {
-		t.Error("claim events channel should start with 'sett:'")
+	if !strings.HasPrefix(channel, "holt:") {
+		t.Error("claim events channel should start with 'holt:'")
 	}
 	if !strings.HasSuffix(channel, ":claim_events") {
 		t.Error("claim events channel should end with ':claim_events'")
@@ -141,14 +141,14 @@ func TestAgentEventsChannel(t *testing.T) {
 
 	channel := AgentEventsChannel(instanceName, agentName)
 
-	expected := "sett:default-1:agent:go-coder:events"
+	expected := "holt:default-1:agent:go-coder:events"
 	if channel != expected {
 		t.Errorf("AgentEventsChannel() = %q, expected %q", channel, expected)
 	}
 
 	// Verify format
-	if !strings.HasPrefix(channel, "sett:") {
-		t.Error("agent events channel should start with 'sett:'")
+	if !strings.HasPrefix(channel, "holt:") {
+		t.Error("agent events channel should start with 'holt:'")
 	}
 	if !strings.Contains(channel, ":agent:") {
 		t.Error("agent events channel should contain ':agent:'")
@@ -177,7 +177,7 @@ func TestAgentEventsChannelNamespacing(t *testing.T) {
 	// All should have expected format
 	channels := []string{channel1, channel2, channel3, channel4}
 	for _, ch := range channels {
-		if !strings.HasPrefix(ch, "sett:") || !strings.Contains(ch, ":agent:") || !strings.HasSuffix(ch, ":events") {
+		if !strings.HasPrefix(ch, "holt:") || !strings.Contains(ch, ":agent:") || !strings.HasSuffix(ch, ":events") {
 			t.Errorf("channel %q has incorrect format", ch)
 		}
 	}
@@ -250,7 +250,7 @@ func TestKeyFormatsWithSpecialCharacters(t *testing.T) {
 	for _, tc := range testCases {
 		t.Run(tc.name, func(t *testing.T) {
 			key := ArtefactKey(tc.instanceName, artefactID)
-			expectedPrefix := "sett:" + tc.instanceName + ":artefact:"
+			expectedPrefix := "holt:" + tc.instanceName + ":artefact:"
 			if !strings.HasPrefix(key, expectedPrefix) {
 				t.Errorf("key should start with %q, got %q", expectedPrefix, key)
 			}

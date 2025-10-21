@@ -3,7 +3,7 @@
 **Phase Goal**: Prove the blackboard architecture works with basic orchestrator and CLI functionality.
 
 **Phase Success Criteria**:
-- `sett forage --goal "hello world"` creates initial artefact
+- `holt forage --goal "hello world"` creates initial artefact
 - Orchestrator creates corresponding claim
 - System state visible via Redis CLI
 - All core data structures implemented and functional
@@ -69,20 +69,20 @@ Phase 1 is broken down into **6 implementable milestones** that build the founda
 **Dependencies**: None
 **Estimated Effort**: Small
 
-**Goal**: Enable developers to bootstrap new Sett projects
+**Goal**: Enable developers to bootstrap new Holt projects
 
 **Scope**:
-- `sett init` command implementation
+- `holt init` command implementation
 - Project scaffolding logic (create directories, files)
 - Template generation for:
-  - `sett.yml` (with commented example agent)
+  - `holt.yml` (with commented example agent)
   - `agents/` directory structure
   - `agents/example-agent/` with Dockerfile and run.sh
 
 **Deliverables**:
-- `cmd/sett/commands/init.go` - Init command
+- `cmd/holt/commands/init.go` - Init command
 - `internal/templates/` - Embedded templates for scaffolding
-- E2E test: Run `sett init` and verify file structure
+- E2E test: Run `holt init` and verify file structure
 
 **Design Document**: `cli-project-initialization.md`
 
@@ -93,28 +93,28 @@ Phase 1 is broken down into **6 implementable milestones** that build the founda
 **Dependencies**: M1.2, M1.3
 **Estimated Effort**: Large
 
-**Goal**: Manage Sett instance lifecycle with workspace safety and multi-instance support
+**Goal**: Manage Holt instance lifecycle with workspace safety and multi-instance support
 
 **Scope**:
-- `sett up [--name <instance>] [--force]` - Start Redis + orchestrator containers
-- `sett down [--name <instance>]` - Stop and cleanup containers
-- `sett list` - List all active Sett instances
+- `holt up [--name <instance>] [--force]` - Start Redis + orchestrator containers
+- `holt down [--name <instance>]` - Stop and cleanup containers
+- `holt list` - List all active Holt instances
 - Docker SDK integration
 - Container naming conventions (instance-based namespacing)
 - Network and volume management
-- Parse and validate `sett.yml` configuration
-- **Implement instance name locking (`sett:{name}:lock`) to prevent duplicate active instances**
-- **Implement atomic counter (`sett:instance_counter`) for generating default instance names**
-- **Implement workspace path check using a global `sett:instances` hash**
-- **Add `--force` flag to `sett up` to override workspace path collisions**
-- **Define the `sett:instances` hash structure, including `run_id`, `workspace_path`, and `started_at` fields**
+- Parse and validate `holt.yml` configuration
+- **Implement instance name locking (`holt:{name}:lock`) to prevent duplicate active instances**
+- **Implement atomic counter (`holt:instance_counter`) for generating default instance names**
+- **Implement workspace path check using a global `holt:instances` hash**
+- **Add `--force` flag to `holt up` to override workspace path collisions**
+- **Define the `holt:instances` hash structure, including `run_id`, `workspace_path`, and `started_at` fields**
 
 **Deliverables**:
-- `cmd/sett/commands/up.go` - Up command with workspace safety
-- `cmd/sett/commands/down.go` - Down command with cleanup
-- `cmd/sett/commands/list.go` - List command
+- `cmd/holt/commands/up.go` - Up command with workspace safety
+- `cmd/holt/commands/down.go` - Down command with cleanup
+- `cmd/holt/commands/list.go` - List command
 - `internal/docker/` - Docker SDK wrapper
-- `internal/config/` - sett.yml parser and validator
+- `internal/config/` - holt.yml parser and validator
 - `internal/instance/` - Instance locking, naming, and workspace tracking
 - Integration tests for full lifecycle including workspace collision detection
 
@@ -154,16 +154,16 @@ Phase 1 is broken down into **6 implementable milestones** that build the founda
 **Dependencies**: M1.2, M1.4, M1.5
 **Estimated Effort**: Small
 
-**Goal**: Enable users to start workflows with `sett forage`
+**Goal**: Enable users to start workflows with `holt forage`
 
 **Scope**:
-- `sett forage --goal "description"` command
+- `holt forage --goal "description"` command
 - GoalDefined artefact creation with proper structure
 - Publish to `artefact_events` Pub/Sub channel
 - Verify orchestrator receives and creates claim
 
 **Deliverables**:
-- `cmd/sett/commands/forage.go` - Forage command
+- `cmd/holt/commands/forage.go` - Forage command
 - End-to-end test: Run forage, verify artefact and claim creation
 - Validation of Phase 1 success criteria
 
@@ -230,9 +230,9 @@ The milestones should be implemented in the following order to respect dependenc
 
 Phase 1 is complete when:
 - ✅ All 6 milestones have their Definition of Done satisfied
-- ✅ End-to-end test passes: `sett init && sett up && sett forage --goal "hello world"`
+- ✅ End-to-end test passes: `holt init && holt up && holt forage --goal "hello world"`
 - ✅ Orchestrator creates a claim for the GoalDefined artefact
-- ✅ System state is visible via Redis CLI (`redis-cli KEYS "sett:*"`)
+- ✅ System state is visible via Redis CLI (`redis-cli KEYS "holt:*"`)
 - ✅ All core data structures are implemented and tested
 - ✅ No regressions in tests
 - ✅ Documentation is complete
@@ -245,14 +245,14 @@ Each milestone includes:
 - **E2E tests**: User-facing workflows from CLI perspective
 
 **Phase 1 E2E Test Suite**:
-1. Project initialization: `sett init` creates correct file structure
-2. Lifecycle management: `sett up` starts containers, `sett list` shows them, `sett down` cleans up
-3. Workflow initiation: `sett forage --goal "test"` creates artefact and claim
+1. Project initialization: `holt init` creates correct file structure
+2. Lifecycle management: `holt up` starts containers, `holt list` shows them, `holt down` cleans up
+3. Workflow initiation: `holt forage --goal "test"` creates artefact and claim
 4. State verification: Redis contains expected keys and data structures
 
 ## **Next Steps**
 
 After Phase 1 completion, proceed to **Phase 2: "Single Agent"** which adds:
-- Agent cub implementation
+- Agent pup implementation
 - Basic claim execution
 - Git workspace integration

@@ -7,8 +7,8 @@ import (
 	"log"
 	"time"
 
-	"github.com/dyluth/sett/internal/config"
-	"github.com/dyluth/sett/pkg/blackboard"
+	"github.com/dyluth/holt/internal/config"
+	"github.com/dyluth/holt/pkg/blackboard"
 	"github.com/google/uuid"
 )
 
@@ -17,7 +17,7 @@ import (
 type Engine struct {
 	client                  *blackboard.Client
 	instanceName            string
-	config                  *config.SettConfig     // M3.3: Need config for max_review_iterations
+	config                  *config.HoltConfig // M3.3: Need config for max_review_iterations
 	healthServer            *HealthServer
 	agentRegistry           map[string]string      // agent_name -> agent_role
 	phaseStates             map[string]*PhaseState // claimID -> PhaseState (M3.2: in-memory tracking)
@@ -28,7 +28,7 @@ type Engine struct {
 // NewEngine creates a new orchestrator engine.
 // Config is required in M2.2+ to build the agent registry for consensus.
 // M3.4: workerManager can be nil if Docker socket is not available (workers disabled)
-func NewEngine(client *blackboard.Client, instanceName string, cfg *config.SettConfig, workerManager *WorkerManager) *Engine {
+func NewEngine(client *blackboard.Client, instanceName string, cfg *config.HoltConfig, workerManager *WorkerManager) *Engine {
 	// Build agent registry from config
 	agentRegistry := make(map[string]string)
 	if cfg != nil {
@@ -83,8 +83,8 @@ func (e *Engine) Run(ctx context.Context) error {
 			}
 
 			e.logEvent("artefact_received", map[string]interface{}{
-				"artefact_id": artefact.ID,
-				"type":        artefact.Type,
+				"artefact_id":     artefact.ID,
+				"type":            artefact.Type,
 				"structural_type": artefact.StructuralType,
 			})
 

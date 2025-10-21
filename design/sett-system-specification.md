@@ -1,48 +1,48 @@
-# **Sett: A container-native AI agent orchestrator**
+# **Holt: A container-native AI agent orchestrator**
 
 **Purpose**: Complete system architecture, shared components, and implementation details  
 **Scope**: Reference - comprehensive system specification  
 **Estimated tokens**: ~5,700 tokens  
 **Read when**: Need complete architecture understanding, implementing core components
 
-Sett is a standalone, **container-native orchestration engine** designed to manage a clan of specialised, tool-equipped AI agents. It provides a robust, scalable, and auditable platform for automating complex workflows by leveraging the power of containerisation and the familiar paradigms of DevOps. While initially focused on software engineering tasks, Sett's immutable audit trails and human-in-the-loop design make it particularly valuable for regulated industries, compliance workflows, and any environment where AI transparency and accountability are business-critical.
+Holt is a standalone, **container-native orchestration engine** designed to manage a clan of specialised, tool-equipped AI agents. It provides a robust, scalable, and auditable platform for automating complex workflows by leveraging the power of containerisation and the familiar paradigms of DevOps. While initially focused on software engineering tasks, Holt's immutable audit trails and human-in-the-loop design make it particularly valuable for regulated industries, compliance workflows, and any environment where AI transparency and accountability are business-critical.
 
 It is not an LLM-chaining library. It is an orchestration engine for the real-world toolchains that software professionals use every day. It enables the automation of tasks that rely on compilers, CLIs, and infrastructure tools (git, docker, kubectl) by orchestrating agents whose tools are not just Python functions, but any command-line tool that can be packaged into a container.
 
 ## **Guiding principles**
 
-Sett is an opinionated tool. Our development philosophy is guided by a clear set of principles that prioritise simplicity, robustness, and pragmatism.
+Holt is an opinionated tool. Our development philosophy is guided by a clear set of principles that prioritise simplicity, robustness, and pragmatism.
 
-* **Pragmatism over novelty (YAGNI):** We prioritise using existing, battle-hardened tools rather than building our own. The core of Sett is an orchestrator, not a database or a container runtime. We use Docker for containers and Redis for state, because they are excellent.  
-* **Zero-configuration, progressively enhanced:** The experience must be seamless out of the box. A developer should be able to get a basic sett running with a single command. Smart defaults cover 90% of use cases, while advanced features and enterprise-grade workflows are available for those who need them.  
-* **Small, single-purpose components:** Each element in the system—the orchestrator, the CLI, the agent cub—has a clear, well-defined job and does that one thing excellently. Complexity is managed by composing simple parts.  
-* **Auditability is a core feature:** Artefacts are immutable. Every decision and agent interaction is recorded on the blackboard, providing a complete, auditable history of the workflow. This makes Sett particularly valuable for regulated industries, compliance workflows, and any environment where AI transparency and accountability are legally required or business-critical.  
+* **Pragmatism over novelty (YAGNI):** We prioritise using existing, battle-hardened tools rather than building our own. The core of Holt is an orchestrator, not a database or a container runtime. We use Docker for containers and Redis for state, because they are excellent.  
+* **Zero-configuration, progressively enhanced:** The experience must be seamless out of the box. A developer should be able to get a basic holt running with a single command. Smart defaults cover 90% of use cases, while advanced features and enterprise-grade workflows are available for those who need them.  
+* **Small, single-purpose components:** Each element in the system—the orchestrator, the CLI, the agent pup—has a clear, well-defined job and does that one thing excellently. Complexity is managed by composing simple parts.  
+* **Auditability is a core feature:** Artefacts are immutable. Every decision and agent interaction is recorded on the blackboard, providing a complete, auditable history of the workflow. This makes Holt particularly valuable for regulated industries, compliance workflows, and any environment where AI transparency and accountability are legally required or business-critical.  
 * **ARM64-first design:** Development and deployment are optimised for ARM64, with AMD64 as a fully supported, compatible target.  
 * **Principle of least privilege:** Agents run in non-root containers with the minimal set of privileges required to perform their function.
 
 ## **System architecture overview**
 
-The architecture separates concerns between three primary components: the **Orchestrator**, the **Agent Cubs**, and the **CLI**. The Orchestrator watches for new **Artefacts** and creates **Claims** based on them. Agent Cubs watch for **Claims** and bid on them. This creates a robust, event-driven workflow.
+The architecture separates concerns between three primary components: the **Orchestrator**, the **Agent Pups**, and the **CLI**. The Orchestrator watches for new **Artefacts** and creates **Claims** based on them. Agent Pups watch for **Claims** and bid on them. This creates a robust, event-driven workflow.
 
 ### **Component responsibilities**
 
-* **Orchestrator**: Event-driven coordination engine that manages claim lifecycles and agent coordination (see `design/sett-orchestrator-component.md`)
-* **Agent Cub**: Lightweight binary that runs in agent containers, handling bidding, context assembly, and work execution (see `design/agent-cub.md`)  
+* **Orchestrator**: Event-driven coordination engine that manages claim lifecycles and agent coordination (see `design/holt-orchestrator-component.md`)
+* **Agent Pup**: Lightweight binary that runs in agent containers, handling bidding, context assembly, and work execution (see `design/agent-pup.md`)  
 * **CLI**: User interface and workflow initiation tool that provides project management and human-in-the-loop commands
 * **Blackboard**: Redis-based shared state system where all components interact via well-defined data structures
 
 ### **High-level workflow**
 
-1. **Initiation**: User runs `sett forage --goal "Create a REST API"` 
+1. **Initiation**: User runs `holt forage --goal "Create a REST API"` 
 2. **Artefact creation**: CLI creates a GoalDefined artefact on the blackboard
 3. **Claim creation**: Orchestrator sees the artefact and creates a corresponding claim
 4. **Bidding**: All agents evaluate the claim and submit bids ('review', 'claim', 'exclusive', 'ignore')
 5. **Phased execution**: Orchestrator grants claims in review → parallel → exclusive phases
-6. **Work execution**: Agent cubs execute their tools and create new artefacts
+6. **Work execution**: Agent pups execute their tools and create new artefacts
 7. **Iteration**: New artefacts trigger new claims, continuing the workflow
 8. **Termination**: Workflow ends when an agent creates a Terminal artefact
 
-For detailed orchestration logic, see `design/sett-orchestrator-component.md`.
+For detailed orchestration logic, see `design/holt-orchestrator-component.md`.
 
 ## **Blackboard data structures**
 
@@ -50,29 +50,29 @@ The blackboard is the primary API of the system and serves as a lightweight ledg
 
 ### **Redis key patterns**
 
-All keys are namespaced to the instance to enable multiple setts on the same Redis instance:
+All keys are namespaced to the instance to enable multiple holts on the same Redis instance:
 
 **Global keys (not instance-specific):**
-* `sett:instance_counter` - Atomic counter for instance naming
-* `sett:instances` - Redis Hash storing metadata for all active instances (workspace paths, run IDs, timestamps)
+* `holt:instance_counter` - Atomic counter for instance naming
+* `holt:instances` - Redis Hash storing metadata for all active instances (workspace paths, run IDs, timestamps)
 
 **Instance-specific keys:**
-* `sett:{instance_name}:artefact:{uuid}` - Individual artefact data
-* `sett:{instance_name}:claim:{uuid}` - Individual claim data
-* `sett:{instance_name}:claim:{uuid}:bids` - Bids for a specific claim
-* `sett:{instance_name}:thread:{logical_id}` - Sorted set for version tracking
-* `sett:{instance_name}:lock` - Instance lock (TTL-based, heartbeat)
+* `holt:{instance_name}:artefact:{uuid}` - Individual artefact data
+* `holt:{instance_name}:claim:{uuid}` - Individual claim data
+* `holt:{instance_name}:claim:{uuid}:bids` - Bids for a specific claim
+* `holt:{instance_name}:thread:{logical_id}` - Sorted set for version tracking
+* `holt:{instance_name}:lock` - Instance lock (TTL-based, heartbeat)
 
 ### **Redis Pub/Sub channels**
 
-* `sett:{instance_name}:artefact_events` - For the orchestrator to watch for new artefacts
-* `sett:{instance_name}:claim_events` - For agents to watch for new claims
+* `holt:{instance_name}:artefact_events` - For the orchestrator to watch for new artefacts
+* `holt:{instance_name}:claim_events` - For agents to watch for new claims
 
 ### **Data structures**
 
-#### **Artefacts (sett:{instance_name}:artefact:{uuid} - Redis Hash)**
+#### **Artefacts (holt:{instance_name}:artefact:{uuid} - Redis Hash)**
 
-The central, immutable data object in Sett.
+The central, immutable data object in Holt.
 
 * **id** (string): The unique UUID of this specific artefact
 * **logical_id** (string): A shared UUID that groups all versions of the same logical artefact together. For the first version, logical_id is the same as id
@@ -89,7 +89,7 @@ The central, immutable data object in Sett.
 * **source_artefacts** (string): A JSON-encoded array of UUIDs establishing the DAG of dependencies
 * **produced_by_role** (string): The role of the agent that created this artefact
 
-#### **Claims (sett:{instance_name}:claim:{uuid} - Redis Hash)**
+#### **Claims (holt:{instance_name}:claim:{uuid} - Redis Hash)**
 
 A record of the Orchestrator's decisions about a specific Artefact.
 
@@ -101,21 +101,21 @@ A record of the Orchestrator's decisions about a specific Artefact.
   * `pending_exclusive` - Waiting for exclusive phase completion
   * `complete` - All phases finished successfully
   * `terminated` - Failed or killed due to feedback
-* **granted_review_agents** (string): A JSON-encoded array of agent names (from sett.yml) whose review bids were granted
+* **granted_review_agents** (string): A JSON-encoded array of agent names (from holt.yml) whose review bids were granted
 * **granted_parallel_agents** (string): A JSON-encoded array of agent names whose claim bids were granted
 * **granted_exclusive_agent** (string): The single agent name whose exclusive bid was granted
 
-#### **Bids (sett:{instance_name}:claim:{uuid}:bids - Redis Hash)**
+#### **Bids (holt:{instance_name}:claim:{uuid}:bids - Redis Hash)**
 
 A collection of bids submitted by agents for a specific claim.
 
-* **Key-Value Pairs:** The hash is a map where each key is the agent's **logical name** (e.g., 'go-coder-agent' from sett.yml) and the value is its bid type:
+* **Key-Value Pairs:** The hash is a map where each key is the agent's **logical name** (e.g., 'go-coder-agent' from holt.yml) and the value is its bid type:
   * `review` - Request to review the artefact
   * `claim` - Request to work on the artefact in parallel
   * `exclusive` - Request exclusive access to work on the artefact
   * `ignore` - Explicit declaration of no interest
 
-#### **Thread tracking (sett:{instance_name}:thread:{logical_id} - Redis Sorted Set)**
+#### **Thread tracking (holt:{instance_name}:thread:{logical_id} - Redis Sorted Set)**
 
 Efficient "latest version by logical_id" lookup using Redis ZSET. For each logical thread, artefact_ids are added with their version as the score. Getting the latest version is a single `ZREVRANGE ... LIMIT 1` call.
 
@@ -123,15 +123,15 @@ Efficient "latest version by logical_id" lookup using Redis ZSET. For each logic
 
 The agent's container has the project's working directory mounted. The payload for a code artefact is a git commit hash. The agent's command script is responsible for executing `git checkout <hash>` to get the codebase into the correct state before running its tools.
 
-## **The sett.yml configuration file**
+## **The holt.yml configuration file**
 
-The sett.yml file is the central, declarative configuration for a Sett instance. It defines the clan of agents available to the orchestrator.
+The holt.yml file is the central, declarative configuration for a Holt instance. It defines the clan of agents available to the orchestrator.
 
 ### **Agent definition**
 
-In Sett, we use the term **Agent** to describe any containerised component that performs work. An agent can be an intelligent, LLM-driven actor (like a code generator) or a simple, deterministic tool (like a test runner). This distinction is an implementation detail of the agent itself; the orchestrator treats them all as tool-equipped containers.
+In Holt, we use the term **Agent** to describe any containerised component that performs work. An agent can be an intelligent, LLM-driven actor (like a code generator) or a simple, deterministic tool (like a test runner). This distinction is an implementation detail of the agent itself; the orchestrator treats them all as tool-equipped containers.
 
-Each agent is defined under the agents key in sett.yml.
+Each agent is defined under the agents key in holt.yml.
 
 ```yaml
 version: '1.0'
@@ -150,7 +150,7 @@ agents:
     # Alternative: use pre-built image
     # image: 'my-registry/go-coder-agent:latest'
     
-    # The mandatory command the cub will execute for this agent
+    # The mandatory command the pup will execute for this agent
     # This is the entrypoint for the agent's specific logic
     command: ["/usr/bin/run-go-coder.sh"]
     
@@ -166,7 +166,7 @@ agents:
     strategy: 'fresh_per_call'
     
     # Defines the project workspace mounted into the container
-    # Path is relative to where the 'sett' command is run
+    # Path is relative to where the 'holt' command is run
     workspace:
       # 'ro' for read-only, 'rw' for read-write
       mode: 'rw'
@@ -201,41 +201,41 @@ agents:
 # Optional: Overrides for core infrastructure services
 services:
   orchestrator:
-    image: 'sett/orchestrator:v0.1.0'
+    image: 'holt/orchestrator:v0.1.0'
   redis:
     image: 'redis:7-alpine'
 ```
 
 ## **Agent scaling and concurrency**
 
-Sett supports two distinct operational models depending on the `replicas` configuration for each agent.
+Holt supports two distinct operational models depending on the `replicas` configuration for each agent.
 
 ### **Single-instance agents (replicas: 1)**
 
-For agents with `replicas: 1` (the default), the orchestrator manages a single container instance that runs the full agent cub with both bidding and execution capabilities. This is the standard model described in the `design/agent-cub.md` document.
+For agents with `replicas: 1` (the default), the orchestrator manages a single container instance that runs the full agent pup with both bidding and execution capabilities. This is the standard model described in the `design/agent-pup.md` document.
 
 ### **Scalable agents (replicas > 1): Controller-Worker pattern**
 
-For agents configured with `replicas > 1`, Sett uses a **controller-worker pattern** to eliminate race conditions and provide clean separation of concerns. This pattern consists of two distinct components:
+For agents configured with `replicas > 1`, Holt uses a **controller-worker pattern** to eliminate race conditions and provide clean separation of concerns. This pattern consists of two distinct components:
 
-#### **1. The Controller Cub ("bidder-only" mode)**
+#### **1. The Controller Pup ("bidder-only" mode)**
 
-When `sett up` is run, the orchestrator launches **one and only one** persistent container for the scalable agent (e.g., `go-coder-agent`).
+When `holt up` is run, the orchestrator launches **one and only one** persistent container for the scalable agent (e.g., `go-coder-agent`).
 
-The cub process within this container runs in a special **"bidder-only" mode**:
+The pup process within this container runs in a special **"bidder-only" mode**:
 - It runs only the Claim Watcher goroutine
 - It watches for all new claims and evaluates them on behalf of its agent type
 - It submits bids to the orchestrator
 - **The Work Executor goroutine is disabled** - it never performs any work itself
-- This container remains running throughout the sett's lifecycle
+- This container remains running throughout the holt's lifecycle
 
-#### **2. The Worker Cubs ("execute-only" mode)**
+#### **2. The Worker Pups ("execute-only" mode)**
 
-When the orchestrator decides to grant a claim to a scalable agent, it **cannot** assign the work to the persistent controller cub. Instead:
+When the orchestrator decides to grant a claim to a scalable agent, it **cannot** assign the work to the persistent controller pup. Instead:
 
 1. **Ephemeral container creation**: The orchestrator spins up a new, ephemeral container using the same agent image
-2. **Direct work assignment**: The cub process in this new container is launched in **"execute-only" mode** with the granted `claim_id` passed as a command-line argument: `cub --execute-claim <claim_id>`
-3. **Single-purpose execution**: This "worker cub" has no Claim Watcher loop. It:
+2. **Direct work assignment**: The pup process in this new container is launched in **"execute-only" mode** with the granted `claim_id` passed as a command-line argument: `pup --execute-claim <claim_id>`
+3. **Single-purpose execution**: This "worker pup" has no Claim Watcher loop. It:
    - Starts and sees its direct assignment
    - Performs the work for that single claim
    - Posts the resulting artefact to the blackboard
@@ -255,41 +255,41 @@ This controller-worker pattern is fundamental to multi-agent coordination and wi
 
 ## **The thematic CLI**
 
-The sett CLI is designed to be intuitive and memorable, using the sett metaphor to create a cohesive user experience.
+The holt CLI is designed to be intuitive and memorable, using the holt metaphor to create a cohesive user experience.
 
 ### **Project management commands**
 
-* **`sett init`** - Bootstrap command that scaffolds a new project with:
-  * `sett.yml` - Pre-populated configuration file with commented example agent
+* **`holt init`** - Bootstrap command that scaffolds a new project with:
+  * `holt.yml` - Pre-populated configuration file with commented example agent
   * `agents/` - Directory to hold agent definitions
   * `agents/example-agent/` - Example agent with Dockerfile and simple run.sh script
 
-### **Sett lifecycle commands**
+### **Holt lifecycle commands**
 
-* **`sett up [--name <instance>] [--force]`** - Brings a new sett online. Fails if the name is in use or if another instance is active on the same workspace path (unless `--force` is used). Name defaults to an auto-incrementing value (e.g., 'default-1').
-* **`sett down [--name <instance>]`** - Takes a sett offline (name defaults to the most recently created instance)
-* **`sett list`** - Lists all active setts on the host
+* **`holt up [--name <instance>] [--force]`** - Brings a new holt online. Fails if the name is in use or if another instance is active on the same workspace path (unless `--force` is used). Name defaults to an auto-incrementing value (e.g., 'default-1').
+* **`holt down [--name <instance>]`** - Takes a holt offline (name defaults to the most recently created instance)
+* **`holt list`** - Lists all active holts on the host
 
 ### **Workflow commands**
 
-* **`sett forage --goal "Your goal here"`** - The primary command to start a new task. Creates the initial GoalDefined artefact that triggers the workflow
-* **`sett watch [--name <instance>]`** - Provides a live view of the sett's activity log (name defaults to 'default')
+* **`holt forage --goal "Your goal here"`** - The primary command to start a new task. Creates the initial GoalDefined artefact that triggers the workflow
+* **`holt watch [--name <instance>]`** - Provides a live view of the holt's activity log (name defaults to 'default')
 
 ### **Inspection commands**
 
-* **`sett hoard [--name <instance>]`** - Lists all artefacts produced by the agents (name defaults to 'default')
-* **`sett unearth <artefact-id>`** - Retrieves the content of a specific artefact
+* **`holt hoard [--name <instance>]`** - Lists all artefacts produced by the agents (name defaults to 'default')
+* **`holt unearth <artefact-id>`** - Retrieves the content of a specific artefact
 
 ### **Human-in-the-loop commands**
 
-* **`sett questions [--wait]`** - Lists and manages questions escalated for human review
+* **`holt questions [--wait]`** - Lists and manages questions escalated for human review
   * Default mode: Lists all currently unanswered Question artefacts (and their IDs) and exits
   * With `--wait` flag: Blocks until a new Question artefact appears, prints its details and ID, then exits
-* **`sett answer <question-id> "<answer-text>"`** - Responds to a specific question. Creates the corresponding Answer artefact on the blackboard, unblocking waiting agents
+* **`holt answer <question-id> "<answer-text>"`** - Responds to a specific question. Creates the corresponding Answer artefact on the blackboard, unblocking waiting agents
 
 ### **Debug and monitoring commands**
 
-* **`sett logs <agent-logical-name>`** - Debug tool that provides a user-friendly wrapper around `docker logs`. Translates the agent's logical name into the full, namespaced container name and streams the logs using the Docker Go SDK. Works for both running `reuse` agents and stopped containers from `fresh_per_call` agents
+* **`holt logs <agent-logical-name>`** - Debug tool that provides a user-friendly wrapper around `docker logs`. Translates the agent's logical name into the full, namespaced container name and streams the logs using the Docker Go SDK. Works for both running `reuse` agents and stopped containers from `fresh_per_call` agents
 
 ## **Human interaction details**
 
@@ -325,8 +325,8 @@ The review process is deterministic with clear pass/fail definitions:
 The project uses the standard Go layout for multiple binaries:
 
 ```
-sett/
-├── cmd/             # Binaries: sett, orchestrator, cub
+holt/
+├── cmd/             # Binaries: holt, orchestrator, pup
 ├── pkg/             # Shared public packages (e.g., blackboard types)
 ├── internal/        # Private implementation details
 ├── agents/          # Example agent definitions (Dockerfiles, scripts)
@@ -351,24 +351,24 @@ sett/
 
 1. **Clone the repository:**
    ```bash
-   git clone https://github.com/your-repo/sett.git
-   cd sett
+   git clone https://github.com/your-repo/holt.git
+   cd holt
    ```
 
 2. **Build all binaries:**
    ```bash
    make build
    ```
-   This will place the sett CLI binary in the ./bin/ directory.
+   This will place the holt CLI binary in the ./bin/ directory.
 
-3. **Run your first sett:**
+3. **Run your first holt:**
    ```bash
-   ./bin/sett up --name my-first-sett
+   ./bin/holt up --name my-first-holt
    ```
 
 4. **Tear it down:**
    ```bash
-   ./bin/sett down --name my-first-sett
+   ./bin/holt down --name my-first-holt
    ```
 
 ### **Testing strategy**
@@ -379,14 +379,14 @@ sett/
 
 ### **Health checks and monitoring**
 
-**Health check endpoints:** The orchestrator and cubs expose a `GET /healthz` endpoint. Returns `200 OK` if connected to Redis, `503 Service Unavailable` otherwise.
+**Health check endpoints:** The orchestrator and pups expose a `GET /healthz` endpoint. Returns `200 OK` if connected to Redis, `503 Service Unavailable` otherwise.
 
 **Monitoring:** V1 uses high-quality, structured (JSON) logging to stdout.
 
 ## **Error handling and resilience**
 
 ### **Redis failures**
-The orchestrator and cubs implement a connection-retry policy with exponential backoff. If Redis is unreachable after retries, their health checks will fail, and the processes will exit loudly.
+The orchestrator and pups implement a connection-retry policy with exponential backoff. If Redis is unreachable after retries, their health checks will fail, and the processes will exit loudly.
 
 ### **Agent crashes**
 If an agent container dies, the orchestrator will post a Failure artefact and terminate the parent Claim. The work is considered lost.
@@ -395,7 +395,7 @@ If an agent container dies, the orchestrator will post a Failure artefact and te
 Each claim phase is an atomic, all-or-nothing transaction. If any agent in a parallel phase fails, the orchestrator will terminate the parent Claim and will not proceed to the next phase.
 
 ### **Failure recovery**
-When a Failure artefact is created, the workflow for that claim stops. For V1, the only next step is manual intervention. A human operator must inspect the failure, diagnose the problem, and restart the entire workflow from the beginning with `sett forage`. Resuming or restarting a failed workflow is not supported in V1.
+When a Failure artefact is created, the workflow for that claim stops. For V1, the only next step is manual intervention. A human operator must inspect the failure, diagnose the problem, and restart the entire workflow from the beginning with `holt forage`. Resuming or restarting a failed workflow is not supported in V1.
 
 ## **Professional standards**
 
@@ -413,11 +413,11 @@ The following phased approach ensures risk-minimized delivery that builds core i
 **Deliverables:**
 - Redis blackboard with complete key schemas
 - Basic orchestrator (artefact watching, claim creation)
-- CLI commands: `sett up`, `sett down`, `sett list`, `sett forage`
+- CLI commands: `holt up`, `holt down`, `holt list`, `holt forage`
 - Basic artefact creation and claim lifecycle
 
 **Success Criteria:**
-- `sett forage --goal "hello world"` creates initial artefact
+- `holt forage --goal "hello world"` creates initial artefact
 - Orchestrator creates corresponding claim
 - System state visible via Redis CLI
 
@@ -425,10 +425,10 @@ The following phased approach ensures risk-minimized delivery that builds core i
 *Goal: One agent can claim and execute work*
 
 **Deliverables:**
-- Agent cub binary with claim watching
+- Agent pup binary with claim watching
 - Basic agent execution (one simple agent type)
 - Git integration (checkout, commit workflow)
-- CLI commands: `sett watch`, `sett hoard`, `sett unearth`
+- CLI commands: `holt watch`, `holt hoard`, `holt unearth`
 
 **Success Criteria:**
 - End-to-end workflow: forage → claim → execute → artefact
@@ -454,7 +454,7 @@ The following phased approach ensures risk-minimized delivery that builds core i
 
 **Deliverables:**
 - Question/Answer artefact system
-- CLI commands: `sett questions`, `sett answer`
+- CLI commands: `holt questions`, `holt answer`
 - Health checks and monitoring
 - Complete documentation
 
@@ -467,16 +467,16 @@ The following phased approach ensures risk-minimized delivery that builds core i
 
 ### **Role-Based Access Control (RBAC)**
 
-As Sett matures and deployments grow, we anticipate the need for access control around destructive operations and sensitive data.
+As Holt matures and deployments grow, we anticipate the need for access control around destructive operations and sensitive data.
 
 **Scope of RBAC (Post-V1):**
-- **Authentication**: Identify users and API clients accessing Sett commands
-- **Authorization**: Control who can execute destructive operations like `sett destroy`
+- **Authentication**: Identify users and API clients accessing Holt commands
+- **Authorization**: Control who can execute destructive operations like `holt destroy`
 - **Audit trails**: Log all administrative actions with user attribution
 - **Role definitions**: Define roles such as `admin`, `operator`, `viewer`
 - **Protected operations**: Restrict commands like:
-  - `sett destroy` - Permanent data deletion
-  - `sett down --force` - Forceful instance termination
+  - `holt destroy` - Permanent data deletion
+  - `holt down --force` - Forceful instance termination
   - Modification of production instances
   - Access to sensitive artefact payloads
 

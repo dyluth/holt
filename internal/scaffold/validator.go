@@ -5,14 +5,14 @@ import (
 	"os"
 )
 
-// CheckExisting checks if sett.yml or agents/ directory already exist
+// CheckExisting checks if holt.yml or agents/ directory already exist
 // Returns an error if they do, nil otherwise
 func CheckExisting() error {
 	var existingFiles []string
 
-	// Check for sett.yml
-	if _, err := os.Stat("sett.yml"); err == nil {
-		existingFiles = append(existingFiles, "sett.yml")
+	// Check for holt.yml
+	if _, err := os.Stat("holt.yml"); err == nil {
+		existingFiles = append(existingFiles, "holt.yml")
 	}
 
 	// Check for agents/ directory
@@ -30,7 +30,7 @@ func CheckExisting() error {
 				errMsg += fmt.Sprintf("  - %s\n", file)
 			}
 		}
-		errMsg += "\nUse 'sett init --force' to reinitialize (this will overwrite existing configuration)"
+		errMsg += "\nUse 'holt init --force' to reinitialize (this will overwrite existing configuration)"
 
 		return fmt.Errorf("%s", errMsg)
 	}

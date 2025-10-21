@@ -7,32 +7,32 @@ import (
 	"gopkg.in/yaml.v3"
 )
 
-// OrchestratorConfig specifies orchestrator behavior settings (M3.3)
+// OrchestratorConfig specifies orchestrator behavior holtings (M3.3)
 type OrchestratorConfig struct {
 	MaxReviewIterations *int `yaml:"max_review_iterations,omitempty"` // How many times an artefact can be rejected and reworked (0 = unlimited, default = 3)
 }
 
-// SettConfig represents the top-level sett.yml configuration
-type SettConfig struct {
+// HoltConfig represents the top-level holt.yml configuration
+type HoltConfig struct {
 	Version      string              `yaml:"version"`
-	Orchestrator *OrchestratorConfig `yaml:"orchestrator,omitempty"` // M3.3: Orchestrator settings
+	Orchestrator *OrchestratorConfig `yaml:"orchestrator,omitempty"` // M3.3: Orchestrator holtings
 	Agents       map[string]Agent    `yaml:"agents"`
 	Services     *ServicesConfig     `yaml:"services,omitempty"`
 }
 
 // Agent represents a single agent configuration
 type Agent struct {
-	Role            string            `yaml:"role"`
-	Image           string            `yaml:"image"`         // Required: Docker image name for this agent
-	Build           *BuildConfig      `yaml:"build,omitempty"`
-	Command         []string          `yaml:"command"`
-	Workspace       *WorkspaceConfig  `yaml:"workspace,omitempty"`
-	Replicas        *int              `yaml:"replicas,omitempty"`
-	Strategy        string            `yaml:"strategy,omitempty"`
-	BiddingStrategy string            `yaml:"bidding_strategy"` // Required: review, claim, exclusive, or ignore
-	Environment     []string          `yaml:"environment,omitempty"`
-	Resources       *ResourcesConfig  `yaml:"resources,omitempty"`
-	Prompts         *PromptsConfig    `yaml:"prompts,omitempty"`
+	Role            string           `yaml:"role"`
+	Image           string           `yaml:"image"` // Required: Docker image name for this agent
+	Build           *BuildConfig     `yaml:"build,omitempty"`
+	Command         []string         `yaml:"command"`
+	Workspace       *WorkspaceConfig `yaml:"workspace,omitempty"`
+	Replicas        *int             `yaml:"replicas,omitempty"`
+	Strategy        string           `yaml:"strategy,omitempty"`
+	BiddingStrategy string           `yaml:"bidding_strategy"` // Required: review, claim, exclusive, or ignore
+	Environment     []string         `yaml:"environment,omitempty"`
+	Resources       *ResourcesConfig `yaml:"resources,omitempty"`
+	Prompts         *PromptsConfig   `yaml:"prompts,omitempty"`
 
 	// M3.4: Controller-worker pattern
 	Mode   string        `yaml:"mode,omitempty"`   // "controller" or empty (traditional)
@@ -88,7 +88,7 @@ type ServiceOverride struct {
 }
 
 // Validate performs strict validation on the configuration
-func (c *SettConfig) Validate() error {
+func (c *HoltConfig) Validate() error {
 	// Required: version
 	if c.Version != "1.0" {
 		return fmt.Errorf("unsupported version: %s (expected: 1.0)", c.Version)
@@ -223,14 +223,14 @@ func (a *Agent) Validate(name string) error {
 	return nil
 }
 
-// Load reads and validates sett.yml from the specified path
-func Load(path string) (*SettConfig, error) {
+// Load reads and validates holt.yml from the specified path
+func Load(path string) (*HoltConfig, error) {
 	data, err := os.ReadFile(path)
 	if err != nil {
 		return nil, fmt.Errorf("failed to read config: %w", err)
 	}
 
-	var config SettConfig
+	var config HoltConfig
 	if err := yaml.Unmarshal(data, &config); err != nil {
 		return nil, fmt.Errorf("failed to parse YAML: %w", err)
 	}

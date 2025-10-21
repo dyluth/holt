@@ -1,18 +1,18 @@
-.PHONY: help test test-verbose test-integration test-e2e test-all coverage coverage-html lint build build-orchestrator build-cub docker-orchestrator build-all clean install test-cub
+.PHONY: help test test-verbose test-integration test-e2e test-all coverage coverage-html lint build build-orchestrator build-pup docker-orchestrator build-all clean install test-pup
 
 # Use Go 1.24 if available in /usr/local/go, otherwise use system go
 GO := $(shell [ -x /usr/local/go/bin/go ] && echo /usr/local/go/bin/go || echo go)
 
 # Default target
 help:
-	@echo "Sett Development Makefile"
+	@echo "Holt Development Makefile"
 	@echo ""
 	@echo "Targets:"
 	@echo ""
 	@echo "Common workflows:"
-	@echo "  build-all           - Build everything (CLI + orchestrator + cub)"
-	@echo "  build               - Build the sett CLI binary for current platform"
-	@echo "  docker-orchestrator - Build orchestrator Docker image (required for 'sett up')"
+	@echo "  build-all           - Build everything (CLI + orchestrator + pup)"
+	@echo "  build               - Build the holt CLI binary for current platform"
+	@echo "  docker-orchestrator - Build orchestrator Docker image (required for 'holt up')"
 	@echo ""
 	@echo "Cross-compilation:"
 	@echo "  build-darwin-arm64  - Build for macOS ARM64 (M1/M2/M3 Macs)"
@@ -23,32 +23,32 @@ help:
 	@echo "Testing:"
 	@echo "  test                - Run all unit tests"
 	@echo "  test-verbose        - Run all unit tests with verbose output"
-	@echo "  test-cub            - Run cub unit and integration tests"
+	@echo "  test-pup            - Run pup unit and integration tests"
 	@echo "  test-integration    - Run orchestrator integration tests (requires Docker)"
 	@echo "  test-e2e            - Run Phase 2 E2E test suite (requires Docker)"
-	@echo "  test-all            - Run ALL tests (unit + cub + integration + e2e)"
+	@echo "  test-all            - Run ALL tests (unit + pup + integration + e2e)"
 	@echo "  coverage            - Run tests and show coverage report"
 	@echo "  coverage-html       - Generate HTML coverage report"
 	@echo "  lint                - Run go vet and staticcheck"
 	@echo ""
 	@echo "Development:"
 	@echo "  build-orchestrator  - Build orchestrator binary (for debugging only)"
-	@echo "  build-cub           - Build agent cub binary"
-	@echo "  install             - Install sett binary to GOPATH/bin"
+	@echo "  build-pup           - Build agent pup binary"
+	@echo "  install             - Install holt binary to GOPATH/bin"
 	@echo "  clean               - Remove build artifacts"
 
 # Run all tests (depends on binaries being built)
-test: build build-cub
+test: build build-pup
 	@echo "Running tests..."
 	@$(GO) test ./...
 
 # Run all tests with verbose output
-test-verbose: build build-cub
+test-verbose: build build-pup
 	@echo "Running tests (verbose)..."
 	@$(GO) test -v ./...
 
 # Run tests with coverage
-coverage: build build-cub
+coverage: build build-pup
 	@echo "Running tests with coverage..."
 	@$(GO) test -coverprofile=coverage.out ./...
 	@echo ""
@@ -85,104 +85,104 @@ test-integration: build-orchestrator
 
 # Run Phase 2 E2E test suite (requires Docker)
 # M3.4: Now depends on docker-orchestrator to ensure latest orchestrator image is available
-test-e2e: build build-cub docker-orchestrator
+test-e2e: build build-pup docker-orchestrator
 	@echo "Running Phase 2 E2E test suite..."
 	@echo "Building example-git-agent Docker image..."
 	@docker build -q -t example-git-agent:latest -f agents/example-git-agent/Dockerfile . > /dev/null
 	@docker build -q -t example-agent:latest -f agents/example-agent/Dockerfile . > /dev/null
 	@echo "Running E2E tests..."
-	@$(GO) test -v -timeout 15m -tags=integration -run="TestE2E|TestPerformance" ./cmd/sett/commands
+	@$(GO) test -v -timeout 15m -tags=integration -run="TestE2E|TestPerformance" ./cmd/holt/commands
 	@echo "✓ All E2E tests passed"
 
-# Run all tests (unit + cub + integration + e2e)
-test-all: test test-cub test-integration test-e2e
+# Run all tests (unit + pup + integration + e2e)
+test-all: test test-pup test-integration test-e2e
 	@echo ""
 	@echo "========================================"
 	@echo "✓ ALL TESTS PASSED"
 	@echo "========================================"
 	@echo "  Unit tests:        ✓"
-	@echo "  Cub tests:         ✓"
+	@echo "  Pup tests:         ✓"
 	@echo "  Integration tests: ✓"
 	@echo "  E2E tests:         ✓"
 	@echo ""
 
-# Build the sett binary
+# Build the holt binary
 build:
-	@echo "Building sett CLI..."
+	@echo "Building holt CLI..."
 	@mkdir -p bin
-	@$(GO) build -o bin/sett ./cmd/sett
-	@echo "✓ Built: bin/sett"
+	@$(GO) build -o bin/holt ./cmd/holt
+	@echo "✓ Built: bin/holt"
 
 # Cross-compile for macOS ARM64 (M1/M2/M3 Macs)
 build-darwin-arm64:
-	@echo "Building sett CLI for macOS ARM64..."
+	@echo "Building holt CLI for macOS ARM64..."
 	@mkdir -p bin
-	@GOOS=darwin GOARCH=arm64 $(GO) build -o bin/sett-darwin-arm64 ./cmd/sett
-	@echo "✓ Built: bin/sett-darwin-arm64"
+	@GOOS=darwin GOARCH=arm64 $(GO) build -o bin/holt-darwin-arm64 ./cmd/holt
+	@echo "✓ Built: bin/holt-darwin-arm64"
 
 # Cross-compile for macOS Intel
 build-darwin-amd64:
-	@echo "Building sett CLI for macOS Intel..."
+	@echo "Building holt CLI for macOS Intel..."
 	@mkdir -p bin
-	@GOOS=darwin GOARCH=amd64 $(GO) build -o bin/sett-darwin-amd64 ./cmd/sett
-	@echo "✓ Built: bin/sett-darwin-amd64"
+	@GOOS=darwin GOARCH=amd64 $(GO) build -o bin/holt-darwin-amd64 ./cmd/holt
+	@echo "✓ Built: bin/holt-darwin-amd64"
 
 # Cross-compile for Linux ARM64
 build-linux-arm64:
-	@echo "Building sett CLI for Linux ARM64..."
+	@echo "Building holt CLI for Linux ARM64..."
 	@mkdir -p bin
-	@GOOS=linux GOARCH=arm64 $(GO) build -o bin/sett-linux-arm64 ./cmd/sett
-	@echo "✓ Built: bin/sett-linux-arm64"
+	@GOOS=linux GOARCH=arm64 $(GO) build -o bin/holt-linux-arm64 ./cmd/holt
+	@echo "✓ Built: bin/holt-linux-arm64"
 
 # Cross-compile for Linux AMD64
 build-linux-amd64:
-	@echo "Building sett CLI for Linux AMD64..."
+	@echo "Building holt CLI for Linux AMD64..."
 	@mkdir -p bin
-	@GOOS=linux GOARCH=amd64 $(GO) build -o bin/sett-linux-amd64 ./cmd/sett
-	@echo "✓ Built: bin/sett-linux-amd64"
+	@GOOS=linux GOARCH=amd64 $(GO) build -o bin/holt-linux-amd64 ./cmd/holt
+	@echo "✓ Built: bin/holt-linux-amd64"
 
 # Build the orchestrator binary
 build-orchestrator:
 	@echo "Building orchestrator..."
 	@mkdir -p bin
-	@$(GO) build -o bin/sett-orchestrator ./cmd/orchestrator
-	@echo "✓ Built: bin/sett-orchestrator"
+	@$(GO) build -o bin/holt-orchestrator ./cmd/orchestrator
+	@echo "✓ Built: bin/holt-orchestrator"
 
-# Build the agent cub binary
-build-cub:
-	@echo "Building agent cub..."
+# Build the agent pup binary
+build-pup:
+	@echo "Building agent pup..."
 	@mkdir -p bin
-	@$(GO) build -o bin/sett-cub ./cmd/cub
-	@echo "✓ Built: bin/sett-cub"
+	@$(GO) build -o bin/holt-pup ./cmd/pup
+	@echo "✓ Built: bin/holt-pup"
 
-# Run cub unit and integration tests
-test-cub: build-cub
-	@echo "Running cub tests..."
-	@$(GO) test -v -race ./internal/cub
-	@$(GO) test -v -timeout 60s ./cmd/cub
-	@echo "✓ All cub tests passed"
+# Run pup unit and integration tests
+test-pup: build-pup
+	@echo "Running pup tests..."
+	@$(GO) test -v -race ./internal/pup
+	@$(GO) test -v -timeout 60s ./cmd/pup
+	@echo "✓ All pup tests passed"
 
 # Build orchestrator Docker image
 docker-orchestrator:
 	@echo "Building orchestrator Docker image..."
-	@docker build -f Dockerfile.orchestrator -t sett-orchestrator:latest .
-	@echo "✓ Built: sett-orchestrator:latest"
+	@docker build -f Dockerfile.orchestrator -t holt-orchestrator:latest .
+	@echo "✓ Built: holt-orchestrator:latest"
 
-# Build everything (CLI + orchestrator Docker image + cub)
-build-all: build build-cub docker-orchestrator
+# Build everything (CLI + orchestrator Docker image + pup)
+build-all: build build-pup docker-orchestrator
 	@echo ""
 	@echo "✓ Build complete!"
-	@echo "  - CLI binary: bin/sett"
-	@echo "  - Cub binary: bin/sett-cub"
-	@echo "  - Orchestrator image: sett-orchestrator:latest"
+	@echo "  - CLI binary: bin/holt"
+	@echo "  - Pup binary: bin/holt-pup"
+	@echo "  - Orchestrator image: holt-orchestrator:latest"
 	@echo ""
-	@echo "Ready to use: ./bin/sett up"
+	@echo "Ready to use: ./bin/holt up"
 
-# Install sett binary
+# Install holt binary
 install:
-	@echo "Installing sett..."
-	@$(GO) install ./cmd/sett
-	@echo "✓ Installed to: $$($(GO) env GOPATH)/bin/sett"
+	@echo "Installing holt..."
+	@$(GO) install ./cmd/holt
+	@echo "✓ Installed to: $$($(GO) env GOPATH)/bin/holt"
 
 # Clean build artifacts
 clean:

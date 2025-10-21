@@ -5,7 +5,7 @@
 
 set -e  # Exit on any error
 
-# Read JSON input from stdin (required by cub contract)
+# Read JSON input from stdin (required by pup contract)
 input=$(cat)
 
 # Extract the target artefact version from input JSON

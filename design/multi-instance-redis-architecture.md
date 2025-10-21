@@ -1,7 +1,7 @@
 # **Multi-Instance Redis Architecture**
 
 **Purpose**: Instance isolation, naming, and uniqueness strategy for shared Redis
-**Scope**: Foundation - applies to all Sett instances
+**Scope**: Foundation - applies to all Holt instances
 **Estimated tokens**: ~1,200 tokens
 **Read when**: Implementing instance lifecycle, orchestrator, or understanding isolation
 
@@ -9,13 +9,13 @@
 
 ## **Problem Statement**
 
-Multiple Sett instances must be able to coexist safely on a single shared Redis server without interfering with each other. This requires:
+Multiple Holt instances must be able to coexist safely on a single shared Redis server without interfering with each other. This requires:
 
 1. **Complete data isolation** - No instance can access another instance's artefacts, claims, or bids
 2. **Event isolation** - Pub/Sub events must only reach the intended instance
 3. **Uniqueness enforcement** - No two instances can use the same name simultaneously
 4. **Automatic cleanup** - Crashed instances should not leave orphaned locks
-5. **Simple UX** - `sett up` without arguments should "just work"
+5. **Simple UX** - `holt up` without arguments should "just work"
 
 ---
 
@@ -27,24 +27,24 @@ Multiple Sett instances must be able to coexist safely on a single shared Redis 
 
 ```
 # Global Keys (not instance-specific)
-sett:instance_counter                      # Atomic counter for auto-naming
-sett:instances                             # Hash of active instance metadata
+holt:instance_counter                      # Atomic counter for auto-naming
+holt:instances                             # Hash of active instance metadata
 
 # Instance-Specific Keys
-sett:{instance_name}:artefact:{uuid}       # Artefact data
-sett:{instance_name}:claim:{uuid}          # Claim data
-sett:{instance_name}:claim:{uuid}:bids     # Bid data
-sett:{instance_name}:thread:{logical_id}   # Version tracking
-sett:{instance_name}:lock                  # Instance lock (TTL-based)
+holt:{instance_name}:artefact:{uuid}       # Artefact data
+holt:{instance_name}:claim:{uuid}          # Claim data
+holt:{instance_name}:claim:{uuid}:bids     # Bid data
+holt:{instance_name}:thread:{logical_id}   # Version tracking
+holt:{instance_name}:lock                  # Instance lock (TTL-based)
 
 # Instance-Specific Pub/Sub Channels
-sett:{instance_name}:artefact_events       # Artefact creation events
-sett:{instance_name}:claim_events          # Claim creation events
+holt:{instance_name}:artefact_events       # Artefact creation events
+holt:{instance_name}:claim_events          # Claim creation events
 ```
 
 **Benefits:**
 - Complete isolation at the Redis level
-- Simple pattern matching for debugging (`KEYS sett:myproject:*`)
+- Simple pattern matching for debugging (`KEYS holt:myproject:*`)
 - No cross-instance event delivery
 
 **Implementation:**
@@ -59,7 +59,7 @@ sett:{instance_name}:claim_events          # Claim creation events
 
 **Redis Key:**
 ```
-Key: sett:{instance_name}:lock
+Key: holt:{instance_name}:lock
 Type: String
 Value: timestamp or orchestrator metadata (JSON)
 TTL: 60 seconds
@@ -67,27 +67,27 @@ TTL: 60 seconds
 
 **Lifecycle:**
 
-1. **On `sett up --name myproject`:**
-   - Try to create lock: `SET sett:myproject:lock <value> NX EX 60`
+1. **On `holt up --name myproject`:**
+   - Try to create lock: `SET holt:myproject:lock <value> NX EX 60`
    - If fails (key exists), instance name is already in use → error with helpful message
    - If succeeds, proceed with startup
 
 2. **During operation (Orchestrator heartbeat):**
-   - Refresh lock every 30 seconds: `SET sett:myproject:lock <value> EX 60`
+   - Refresh lock every 30 seconds: `SET holt:myproject:lock <value> EX 60`
    - If heartbeat fails, lock will expire in 60 seconds (auto-cleanup)
 
-3. **On `sett down --name myproject`:**
-   - Graceful shutdown: `DEL sett:myproject:lock`
+3. **On `holt down --name myproject`:**
+   - Graceful shutdown: `DEL holt:myproject:lock`
    - If crash, TTL expires naturally (no orphaned locks)
 
 **Error Handling:**
 ```
 # Lock already exists
-$ sett up --name myproject
+$ holt up --name myproject
 Error: Instance name 'myproject' is already in use
-Try: sett list (to see active instances)
-Try: sett down --name myproject (to stop existing instance)
-Try: sett up --name myproject-2 (to use a different name)
+Try: holt list (to see active instances)
+Try: holt down --name myproject (to stop existing instance)
+Try: holt up --name myproject-2 (to use a different name)
 ```
 
 ---
@@ -98,10 +98,10 @@ Try: sett up --name myproject-2 (to use a different name)
 
 **Redis Key:**
 ```
-Key: sett:instances
+Key: holt:instances
 Type: Hash
 Fields: {instance_name} -> JSON metadata
-No field-level TTL (cleanup on sett down)
+No field-level TTL (cleanup on holt down)
 ```
 
 **Metadata Schema (JSON):**
@@ -115,25 +115,25 @@ No field-level TTL (cleanup on sett down)
 ```
 
 **Field Definitions:**
-- `run_id` (UUID): Unique identifier for this instance run. Changes on every `sett up` (even with same instance name)
-- `workspace_path` (string): Absolute path to the workspace directory where `sett up` was executed
+- `run_id` (UUID): Unique identifier for this instance run. Changes on every `holt up` (even with same instance name)
+- `workspace_path` (string): Absolute path to the workspace directory where `holt up` was executed
 - `started_at` (ISO8601): Timestamp when the instance was started
 - `orchestrator_pid` (int): Process ID of the orchestrator (for debugging)
 
 **Lifecycle:**
 
-1. **On `sett up --name myproject`:**
+1. **On `holt up --name myproject`:**
    ```redis
-   HSET sett:instances myproject '{"run_id":"...", "workspace_path":"...", ...}'
+   HSET holt:instances myproject '{"run_id":"...", "workspace_path":"...", ...}'
    ```
 
 2. **During operation:**
    - Metadata persists (no TTL on individual hash fields)
    - Used for workspace path collision detection
 
-3. **On `sett down --name myproject`:**
+3. **On `holt down --name myproject`:**
    ```redis
-   HDEL sett:instances myproject
+   HDEL holt:instances myproject
    ```
 
 **Workspace Path Collision Detection:**
@@ -141,7 +141,7 @@ No field-level TTL (cleanup on sett down)
 ```go
 func CheckWorkspaceCollision(workspacePath string, excludeInstance string) (string, error) {
     // Get all instance metadata
-    instances := redisClient.HGetAll(ctx, "sett:instances").Val()
+    instances := redisClient.HGetAll(ctx, "holt:instances").Val()
 
     for instanceName, metadataJSON := range instances {
         if instanceName == excludeInstance {
@@ -166,12 +166,12 @@ func CheckWorkspaceCollision(workspacePath string, excludeInstance string) (stri
 **Error Handling:**
 ```bash
 # Workspace collision without --force
-$ cd /path/to/project && sett up
+$ cd /path/to/project && holt up
 Error: workspace '/path/to/project' is already in use by instance 'default-1'
-Use --force to override this check, or run 'sett down --name default-1' first
+Use --force to override this check, or run 'holt down --name default-1' first
 
 # Workspace collision with --force (bypasses check)
-$ cd /path/to/project && sett up --force
+$ cd /path/to/project && holt up --force
 Warning: Overriding workspace path collision check
 Started instance: default-2
 ```
@@ -182,22 +182,22 @@ Started instance: default-2
 
 **Explicit naming:**
 ```bash
-$ sett up --name myproject
+$ holt up --name myproject
 # Uses "myproject" if available, errors if locked
 ```
 
 **Auto-increment default naming:**
 ```bash
-$ sett up
+$ holt up
 # Algorithm:
-# 1. INCR sett:instance_counter (atomic)
+# 1. INCR holt:instance_counter (atomic)
 # 2. Use "default-{counter}" as instance name
 # 3. Create lock for that name
 ```
 
 **Redis Counter Key:**
 ```
-Key: sett:instance_counter
+Key: holt:instance_counter
 Type: Integer
 Purpose: Global atomic counter for instance numbering
 No TTL: Persists across instance lifecycles
@@ -215,7 +215,7 @@ func ResolveInstanceName(explicitName string) (string, error) {
     }
 
     // No name specified - atomically increment global counter
-    counter, err := redisClient.Incr(ctx, "sett:instance_counter").Result()
+    counter, err := redisClient.Incr(ctx, "holt:instance_counter").Result()
     if err != nil {
         return "", fmt.Errorf("failed to generate instance name: %w", err)
     }
@@ -237,26 +237,26 @@ func IsInstanceLocked(instanceName string) bool {
 **UX Examples:**
 ```bash
 # First instance - counter starts at 1
-$ sett up
+$ holt up
 Started instance: default-1
 
 # Second instance - counter increments to 2
-$ sett up
+$ holt up
 Started instance: default-2
 
 # Third instance - counter increments to 3
-$ sett up
+$ holt up
 Started instance: default-3
 
 # Stop first instance
-$ sett down --name default-1
+$ holt down --name default-1
 
 # Fourth instance - counter increments to 4 (never reuses old numbers)
-$ sett up
+$ holt up
 Started instance: default-4
 
 # Explicit naming - doesn't affect counter
-$ sett up --name myproject
+$ holt up --name myproject
 Started instance: myproject
 ```
 
@@ -264,11 +264,11 @@ Started instance: myproject
 
 ### **5. Instance Discovery**
 
-**`sett list` implementation:**
+**`holt list` implementation:**
 
 ```bash
-$ sett list
-Active Sett instances:
+$ holt list
+Active Holt instances:
   default      (started 5m ago)
   myproject    (started 1h ago)
   default-1    (started 2m ago)
@@ -278,13 +278,13 @@ Active Sett instances:
 ```go
 func ListActiveInstances() ([]InstanceInfo, error) {
     // Scan for all lock keys
-    pattern := "sett:*:lock"
+    pattern := "holt:*:lock"
     lockKeys := redisClient.Keys(ctx, pattern).Val()
 
     instances := []InstanceInfo{}
     for _, lockKey := range lockKeys {
         // Extract instance name from key
-        // "sett:myproject:lock" -> "myproject"
+        // "holt:myproject:lock" -> "myproject"
         instanceName := ExtractInstanceNameFromLockKey(lockKey)
 
         // Get lock value (contains metadata)
@@ -348,20 +348,20 @@ func ValidateInstanceName(name string) error {
 - Thread tracking ZSET operations
 
 ### **M1.4: CLI Lifecycle Management**
-- Define global key constants (`sett:instance_counter`, `sett:instances`)
-- Define instance-specific key helper (`sett:{name}:lock`)
+- Define global key constants (`holt:instance_counter`, `holt:instances`)
+- Define instance-specific key helper (`holt:{name}:lock`)
 - Implement `ResolveInstanceName()` algorithm (atomic counter)
 - Implement `ValidateInstanceName()` validation
 - Implement `CheckWorkspaceCollision()` function
-- `sett up`:
+- `holt up`:
   - Atomically increment counter for default naming
   - Check workspace path collision (unless `--force`)
   - Create lock on startup
-  - Register instance metadata in `sett:instances` hash
-- `sett down`:
+  - Register instance metadata in `holt:instances` hash
+- `holt down`:
   - Delete lock on shutdown
-  - Remove instance from `sett:instances` hash
-- `sett list`: Read `sett:instances` hash and display metadata
+  - Remove instance from `holt:instances` hash
+- `holt list`: Read `holt:instances` hash and display metadata
 
 ### **M1.5: Orchestrator Claim Engine**
 - Heartbeat goroutine refreshes lock every 30s
@@ -379,50 +379,50 @@ func ValidateInstanceName(name string) error {
 - Lock key generation and parsing
 
 ### **Integration Tests**
-- Multiple `sett up` commands (test auto-increment)
-- `sett up` collision detection (name already in use)
+- Multiple `holt up` commands (test auto-increment)
+- `holt up` collision detection (name already in use)
 - Workspace path collision detection (exact match)
 - `--force` flag bypasses workspace collision
 - Lock TTL expiration (crash simulation)
-- `sett list` discovers all instances with metadata
+- `holt list` discovers all instances with metadata
 - Instance metadata properly stored and removed
 - Namespaced Pub/Sub (no cross-instance events)
 
 ### **E2E Tests**
 ```bash
 # Test 1: Auto-increment naming
-sett up              # Gets "default-1"
-sett up              # Gets "default-2"
-sett list            # Shows both with metadata
-sett down            # Stops "default-2"
-sett down --name default-1
+holt up              # Gets "default-1"
+holt up              # Gets "default-2"
+holt list            # Shows both with metadata
+holt down            # Stops "default-2"
+holt down --name default-1
 
 # Test 2: Explicit naming
-sett up --name test1
-sett up --name test1 # Fails (already in use)
-sett down --name test1
+holt up --name test1
+holt up --name test1 # Fails (already in use)
+holt down --name test1
 
 # Test 3: Workspace path collision
 cd /path/to/project
-sett up              # Gets "default-3", workspace recorded
+holt up              # Gets "default-3", workspace recorded
 cd /path/to/project
-sett up              # Fails (workspace already in use)
-sett up --force      # Succeeds (bypasses workspace check), gets "default-4"
-sett down --name default-3
-sett down --name default-4
+holt up              # Fails (workspace already in use)
+holt up --force      # Succeeds (bypasses workspace check), gets "default-4"
+holt down --name default-3
+holt down --name default-4
 
 # Test 4: Crash recovery
-sett up --name crash-test
+holt up --name crash-test
 kill -9 <orchestrator-pid>
 # Wait 65 seconds (TTL expiration)
-sett up --name crash-test # Should succeed (lock expired)
+holt up --name crash-test # Should succeed (lock expired)
 
 # Test 5: Instance metadata
-sett up --name meta-test
-redis-cli HGET sett:instances meta-test
+holt up --name meta-test
+redis-cli HGET holt:instances meta-test
 # Should show JSON with workspace_path, run_id, etc.
-sett down --name meta-test
-redis-cli HGET sett:instances meta-test
+holt down --name meta-test
+redis-cli HGET holt:instances meta-test
 # Should return nil (metadata removed)
 ```
 
@@ -435,7 +435,7 @@ redis-cli HGET sett:instances meta-test
 
 **Mitigation**:
 - Lock value includes orchestrator metadata (PID, start time)
-- `sett down` validates lock ownership before deletion (future enhancement)
+- `holt down` validates lock ownership before deletion (future enhancement)
 - TTL ensures locks don't persist indefinitely
 
 ### **Instance Name Squatting**
@@ -466,7 +466,7 @@ type LockValue struct {
     Hostname        string    `json:"hostname"`
 }
 
-// sett down validates lock ownership before deletion
+// holt down validates lock ownership before deletion
 ```
 
 ### **V2: Quorum-Based Locking**
@@ -475,14 +475,14 @@ type LockValue struct {
 
 ### **V2: Instance Metadata**
 - Store additional info in lock value
-- Expose in `sett list` (uptime, artefact count, agent status)
+- Expose in `holt list` (uptime, artefact count, agent status)
 
 ---
 
 ## **Principle Compliance**
 
 ✅ **YAGNI**: Uses standard Redis operations (SET NX, TTL), no complex lock library needed
-✅ **Zero-config**: `sett up` works without arguments (auto-increment)
+✅ **Zero-config**: `holt up` works without arguments (auto-increment)
 ✅ **Small, single-purpose**: Lock mechanism is simple and focused
 ✅ **Pragmatism**: TTL-based approach is battle-tested and reliable
 
@@ -500,8 +500,8 @@ The multi-instance Redis architecture provides:
 6. **Simple UX** that "just works" out of the box with sensible defaults
 
 **Three-layer safety strategy:**
-- **Layer 1**: `sett:instance_counter` for guaranteed-unique naming
-- **Layer 2**: `sett:{name}:lock` with TTL for liveness and uniqueness
-- **Layer 3**: `sett:instances` hash for workspace collision detection
+- **Layer 1**: `holt:instance_counter` for guaranteed-unique naming
+- **Layer 2**: `holt:{name}:lock` with TTL for liveness and uniqueness
+- **Layer 3**: `holt:instances` hash for workspace collision detection
 
-This design enables safe, reliable multi-instance operation on shared Redis infrastructure while maintaining Sett's zero-configuration philosophy.
+This design enables safe, reliable multi-instance operation on shared Redis infrastructure while maintaining Holt's zero-configuration philosophy.

@@ -1,11 +1,11 @@
 #!/bin/bash
 
-# Example Sett Agent - Simple Greeter
-# This demonstrates the stdin/stdout JSON contract between the cub and agent
+# Example Holt Agent - Simple Greeter
+# This demonstrates the stdin/stdout JSON contract between the pup and agent
 
 set -euo pipefail
 
-# Read the claim context from stdin (provided by the cub)
+# Read the claim context from stdin (provided by the pup)
 input=$(cat)
 
 # Parse the claim type and target artefact
@@ -16,10 +16,10 @@ target_payload=$(echo "$input" | grep -o '"payload":"[^"]*"' | head -1 | cut -d'
 
 # Simple greeter logic - responds based on the payload
 greeting_response="Hello! I received your message: '$target_payload'"
-greeting_response="$greeting_response\n\nI'm the example agent demonstrating the Sett stdin/stdout contract."
+greeting_response="$greeting_response\n\nI'm the example agent demonstrating the Holt stdin/stdout contract."
 greeting_response="$greeting_response\nClaim type: $claim_type"
 
-# Generate output artefact (JSON format expected by cub)
+# Generate output artefact (JSON format expected by pup)
 # In a real LLM-driven agent, this would be the LLM's response
 cat <<EOF
 {
