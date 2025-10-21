@@ -6,6 +6,7 @@ import (
 	"log"
 	"time"
 
+	"github.com/dyluth/holt/internal/config"
 	"github.com/dyluth/holt/pkg/blackboard"
 )
 
@@ -111,6 +112,149 @@ func (e *Engine) persistPhaseState(ctx context.Context, claim *blackboard.Claim,
 	}
 
 	return nil
+}
+
+// pauseGrantForQueue adds claim to persistent grant queue when max_concurrent reached (M3.5).
+// Uses Redis ZSET for FIFO ordering based on pause timestamp.
+func (e *Engine) pauseGrantForQueue(ctx context.Context, claim *blackboard.Claim, agentName string, role string) error {
+	pausedAt := time.Now().Unix()
+
+	// Update claim with queue metadata
+	claim.GrantQueue = &blackboard.GrantQueue{
+		PausedAt:  pausedAt,
+		AgentName: agentName,
+		Position:  0, // Not populated in M3.5 - ZSET score provides ordering
+	}
+
+	// Persist claim with queue metadata
+	if err := e.client.UpdateClaim(ctx, claim); err != nil {
+		return fmt.Errorf("failed to update claim with queue metadata: %w", err)
+	}
+
+	// Add to Redis ZSET (score = pausedAt for FIFO)
+	queueKey := fmt.Sprintf("holt:%s:grant_queue:%s", e.instanceName, role)
+	if err := e.client.ZAdd(ctx, queueKey, float64(pausedAt), claim.ID); err != nil {
+		return fmt.Errorf("failed to add claim to grant queue: %w", err)
+	}
+
+	e.logEvent("grant_paused_for_queue", map[string]interface{}{
+		"claim_id":  claim.ID,
+		"role":      role,
+		"agent":     agentName,
+		"paused_at": pausedAt,
+	})
+
+	log.Printf("[Orchestrator] Claim %s paused in grant queue for role '%s' (max_concurrent reached)", claim.ID, role)
+	return nil
+}
+
+// resumeFromQueue pops next claim from grant queue when worker slot opens (M3.5).
+// Returns the resumed claim, or nil if queue is empty.
+func (e *Engine) resumeFromQueue(ctx context.Context, role string) (*blackboard.Claim, error) {
+	queueKey := fmt.Sprintf("holt:%s:grant_queue:%s", e.instanceName, role)
+
+	// Get oldest claim (lowest score = earliest pause time)
+	results, err := e.client.ZRangeWithScores(ctx, queueKey, 0, 0)
+	if err != nil {
+		return nil, fmt.Errorf("failed to read grant queue: %w", err)
+	}
+
+	if len(results) == 0 {
+		return nil, nil // Queue empty
+	}
+
+	claimID := results[0].Member.(string)
+	claim, err := e.client.GetClaim(ctx, claimID)
+	if err != nil {
+		if blackboard.IsNotFound(err) {
+			// Claim no longer exists - remove from queue and continue
+			e.client.ZRem(ctx, queueKey, claimID)
+			return nil, nil
+		}
+		return nil, fmt.Errorf("failed to fetch queued claim: %w", err)
+	}
+
+	// Remove from queue
+	if err := e.client.ZRem(ctx, queueKey, claimID); err != nil {
+		return nil, fmt.Errorf("failed to remove claim from queue: %w", err)
+	}
+
+	// Clear queue metadata from claim
+	claim.GrantQueue = nil
+	if err := e.client.UpdateClaim(ctx, claim); err != nil {
+		return nil, fmt.Errorf("failed to clear queue metadata: %w", err)
+	}
+
+	e.logEvent("grant_resumed_from_queue", map[string]interface{}{
+		"claim_id": claimID,
+		"role":     role,
+	})
+
+	log.Printf("[Orchestrator] Resuming claim %s from grant queue for role '%s'", claimID, role)
+	return claim, nil
+}
+
+// handleWorkerSlotAvailable handles queue resumption when a worker completes (M3.5).
+// This is the callback invoked by WorkerManager after worker cleanup.
+func (e *Engine) handleWorkerSlotAvailable(ctx context.Context, role string) {
+	log.Printf("[Orchestrator] Worker slot available for role '%s', checking grant queue", role)
+
+	// Try to resume next claim from queue
+	claim, err := e.resumeFromQueue(ctx, role)
+	if err != nil {
+		log.Printf("[Orchestrator] Error resuming from grant queue for role '%s': %v", role, err)
+		return
+	}
+
+	if claim == nil {
+		log.Printf("[Orchestrator] No claims in grant queue for role '%s'", role)
+		return
+	}
+
+	// Grant to agent stored in GrantQueue.AgentName (before we cleared it)
+	// We need to fetch the agent info from config
+	var agentName string
+	var agent config.Agent
+	var found bool
+
+	// Find the agent by role
+	for name, a := range e.config.Agents {
+		if a.Role == role {
+			agentName = name
+			agent = a
+			found = true
+			break
+		}
+	}
+
+	if !found {
+		log.Printf("[Orchestrator] No agent found for role '%s', cannot resume claim %s", role, claim.ID)
+		return
+	}
+
+	// Grant exclusive phase (launch worker)
+	log.Printf("[Orchestrator] Resuming grant for claim %s to agent %s (role: %s)", claim.ID, agentName, role)
+
+	// Update claim status and granted agent
+	claim.GrantedExclusiveAgent = agentName
+	claim.Status = blackboard.ClaimStatusPendingExclusive
+
+	if err := e.client.UpdateClaim(ctx, claim); err != nil {
+		log.Printf("[Orchestrator] Failed to update resumed claim: %v", err)
+		return
+	}
+
+	// Launch worker
+	if e.workerManager != nil {
+		if err := e.workerManager.LaunchWorker(ctx, claim, agentName, agent, e.client); err != nil {
+			log.Printf("[Orchestrator] Failed to launch worker for resumed claim: %v", err)
+
+			// Terminate claim
+			claim.Status = blackboard.ClaimStatusTerminated
+			claim.TerminationReason = fmt.Sprintf("Failed to launch worker after queue resumption: %v", err)
+			e.client.UpdateClaim(ctx, claim)
+		}
+	}
 }
 
 // DetermineInitialPhase determines which phase a claim should start in based on bids.

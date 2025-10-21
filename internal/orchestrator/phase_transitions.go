@@ -149,22 +149,24 @@ func (e *Engine) GrantExclusivePhase(ctx context.Context, claim *blackboard.Clai
 	if agentExists && agent.Mode == "controller" {
 		// Controller-worker pattern: check max_concurrent limit
 		if e.workerManager != nil && e.workerManager.IsAtWorkerLimit(agent.Role, agent.Worker.MaxConcurrent) {
-			// At max_concurrent limit - pause granting
+			// M3.5: At max_concurrent limit - pause granting using persistent queue
 			e.logEvent("worker_limit_reached", map[string]interface{}{
 				"role":           agent.Role,
 				"max_concurrent": agent.Worker.MaxConcurrent,
 				"claim_id":       claim.ID,
 			})
 
-			log.Printf("[Orchestrator] Role '%s' at max_concurrent worker limit (%d), claim %s remains pending",
+			log.Printf("[Orchestrator] Role '%s' at max_concurrent worker limit (%d), pausing claim %s in grant queue",
 				agent.Role, agent.Worker.MaxConcurrent, claim.ID)
 
-			// IMPORTANT: Stateless pause mechanism (M3.4)
-			// - Claim remains in pending_consensus status
-			// - Will be re-evaluated in next consensus cycle
-			// - No queue, no persistence required
-			// - Persistent queue deferred to M3.5
-			return fmt.Errorf("role '%s' at max_concurrent worker limit (%d)", agent.Role, agent.Worker.MaxConcurrent)
+			// M3.5: Add to persistent grant queue
+			if err := e.pauseGrantForQueue(ctx, claim, winner, agent.Role); err != nil {
+				log.Printf("[Orchestrator] Failed to pause claim in grant queue: %v", err)
+				return fmt.Errorf("failed to pause claim in grant queue: %w", err)
+			}
+
+			// Return nil (not error) - claim successfully paused, not failed
+			return nil
 		}
 
 		// Not at limit - proceed with worker launch

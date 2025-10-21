@@ -37,7 +37,7 @@ func NewEngine(client *blackboard.Client, instanceName string, cfg *config.HoltC
 		}
 	}
 
-	return &Engine{
+	engine := &Engine{
 		client:                  client,
 		instanceName:            instanceName,
 		config:                  cfg, // M3.3: Store config for feedback loop logic
@@ -47,6 +47,13 @@ func NewEngine(client *blackboard.Client, instanceName string, cfg *config.HoltC
 		pendingAssignmentClaims: make(map[string]string),      // M3.3: Initialize feedback claim tracking
 		workerManager:           workerManager,                // M3.4: Worker lifecycle management
 	}
+
+	// M3.5: Set worker slot available callback for grant queue resumption
+	if workerManager != nil {
+		workerManager.SetWorkerSlotAvailableCallback(engine.handleWorkerSlotAvailable)
+	}
+
+	return engine
 }
 
 // Run starts the orchestrator engine and blocks until context is cancelled.

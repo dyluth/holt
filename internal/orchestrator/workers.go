@@ -33,6 +33,7 @@ type WorkerState struct {
 
 // WorkerManager handles worker lifecycle management for the orchestrator
 // M3.4: Manages Docker container creation, monitoring, and cleanup for workers
+// M3.5: Supports queue resumption callback for grant queue management
 type WorkerManager struct {
 	dockerClient       *client.Client
 	instanceName       string
@@ -43,6 +44,9 @@ type WorkerManager struct {
 	activeWorkers map[string]*WorkerState // key: container_id
 	workersByRole map[string]int          // key: role, value: active worker count
 	workerLock    sync.RWMutex
+
+	// M3.5: Callback invoked when worker slot opens (for grant queue resumption)
+	onWorkerSlotAvailable func(ctx context.Context, role string)
 }
 
 // NewWorkerManager creates a new worker manager
@@ -56,6 +60,12 @@ func NewWorkerManager(dockerClient *client.Client, instanceName, workspacePath s
 		activeWorkers:      make(map[string]*WorkerState),
 		workersByRole:      make(map[string]int),
 	}
+}
+
+// SetWorkerSlotAvailableCallback sets the callback for queue resumption (M3.5).
+// Called by orchestrator engine to enable grant queue resumption when workers complete.
+func (wm *WorkerManager) SetWorkerSlotAvailableCallback(callback func(ctx context.Context, role string)) {
+	wm.onWorkerSlotAvailable = callback
 }
 
 // LaunchWorker creates and starts an ephemeral worker container
@@ -191,8 +201,13 @@ func (wm *WorkerManager) monitorWorker(ctx context.Context, containerID string, 
 		wm.handleWorkerExit(ctx, worker, int(status.StatusCode), bbClient)
 	}
 
-	// Cleanup
-	wm.cleanupWorker(ctx, containerID)
+	// M3.5: Cleanup and trigger queue resumption
+	role := wm.cleanupWorker(ctx, containerID)
+
+	// M3.5: Notify orchestrator that a worker slot is available for this role
+	if role != "" && wm.onWorkerSlotAvailable != nil {
+		wm.onWorkerSlotAvailable(ctx, role)
+	}
 }
 
 // handleWorkerExit processes worker completion or failure
@@ -278,7 +293,8 @@ func (wm *WorkerManager) handleWorkerError(ctx context.Context, worker *WorkerSt
 
 // cleanupWorker removes worker from tracking and Docker
 // M3.4: Decrements worker count and removes container
-func (wm *WorkerManager) cleanupWorker(ctx context.Context, containerID string) {
+// M3.5: Returns the worker's role so orchestrator can resume queued claims
+func (wm *WorkerManager) cleanupWorker(ctx context.Context, containerID string) string {
 	wm.workerLock.Lock()
 	worker := wm.activeWorkers[containerID]
 	if worker != nil {
@@ -296,12 +312,16 @@ func (wm *WorkerManager) cleanupWorker(ctx context.Context, containerID string) 
 		Force: true,
 	})
 
+	var role string
 	if worker != nil {
+		role = worker.Role
 		wm.logEvent("worker_cleanup", map[string]interface{}{
 			"container_id": containerID,
-			"role":         worker.Role,
+			"role":         role,
 		})
 	}
+
+	return role
 }
 
 // getWorkerLogs retrieves container logs for failure debugging
