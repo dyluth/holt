@@ -57,6 +57,20 @@ func main() {
 
 	// 6. Initialize Docker client for worker management (M3.4)
 	// The Docker socket is mounted at /var/run/docker.sock by the CLI
+
+	// M3.4: Diagnostic check for Docker socket permissions
+	if stat, err := os.Stat("/var/run/docker.sock"); err == nil {
+		fmt.Printf("Docker socket found: mode=%v\n", stat.Mode())
+		// Print user/group info to help diagnose permission issues
+		if sysstat, ok := stat.Sys().(*syscall.Stat_t); ok {
+			fmt.Printf("Docker socket ownership: uid=%d, gid=%d\n", sysstat.Uid, sysstat.Gid)
+			fmt.Printf("Current process: uid=%d, gid=%d, groups=%v\n",
+				syscall.Getuid(), syscall.Getgid(), syscall.Getgroups())
+		}
+	} else {
+		fmt.Fprintf(os.Stderr, "Docker socket not found at /var/run/docker.sock: %v\n", err)
+	}
+
 	dockerClient, err := client.NewClientWithOpts(client.FromEnv, client.WithAPIVersionNegotiation())
 	if err != nil {
 		fmt.Fprintf(os.Stderr, "Warning: Failed to create Docker client (worker management disabled): %v\n", err)
@@ -69,7 +83,7 @@ func main() {
 			dockerClient.Close()
 			dockerClient = nil
 		} else {
-			fmt.Println("Docker client initialized for worker management")
+			fmt.Println("✓ Docker client initialized for worker management")
 		}
 	}
 

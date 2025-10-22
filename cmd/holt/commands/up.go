@@ -676,28 +676,45 @@ func checkHealthEndpoint(ctx context.Context, cli *client.Client, containerName 
 }
 
 // getDockerSocketGroups returns the GID of /var/run/docker.sock for container access.
-// Returns empty slice if unable to detect (graceful degradation - orchestrator will
-// warn about Docker unavailability but continue without worker management).
+// Handles platform differences:
+// - Linux: Returns docker group GID (typically 999, 998, or 121)
+// - macOS: Returns "0" (root group) since Docker Desktop manages permissions via VM
+// - GitHub Actions: Returns detected GID (varies by runner)
+//
+// Returns empty slice if unable to detect (graceful degradation).
 func getDockerSocketGroups() []string {
 	// Stat the Docker socket to get its GID
 	fileInfo, err := os.Stat("/var/run/docker.sock")
 	if err != nil {
-		// Socket doesn't exist or can't be accessed - not fatal
-		// Orchestrator will run but worker management will be disabled
+		// Socket doesn't exist or can't be accessed
+		// This is expected in some test environments
+		printer.Warning("Docker socket not accessible: %v (worker management will be disabled)\n", err)
 		return []string{}
 	}
 
 	// Get the GID from the file info
 	stat, ok := fileInfo.Sys().(*syscall.Stat_t)
 	if !ok {
-		// Can't get stat info - return empty (graceful degradation)
+		// Can't get stat info - platform doesn't support syscall.Stat_t
+		printer.Warning("Cannot detect Docker socket GID (worker management will be disabled)\n")
 		return []string{}
 	}
 
-	// Return GID as string (Docker accepts both group names and GIDs)
-	// Using GID is more reliable than group name across different systems
-	gid := strconv.FormatUint(uint64(stat.Gid), 10)
-	return []string{gid}
+	gid := stat.Gid
+
+	// Platform-specific handling
+	if gid == 0 {
+		// macOS Docker Desktop: Socket owned by root (GID 0)
+		// Docker Desktop handles permissions via its VM, so we add GID 0
+		// The container user will need to be added to GID 0 group
+		printer.Info("Docker socket owned by root (GID 0) - likely macOS Docker Desktop\n")
+		return []string{"0"}
+	}
+
+	// Linux/GitHub Actions: Return the actual docker group GID
+	gidStr := strconv.FormatUint(uint64(gid), 10)
+	printer.Info("Docker socket GID: %s (adding to orchestrator container)\n", gidStr)
+	return []string{gidStr}
 }
 
 // detectAndHandleStaleLock checks for stale orchestrator locks and handles takeover (M3.5).
