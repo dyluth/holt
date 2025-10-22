@@ -8,7 +8,7 @@ import (
 	"log"
 	"time"
 
-	"github.com/dyluth/sett/pkg/blackboard"
+	"github.com/dyluth/holt/pkg/blackboard"
 )
 
 // OutputFormat defines the output format for watch streaming

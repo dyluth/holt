@@ -4,7 +4,7 @@
 
 ## **Phase Success Criteria**
 
-- `sett forage --goal "hello world"` creates initial artefact
+- `holt forage --goal "hello world"` creates initial artefact
 - Orchestrator creates corresponding claim
 - System state visible via Redis CLI
 - All core data structures implemented and functional
@@ -26,7 +26,7 @@
    - Basic event-driven architecture
 
 3. **CLI Lifecycle Commands**
-   - `sett up`, `sett down`, `sett list`, `sett forage`
+   - `holt up`, `holt down`, `holt list`, `holt forage`
    - Project initialization and teardown
    - Basic workflow initiation
 
@@ -52,5 +52,5 @@ This is the foundation phase - no external dependencies on other phases.
 
 - Working Redis blackboard with complete schemas
 - Functional orchestrator watching for artefacts
-- CLI commands for sett lifecycle management
+- CLI commands for holt lifecycle management
 - Initial artefact creation workflow

@@ -10,8 +10,8 @@ import (
 	"testing"
 	"time"
 
-	"github.com/dyluth/sett/internal/orchestrator"
-	"github.com/dyluth/sett/pkg/blackboard"
+	"github.com/dyluth/holt/internal/orchestrator"
+	"github.com/dyluth/holt/pkg/blackboard"
 	"github.com/google/uuid"
 	"github.com/redis/go-redis/v9"
 	"github.com/testcontainers/testcontainers-go"
@@ -78,7 +78,7 @@ func TestOrchestrator_CreatesClaimForGoalDefined(t *testing.T) {
 	defer client.Close()
 
 	// Start orchestrator
-	engine := orchestrator.NewEngine(client, "test-instance", nil)
+	engine := orchestrator.NewEngine(client, "test-instance", nil, nil)
 	errCh := make(chan error, 1)
 	go func() {
 		errCh <- engine.Run(ctx)
@@ -89,14 +89,14 @@ func TestOrchestrator_CreatesClaimForGoalDefined(t *testing.T) {
 
 	// Create a GoalDefined artefact
 	artefact := &blackboard.Artefact{
-		ID:               uuid.New().String(),
-		LogicalID:        uuid.New().String(),
-		Version:          1,
-		StructuralType:   blackboard.StructuralTypeStandard,
-		Type:             "GoalDefined",
-		Payload:          "hello world",
-		SourceArtefacts:  []string{},
-		ProducedByRole:   "user",
+		ID:              uuid.New().String(),
+		LogicalID:       uuid.New().String(),
+		Version:         1,
+		StructuralType:  blackboard.StructuralTypeStandard,
+		Type:            "GoalDefined",
+		Payload:         "hello world",
+		SourceArtefacts: []string{},
+		ProducedByRole:  "user",
 	}
 
 	if err := client.CreateArtefact(ctx, artefact); err != nil {
@@ -165,7 +165,7 @@ func TestOrchestrator_SkipsTerminalArtefacts(t *testing.T) {
 	defer client.Close()
 
 	// Start orchestrator
-	engine := orchestrator.NewEngine(client, "test-instance", nil)
+	engine := orchestrator.NewEngine(client, "test-instance", nil, nil)
 	errCh := make(chan error, 1)
 	go func() {
 		errCh <- engine.Run(ctx)
@@ -176,14 +176,14 @@ func TestOrchestrator_SkipsTerminalArtefacts(t *testing.T) {
 
 	// Create a Terminal artefact
 	artefact := &blackboard.Artefact{
-		ID:               uuid.New().String(),
-		LogicalID:        uuid.New().String(),
-		Version:          1,
-		StructuralType:   blackboard.StructuralTypeTerminal,
-		Type:             "FinalReport",
-		Payload:          "workflow complete",
-		SourceArtefacts:  []string{},
-		ProducedByRole:   "agent",
+		ID:              uuid.New().String(),
+		LogicalID:       uuid.New().String(),
+		Version:         1,
+		StructuralType:  blackboard.StructuralTypeTerminal,
+		Type:            "FinalReport",
+		Payload:         "workflow complete",
+		SourceArtefacts: []string{},
+		ProducedByRole:  "agent",
 	}
 
 	if err := client.CreateArtefact(ctx, artefact); err != nil {
@@ -228,7 +228,7 @@ func TestOrchestrator_IdempotentClaimCreation(t *testing.T) {
 	defer client.Close()
 
 	// Start orchestrator
-	engine := orchestrator.NewEngine(client, "test-instance", nil)
+	engine := orchestrator.NewEngine(client, "test-instance", nil, nil)
 	errCh := make(chan error, 1)
 	go func() {
 		errCh <- engine.Run(ctx)
@@ -239,14 +239,14 @@ func TestOrchestrator_IdempotentClaimCreation(t *testing.T) {
 
 	// Create artefact twice (simulating duplicate event)
 	artefact := &blackboard.Artefact{
-		ID:               uuid.New().String(),
-		LogicalID:        uuid.New().String(),
-		Version:          1,
-		StructuralType:   blackboard.StructuralTypeStandard,
-		Type:             "GoalDefined",
-		Payload:          "test goal",
-		SourceArtefacts:  []string{},
-		ProducedByRole:   "user",
+		ID:              uuid.New().String(),
+		LogicalID:       uuid.New().String(),
+		Version:         1,
+		StructuralType:  blackboard.StructuralTypeStandard,
+		Type:            "GoalDefined",
+		Payload:         "test goal",
+		SourceArtefacts: []string{},
+		ProducedByRole:  "user",
 	}
 
 	if err := client.CreateArtefact(ctx, artefact); err != nil {
@@ -305,7 +305,7 @@ func TestOrchestrator_HealthCheckEndpoint(t *testing.T) {
 	defer client.Close()
 
 	// Start orchestrator
-	engine := orchestrator.NewEngine(client, "test-instance", nil)
+	engine := orchestrator.NewEngine(client, "test-instance", nil, nil)
 	errCh := make(chan error, 1)
 	go func() {
 		errCh <- engine.Run(ctx)
@@ -351,7 +351,7 @@ func TestOrchestrator_GracefulShutdown(t *testing.T) {
 	defer client.Close()
 
 	// Start orchestrator
-	engine := orchestrator.NewEngine(client, "test-instance", nil)
+	engine := orchestrator.NewEngine(client, "test-instance", nil, nil)
 	errCh := make(chan error, 1)
 	go func() {
 		errCh <- engine.Run(ctx)

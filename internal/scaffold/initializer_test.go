@@ -28,7 +28,7 @@ func TestInitialize(t *testing.T) {
 			force: true,
 			setupFunc: func(dir string) {
 				// Create existing files
-				os.WriteFile(filepath.Join(dir, "sett.yml"), []byte("old content"), 0644)
+				os.WriteFile(filepath.Join(dir, "holt.yml"), []byte("old content"), 0644)
 				os.MkdirAll(filepath.Join(dir, "agents", "old-agent"), 0755)
 				os.WriteFile(filepath.Join(dir, "agents", "old-agent", "old.txt"), []byte("old"), 0644)
 			},
@@ -73,7 +73,7 @@ func TestInitialize(t *testing.T) {
 					shouldExist bool
 					executable  bool
 				}{
-					{"sett.yml", true, false},
+					{"holt.yml", true, false},
 					{"agents/example-agent/Dockerfile", true, false},
 					{"agents/example-agent/run.sh", true, true},
 					{"agents/example-agent/README.md", true, false},
@@ -103,15 +103,15 @@ func TestInitialize(t *testing.T) {
 					}
 				}
 
-				// Verify sett.yml is valid YAML
-				content, err := os.ReadFile(filepath.Join(tmpDir, "sett.yml"))
+				// Verify holt.yml is valid YAML
+				content, err := os.ReadFile(filepath.Join(tmpDir, "holt.yml"))
 				if err != nil {
-					t.Errorf("Failed to read sett.yml: %v", err)
+					t.Errorf("Failed to read holt.yml: %v", err)
 				}
 
 				var yamlData interface{}
 				if err := yaml.Unmarshal(content, &yamlData); err != nil {
-					t.Errorf("sett.yml is not valid YAML: %v", err)
+					t.Errorf("holt.yml is not valid YAML: %v", err)
 				}
 
 				// If force was true, verify old files were removed
@@ -133,9 +133,9 @@ func TestHandleForce(t *testing.T) {
 		wantErr   bool
 	}{
 		{
-			name: "removes existing sett.yml",
+			name: "removes existing holt.yml",
 			setupFunc: func(dir string) {
-				os.WriteFile(filepath.Join(dir, "sett.yml"), []byte("content"), 0644)
+				os.WriteFile(filepath.Join(dir, "holt.yml"), []byte("content"), 0644)
 			},
 			wantErr: false,
 		},
@@ -184,8 +184,8 @@ func TestHandleForce(t *testing.T) {
 			}
 
 			// Verify files were removed
-			if _, err := os.Stat(filepath.Join(tmpDir, "sett.yml")); err == nil {
-				t.Errorf("sett.yml should have been removed")
+			if _, err := os.Stat(filepath.Join(tmpDir, "holt.yml")); err == nil {
+				t.Errorf("holt.yml should have been removed")
 			}
 
 			if _, err := os.Stat(filepath.Join(tmpDir, "agents")); err == nil {
@@ -204,7 +204,7 @@ func TestGetTemplateFiles(t *testing.T) {
 	expectedFiles := map[string]struct {
 		permissions os.FileMode
 	}{
-		"sett.yml": {0644},
+		"holt.yml": {0644},
 		filepath.Join("agents", "example-agent", "Dockerfile"): {0644},
 		filepath.Join("agents", "example-agent", "run.sh"):     {0755},
 		filepath.Join("agents", "example-agent", "README.md"):  {0644},
@@ -389,7 +389,7 @@ agents:
   test-agent:
     role: 'test'
 `
-				os.WriteFile(filepath.Join(dir, "sett.yml"), []byte(validYaml), 0644)
+				os.WriteFile(filepath.Join(dir, "holt.yml"), []byte(validYaml), 0644)
 			},
 			wantErr: false,
 		},
@@ -402,14 +402,14 @@ agents:
     role: 'test'
   - invalid syntax
 `
-				os.WriteFile(filepath.Join(dir, "sett.yml"), []byte(invalidYaml), 0644)
+				os.WriteFile(filepath.Join(dir, "holt.yml"), []byte(invalidYaml), 0644)
 			},
 			wantErr: true,
 		},
 		{
 			name: "missing file",
 			setupFunc: func(dir string) {
-				// Don't create sett.yml
+				// Don't create holt.yml
 			},
 			wantErr: true,
 		},

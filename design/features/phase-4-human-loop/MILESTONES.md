@@ -23,14 +23,14 @@ Phase 4 milestones focus on production readiness, human interaction, and operati
 
 **Scope**:
 - Question structural type handling in orchestrator
-- `sett questions [--wait]` command implementation
-- `sett answer <question-id> "response"` command
+- `holt questions [--wait]` command implementation
+- `holt answer <question-id> "response"` command
 - Answer artefact creation and claim unblocking
 - Timeout handling for unanswered questions
 
 **Deliverables**:
-- `cmd/sett/commands/questions.go` - Questions command
-- `cmd/sett/commands/answer.go` - Answer command
+- `cmd/holt/commands/questions.go` - Questions command
+- `cmd/holt/commands/answer.go` - Answer command
 - Orchestrator Question/Answer workflow logic
 - Integration tests for human-in-the-loop scenarios
 
@@ -46,13 +46,13 @@ Phase 4 milestones focus on production readiness, human interaction, and operati
 **Goal**: Production-ready monitoring and observability
 
 **Scope**:
-- `/healthz` endpoints for orchestrator and cubs
+- `/healthz` endpoints for orchestrator and pups
 - Structured JSON logging throughout
 - Performance metrics collection
 - Operational debugging commands
 
 **Deliverables**:
-- Health check HTTP servers in orchestrator and cub
+- Health check HTTP servers in orchestrator and pup
 - Logging framework integration
 - Metrics collection infrastructure
 - Debug tooling and commands
@@ -66,23 +66,23 @@ Phase 4 milestones focus on production readiness, human interaction, and operati
 **Dependencies**: M4.2
 **Estimated Effort**: Medium
 
-**Goal**: Safely destroy Sett instances and all associated data
+**Goal**: Safely destroy Holt instances and all associated data
 
 **Scope**:
-- `sett destroy --name <instance> [--force]` command implementation
+- `holt destroy --name <instance> [--force]` command implementation
 - Validation that instance is stopped before destruction
 - Complete removal of all Redis keys for the instance:
-  - `sett:{instance_name}:artefact:*`
-  - `sett:{instance_name}:claim:*`
-  - `sett:{instance_name}:thread:*`
-  - `sett:{instance_name}:lock`
-  - Entry in `sett:instances` hash
+  - `holt:{instance_name}:artefact:*`
+  - `holt:{instance_name}:claim:*`
+  - `holt:{instance_name}:thread:*`
+  - `holt:{instance_name}:lock`
+  - Entry in `holt:instances` hash
 - Confirmation prompts and safety checks
 - `--force` flag to bypass confirmation (for scripting)
 - Comprehensive audit logging of destruction operations
 
 **Deliverables**:
-- `cmd/sett/commands/destroy.go` - Destroy command
+- `cmd/holt/commands/destroy.go` - Destroy command
 - `internal/instance/destroyer.go` - Instance destruction logic
 - Confirmation and safety validation
 - Integration tests for destruction scenarios
@@ -100,7 +100,7 @@ Phase 4 milestones focus on production readiness, human interaction, and operati
 **Example UX**:
 ```bash
 # Basic usage (requires confirmation)
-$ sett destroy --name myproject
+$ holt destroy --name myproject
 WARNING: This will permanently delete ALL data for instance 'myproject'
 This includes:
   - All artefacts and claims
@@ -116,16 +116,16 @@ Destroying instance 'myproject'...
 Instance 'myproject' destroyed successfully
 
 # Force mode (no confirmation, for scripts)
-$ sett destroy --name myproject --force
+$ holt destroy --name myproject --force
 Instance 'myproject' destroyed successfully
 
 # Error: Instance still running
-$ sett destroy --name myproject
+$ holt destroy --name myproject
 Error: Cannot destroy instance 'myproject' - instance is still running
-Run 'sett down --name myproject' first
+Run 'holt down --name myproject' first
 
 # Error: Instance doesn't exist
-$ sett destroy --name nonexistent
+$ holt destroy --name nonexistent
 Error: Instance 'nonexistent' not found
 ```
 
@@ -168,7 +168,7 @@ Phase 4 is complete when:
 
 ## **Next Steps**
 
-After Phase 4 completion, Sett v1.0 is production-ready for:
+After Phase 4 completion, Holt v1.0 is production-ready for:
 - Software engineering workflows
 - Regulated industry compliance scenarios
 - Enterprise deployments requiring auditability

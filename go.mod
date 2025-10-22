@@ -1,4 +1,4 @@
-module github.com/dyluth/sett
+module github.com/dyluth/holt
 
 go 1.24
 

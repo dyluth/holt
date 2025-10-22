@@ -93,7 +93,7 @@ func TestThreadKey_Integration(t *testing.T) {
 	key := ThreadKey(instanceName, logicalID)
 
 	// Verify format
-	expectedPrefix := "sett:default-1:thread:"
+	expectedPrefix := "holt:default-1:thread:"
 	if len(key) < len(expectedPrefix) || key[:len(expectedPrefix)] != expectedPrefix {
 		t.Errorf("thread key should start with %q, got %q", expectedPrefix, key)
 	}

@@ -1,5 +1,5 @@
-# Example Sett configuration for M2.2 testing
-# Copy this to sett.yml and customize as needed
+# Example Holt configuration for M3.1+ (multi-agent support)
+# Copy this to holt.yml and customize as needed
 
 version: "1.0"
 
@@ -8,6 +8,7 @@ agents:
     role: "Example Agent"
     image: "example-agent:latest"
     command: ["/app/run.sh"]
+    bidding_strategy: "exclusive"  # Required: review, claim, exclusive, or ignore
     workspace:
       mode: ro  # Read-only workspace (safe for testing)
     # Optional: Custom environment variables
@@ -24,4 +25,4 @@ agents:
 #   redis:
 #     image: "redis:7-alpine"
 #   orchestrator:
-#     image: "sett-orchestrator:latest"
+#     image: "holt-orchestrator:latest"

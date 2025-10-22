@@ -168,6 +168,8 @@ func TestClaimRoundTrip(t *testing.T) {
 		GrantedReviewAgents:   []string{"agent-1", "agent-2"},
 		GrantedParallelAgents: []string{"agent-3"},
 		GrantedExclusiveAgent: "",
+		AdditionalContextIDs:  []string{}, // M3.3: Initialize to empty slice
+		TerminationReason:     "",         // M3.3: Initialize to empty string
 	}
 
 	// Convert to hash
@@ -203,6 +205,8 @@ func TestClaimRoundTrip_EmptyAgentArrays(t *testing.T) {
 		GrantedReviewAgents:   []string{},
 		GrantedParallelAgents: []string{},
 		GrantedExclusiveAgent: "",
+		AdditionalContextIDs:  []string{}, // M3.3: Initialize to empty slice
+		TerminationReason:     "",         // M3.3: Initialize to empty string
 	}
 
 	hash, err := ClaimToHash(original)
@@ -230,6 +234,10 @@ func TestClaimRoundTrip_EmptyAgentArrays(t *testing.T) {
 	}
 	if result.GrantedParallelAgents == nil {
 		t.Error("deserialized granted_parallel_agents should be empty slice, not nil")
+	}
+	// M3.3: Check additional_context_ids is also empty slice, not nil
+	if result.AdditionalContextIDs == nil {
+		t.Error("deserialized additional_context_ids should be empty slice, not nil")
 	}
 }
 
@@ -286,6 +294,188 @@ func TestArtefactToHash_AllStructuralTypes(t *testing.T) {
 	}
 }
 
+// TestClaimRoundTrip_M3_5_PhaseState tests serialization with phase state (M3.5)
+func TestClaimRoundTrip_M3_5_PhaseState(t *testing.T) {
+	original := &Claim{
+		ID:                    uuid.New().String(),
+		ArtefactID:            uuid.New().String(),
+		Status:                ClaimStatusPendingReview,
+		GrantedReviewAgents:   []string{"agent-1", "agent-2"},
+		GrantedParallelAgents: []string{},
+		GrantedExclusiveAgent: "",
+		AdditionalContextIDs:  []string{},
+		TerminationReason:     "",
+		PhaseState: &PhaseState{
+			Current:       "review",
+			GrantedAgents: []string{"agent-1", "agent-2"},
+			Received:      map[string]string{"reviewer-role": "artefact-id-123"},
+			AllBids: map[string]BidType{
+				"agent-1": BidTypeReview,
+				"agent-2": BidTypeReview,
+				"agent-3": BidTypeParallel,
+			},
+			StartTime: 1234567890,
+		},
+		LastGrantAgent:   "agent-1",
+		LastGrantTime:    1234567890,
+		ArtefactExpected: true,
+	}
+
+	hash, err := ClaimToHash(original)
+	if err != nil {
+		t.Fatalf("ClaimToHash failed: %v", err)
+	}
+
+	stringHash := make(map[string]string)
+	for k, v := range hash {
+		stringHash[k] = toString(v)
+	}
+
+	result, err := HashToClaim(stringHash)
+	if err != nil {
+		t.Fatalf("HashToClaim failed: %v", err)
+	}
+
+	if !reflect.DeepEqual(original, result) {
+		t.Errorf("round-trip with phase state failed:\noriginal: %+v\nresult:   %+v", original, result)
+	}
+}
+
+// TestClaimRoundTrip_M3_5_GrantQueue tests serialization with grant queue (M3.5)
+func TestClaimRoundTrip_M3_5_GrantQueue(t *testing.T) {
+	original := &Claim{
+		ID:                    uuid.New().String(),
+		ArtefactID:            uuid.New().String(),
+		Status:                ClaimStatusPendingExclusive,
+		GrantedReviewAgents:   []string{},
+		GrantedParallelAgents: []string{},
+		GrantedExclusiveAgent: "",
+		AdditionalContextIDs:  []string{},
+		TerminationReason:     "",
+		GrantQueue: &GrantQueue{
+			PausedAt:  1234567890,
+			AgentName: "coder-controller",
+			Position:  0,
+		},
+		LastGrantAgent:   "coder-controller",
+		LastGrantTime:    1234567890,
+		ArtefactExpected: true,
+	}
+
+	hash, err := ClaimToHash(original)
+	if err != nil {
+		t.Fatalf("ClaimToHash failed: %v", err)
+	}
+
+	stringHash := make(map[string]string)
+	for k, v := range hash {
+		stringHash[k] = toString(v)
+	}
+
+	result, err := HashToClaim(stringHash)
+	if err != nil {
+		t.Fatalf("HashToClaim failed: %v", err)
+	}
+
+	if !reflect.DeepEqual(original, result) {
+		t.Errorf("round-trip with grant queue failed:\noriginal: %+v\nresult:   %+v", original, result)
+	}
+}
+
+// TestClaimRoundTrip_M3_5_NoOptionalFields tests that nil phase state and grant queue serialize correctly
+func TestClaimRoundTrip_M3_5_NoOptionalFields(t *testing.T) {
+	original := &Claim{
+		ID:                    uuid.New().String(),
+		ArtefactID:            uuid.New().String(),
+		Status:                ClaimStatusPendingReview,
+		GrantedReviewAgents:   []string{},
+		GrantedParallelAgents: []string{},
+		GrantedExclusiveAgent: "",
+		AdditionalContextIDs:  []string{},
+		TerminationReason:     "",
+		PhaseState:            nil, // M3.5: nil phase state
+		GrantQueue:            nil, // M3.5: nil grant queue
+		LastGrantAgent:        "",
+		LastGrantTime:         0,
+		ArtefactExpected:      false,
+	}
+
+	hash, err := ClaimToHash(original)
+	if err != nil {
+		t.Fatalf("ClaimToHash failed: %v", err)
+	}
+
+	stringHash := make(map[string]string)
+	for k, v := range hash {
+		stringHash[k] = toString(v)
+	}
+
+	result, err := HashToClaim(stringHash)
+	if err != nil {
+		t.Fatalf("HashToClaim failed: %v", err)
+	}
+
+	if !reflect.DeepEqual(original, result) {
+		t.Errorf("round-trip without M3.5 fields failed:\noriginal: %+v\nresult:   %+v", original, result)
+	}
+
+	// Verify nil phase state and grant queue remain nil (not converted to empty structs)
+	if result.PhaseState != nil {
+		t.Error("nil phase state should remain nil after round-trip")
+	}
+	if result.GrantQueue != nil {
+		t.Error("nil grant queue should remain nil after round-trip")
+	}
+}
+
+// TestHashToClaim_M3_5_MalformedPhaseState tests that malformed phase state JSON fails gracefully
+func TestHashToClaim_M3_5_MalformedPhaseState(t *testing.T) {
+	hash := map[string]string{
+		"id":                      uuid.New().String(),
+		"artefact_id":             uuid.New().String(),
+		"status":                  "pending_review",
+		"granted_review_agents":   "[]",
+		"granted_parallel_agents": "[]",
+		"granted_exclusive_agent": "",
+		"additional_context_ids":  "[]",
+		"termination_reason":      "",
+		"phase_state":             "not-valid-json", // Malformed JSON
+		"grant_queue":             "",
+		"last_grant_agent":        "",
+		"last_grant_time":         "0",
+		"artefact_expected":       "false",
+	}
+
+	_, err := HashToClaim(hash)
+	if err == nil {
+		t.Error("expected error for malformed phase_state JSON, got nil")
+	}
+}
+
+// TestHashToClaim_M3_5_MalformedGrantQueue tests that malformed grant queue JSON fails gracefully
+func TestHashToClaim_M3_5_MalformedGrantQueue(t *testing.T) {
+	hash := map[string]string{
+		"id":                      uuid.New().String(),
+		"artefact_id":             uuid.New().String(),
+		"status":                  "pending_review",
+		"granted_review_agents":   "[]",
+		"granted_parallel_agents": "[]",
+		"granted_exclusive_agent": "",
+		"additional_context_ids":  "[]",
+		"termination_reason":      "",
+		"phase_state":             "",
+		"grant_queue":             "{invalid json}", // Malformed JSON
+		"last_grant_agent":        "",
+		"last_grant_time":         "0",
+		"artefact_expected":       "false",
+	}
+
+	_, err := HashToClaim(hash)
+	if err == nil {
+		t.Error("expected error for malformed grant_queue JSON, got nil")
+	}
+}
+
 // Helper function to convert interface{} to string (simulates Redis storage)
 func toString(v interface{}) string {
 	switch val := v.(type) {
@@ -293,6 +483,10 @@ func toString(v interface{}) string {
 		return val
 	case int:
 		return strconv.Itoa(val)
+	case int64:
+		return strconv.FormatInt(val, 10)
+	case bool:
+		return strconv.FormatBool(val)
 	default:
 		return fmt.Sprintf("%v", v)
 	}

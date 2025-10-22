@@ -1,6 +1,6 @@
-# Sett Agent Development Guide
+# Holt Agent Development Guide
 
-**Target Audience:** Developers building custom agents for Sett workflows
+**Target Audience:** Developers building custom agents for Holt workflows
 
 **Prerequisites:**
 - Understanding of Docker and containerization
@@ -27,9 +27,9 @@
 
 ## Overview
 
-Sett agents are specialized, tool-equipped containers that execute work in response to claims on the blackboard. Each agent:
+Holt agents are specialized, tool-equipped containers that execute work in response to claims on the blackboard. Each agent:
 
-- Runs as a Docker container with the **agent cub** binary as entrypoint
+- Runs as a Docker container with the **agent pup** binary as entrypoint
 - Executes a **tool script** (your custom logic) when work is assigned
 - Communicates via **stdin/stdout JSON contract**
 - Creates **immutable artefacts** as work products
@@ -46,7 +46,7 @@ Sett agents are specialized, tool-equipped containers that execute work in respo
 │  your-agent container                  │
 │                                        │
 │  ┌──────────────────────────────────┐ │
-│  │  Agent Cub (entrypoint)          │ │
+│  │  Agent Pup (entrypoint)          │ │
 │  │  ┌────────────────────────────┐  │ │
 │  │  │  Claim Watcher             │  │ │
 │  │  │  - Subscribe to claims     │  │ │
@@ -75,7 +75,7 @@ Sett agents are specialized, tool-equipped containers that execute work in respo
 ```
 
 **Separation of Concerns:**
-- **Agent cub** handles Sett orchestration (bidding, context, artefacts)
+- **Agent pup** handles Holt orchestration (bidding, context, artefacts)
 - **Your tool script** implements domain-specific logic (what makes your agent unique)
 
 ---
@@ -86,7 +86,7 @@ Your agent tool script must follow a strict stdin/stdout JSON contract.
 
 ### Input: JSON on stdin
 
-When the cub executes your tool script, it passes a JSON object via stdin:
+When the pup executes your tool script, it passes a JSON object via stdin:
 
 ```json
 {
@@ -136,10 +136,11 @@ When the cub executes your tool script, it passes a JSON object via stdin:
 
 **context_chain Array:**
 - Populated via BFS traversal of source_artefacts graph
-- Filtered to include only "Standard" and "Answer" artefacts
+- Filtered to include "Standard", "Answer", and "Review" artefacts (M3.3+)
 - Uses thread tracking to ensure latest versions
 - Empty array `[]` for root artefacts (no sources)
 - Provides complete historical context for informed decisions
+- **M3.3**: Review artefacts included for feedback-based iteration
 
 ### Output: JSON on stdout
 
@@ -164,13 +165,13 @@ Your tool script must output **exactly ONE** JSON object to stdout:
 
 **Special Artefact Types:**
 
-- **`CodeCommit`**: Payload must be a git commit hash. Cub validates commit exists via `git cat-file -e <hash>`. If validation fails, Failure artefact created.
+- **`CodeCommit`**: Payload must be a git commit hash. Pup validates commit exists via `git cat-file -e <hash>`. If validation fails, Failure artefact created.
 - **`Terminal`**: Set `structural_type: "Terminal"` to signal workflow completion. No further processing.
 
 **Error Output:**
 
 For errors, either:
-1. **Exit with non-zero code**: Cub creates Failure artefact with stderr output
+1. **Exit with non-zero code**: Pup creates Failure artefact with stderr output
 2. **Output structural_type="Failure"**: Explicit failure with custom error message
 
 Example:
@@ -206,7 +207,7 @@ set -e  # Exit on error
 # Read input from stdin
 input=$(cat)
 
-# Log to stderr (visible in sett logs)
+# Log to stderr (visible in holt logs)
 echo "Processing claim..." >&2
 
 # Parse target artefact payload
@@ -237,18 +238,18 @@ chmod +x run.sh
 Create `Dockerfile`:
 
 ```dockerfile
-# Build stage - compile agent cub
+# Build stage - compile agent pup
 FROM golang:1.24-alpine AS builder
 
 WORKDIR /build
 COPY go.mod go.sum ./
 RUN go mod download
 
-COPY cmd/cub ./cmd/cub
-COPY internal/cub ./internal/cub
+COPY cmd/pup ./cmd/pup
+COPY internal/pup ./internal/pup
 COPY pkg/blackboard ./pkg/blackboard
 
-RUN CGO_ENABLED=0 GOOS=linux go build -o cub ./cmd/cub
+RUN CGO_ENABLED=0 GOOS=linux go build -o pup ./cmd/pup
 
 # Runtime stage
 FROM alpine:latest
@@ -258,8 +259,8 @@ RUN apk --no-cache add ca-certificates
 
 WORKDIR /app
 
-# Copy cub binary
-COPY --from=builder /build/cub /app/cub
+# Copy pup binary
+COPY --from=builder /build/pup /app/pup
 
 # Copy your tool script
 COPY agents/my-agent/run.sh /app/run.sh
@@ -269,12 +270,12 @@ RUN chmod +x /app/run.sh
 RUN adduser -D -u 1000 agent
 USER agent
 
-ENTRYPOINT ["/app/cub"]
+ENTRYPOINT ["/app/pup"]
 ```
 
-### Step 4: Configure in sett.yml
+### Step 4: Configure in holt.yml
 
-Add agent to your project's `sett.yml`:
+Add agent to your project's `holt.yml`:
 
 ```yaml
 version: "1.0"
@@ -297,17 +298,17 @@ services:
 # Build Docker image (from project root)
 docker build -t my-agent:latest -f agents/my-agent/Dockerfile .
 
-# Start Sett
-sett up
+# Start Holt
+holt up
 
 # Submit work
-sett forage --goal "test my agent"
+holt forage --goal "test my agent"
 
 # View logs
-sett logs my-agent
+holt logs my-agent
 
 # View results
-sett hoard
+holt hoard
 ```
 
 ---
@@ -340,14 +341,14 @@ cd /workspace
 
 # Create file
 cat > "$filename" <<EOF
-# Generated by Sett
+# Generated by Holt
 
 This file was created as part of a workflow.
 EOF
 
 # Git workflow
 git add "$filename"
-git commit -m "[sett-agent: my-agent] Created $filename
+git commit -m "[holt-agent: my-agent] Created $filename
 
 Claim-ID: $claim_id"
 
@@ -369,19 +370,19 @@ EOF
 ### Recommended Commit Message Format
 
 ```
-[sett-agent: {agent-role}] {summary}
+[holt-agent: {agent-role}] {summary}
 
 Claim-ID: {claim-id}
 ```
 
 **Benefits:**
-- `[sett-agent: ...]` prefix identifies Sett-generated commits
+- `[holt-agent: ...]` prefix identifies Holt-generated commits
 - Agent role shows which agent made the change
 - Claim ID enables audit trail back to blackboard
 
 ### Workspace Configuration
 
-For Git agents, set `workspace.mode: rw` in sett.yml:
+For Git agents, set `workspace.mode: rw` in holt.yml:
 
 ```yaml
 agents:
@@ -392,7 +393,7 @@ agents:
 
 ### Git Validation
 
-When you output a `CodeCommit` artefact, the cub automatically validates:
+When you output a `CodeCommit` artefact, the pup automatically validates:
 
 ```bash
 git cat-file -e <commit-hash>
@@ -440,10 +441,11 @@ done
 ### Context Chain Characteristics
 
 - **Chronological order**: Oldest → Newest
-- **Filtered**: Only "Standard" and "Answer" artefacts included
+- **Filtered**: "Standard", "Answer", and "Review" artefacts included (M3.3+)
 - **Latest versions**: Uses thread tracking (logical_id → max version)
 - **Empty for root**: `[]` if target_artefact has no source_artefacts
 - **Depth limit**: Maximum 10 levels (safety valve)
+- **M3.3**: Review artefacts provide feedback for iterative refinement
 
 ### Example: Building on Previous Work
 
@@ -482,10 +484,11 @@ fi
 - `source_artefacts` = [target_artefact.id] (provenance chain)
 - **Different** `type` (e.g., GoalDefined → CodeCommit)
 
-**Evolutionary** (future feature):
+**Evolutionary** (automatic in M3.3 feedback loops):
 - **Same** `logical_id`
 - `version` incremented (v1 → v2)
-- Same `type` (e.g., Design v1 → Design v2)
+- Same `type` (e.g., CodeCommit v1 → CodeCommit v2)
+- **The pup handles this automatically** when reworking based on review feedback
 
 ### Example Flow
 
@@ -502,7 +505,126 @@ Another Agent:
   source_artefacts: [B]
 ```
 
-**The cub handles this automatically** - you just output the artefact_type and payload.
+**The pup handles this automatically** - you just output the artefact_type and payload.
+
+---
+
+## Automatic Version Management (M3.3+)
+
+**New in Phase 3 M3.3:** The Pup now automatically manages versioning for feedback-based iterations, so your agent code remains simple and unaware of version management.
+
+### How It Works
+
+When a reviewer rejects your agent's work and provides feedback:
+
+1. **Orchestrator detects review rejection** and creates a **feedback claim**
+2. **Your agent is automatically reassigned** (no bidding required)
+3. **Pup injects review feedback** into the `context_chain`
+4. **Your agent executes** using the same tool script
+5. **Pup automatically creates a new version** (v2, v3, etc.) with:
+   - Same `logical_id` (preserves thread)
+   - Incremented `version` number
+   - Same `type` as original artefact
+   - Updated `source_artefacts` (includes original + review artefacts)
+
+### What Your Agent Sees
+
+**Feedback Claim Input:**
+```json
+{
+  "claim_type": "exclusive",
+  "target_artefact": {
+    "id": "original-uuid",
+    "logical_id": "thread-uuid",
+    "version": 1,
+    "type": "CodeCommit",
+    "payload": "abc123...",
+    ...
+  },
+  "context_chain": [
+    {
+      "type": "GoalDefined",
+      "payload": "Build authentication"
+    },
+    {
+      "type": "Review",
+      "payload": "{\"issue\": \"needs tests\", \"severity\": \"high\"}",
+      "structural_type": "Review"
+    }
+  ]
+}
+```
+
+**What Your Agent Outputs (unchanged):**
+```json
+{
+  "artefact_type": "CodeCommit",
+  "artefact_payload": "def456...",
+  "summary": "Added tests per review feedback"
+}
+```
+
+**What Pup Creates Automatically:**
+- `logical_id`: "thread-uuid" (same as v1)
+- `version`: 2 (automatically incremented)
+- `type`: "CodeCommit" (preserved from v1)
+- `source_artefacts`: ["original-uuid", "review-uuid"]
+
+### Key Benefits
+
+1. **Agents stay simple** - no version management logic needed
+2. **Automatic thread preservation** - all versions linked via logical_id
+3. **Complete audit trail** - source_artefacts shows provenance chain
+4. **Review feedback in context** - accessible via context_chain
+5. **Iteration limits** - orchestrator prevents infinite loops
+
+### Using Review Feedback
+
+Your agent can access review feedback from `context_chain`:
+
+```bash
+#!/bin/sh
+input=$(cat)
+
+# Check if this is rework (Review artefact in context)
+if echo "$input" | jq -e '.context_chain[] | select(.structural_type=="Review")' > /dev/null; then
+  echo "Processing review feedback..." >&2
+
+  # Extract review comments
+  feedback=$(echo "$input" | jq -r '.context_chain[] | select(.structural_type=="Review") | .payload')
+  echo "Reviewer feedback: $feedback" >&2
+
+  # Address feedback in your implementation
+  # ...
+else
+  echo "Fresh implementation (no feedback)" >&2
+fi
+
+# Output same format regardless
+cat <<EOF
+{
+  "artefact_type": "CodeCommit",
+  "artefact_payload": "$commit_hash",
+  "summary": "Implementation complete"
+}
+EOF
+```
+
+### Configuration
+
+Iteration limits are configured in `holt.yml`:
+
+```yaml
+version: "1.0"
+
+orchestrator:
+  max_review_iterations: 3  # Max times work can be reworked
+
+agents:
+  # ... your agents ...
+```
+
+When `max_review_iterations` is reached, the orchestrator creates a Failure artefact and terminates the workflow.
 
 ---
 
@@ -518,13 +640,13 @@ filename="$1"
 
 if [ -z "$filename" ]; then
   echo "Error: No filename provided" >&2
-  exit 1  # Cub creates Failure artefact with stderr
+  exit 1  # Pup creates Failure artefact with stderr
 fi
 
 # Continue with work...
 ```
 
-**Result:** Cub creates Failure artefact with:
+**Result:** Pup creates Failure artefact with:
 - `payload`: stderr output + exit code
 - `structural_type`: "Failure"
 
@@ -615,7 +737,7 @@ echo "$code" > /workspace/implementation.go
 # Commit
 cd /workspace
 git add implementation.go
-git commit -m "[sett-agent: code-generator] Generated implementation"
+git commit -m "[holt-agent: code-generator] Generated implementation"
 
 commit_hash=$(git rev-parse HEAD)
 
@@ -709,7 +831,7 @@ EOF
 
 # Add all changes
 git add .
-git commit -m "[sett-agent: scaffolder] Created project structure"
+git commit -m "[holt-agent: scaffolder] Created project structure"
 
 commit_hash=$(git rev-parse HEAD)
 
@@ -727,7 +849,7 @@ EOF
 
 ## Testing Your Agent
 
-### Local Testing (Without Sett)
+### Local Testing (Without Holt)
 
 Test your tool script in isolation:
 
@@ -766,20 +888,20 @@ docker build -t my-agent:latest -f agents/my-agent/Dockerfile .
 docker run -i my-agent:latest /app/run.sh < test-input.json
 ```
 
-### Integration Testing with Sett
+### Integration Testing with Holt
 
 ```bash
-# Start Sett instance
-sett up
+# Start Holt instance
+holt up
 
 # Submit test goal
-sett forage --goal "test input"
+holt forage --goal "test input"
 
 # Monitor logs
-sett logs my-agent
+holt logs my-agent
 
 # Check results
-sett hoard
+holt hoard
 ```
 
 ### Validation Checklist
@@ -836,13 +958,13 @@ claim_id=$(echo "$input" | grep -o '"id":"[^"]*"' | head -1 | cut -d'"' -f4)
 cd /workspace
 
 cat > "$filename" <<EOF
-# File created by Sett
+# File created by Holt
 
 Timestamp: $(date -u)
 EOF
 
 git add "$filename"
-git commit -m "[sett-agent: git-agent] Created $filename
+git commit -m "[holt-agent: git-agent] Created $filename
 
 Claim-ID: $claim_id"
 
@@ -908,7 +1030,7 @@ EOF
 2. **Iterate:** Add complexity incrementally (Git, LLM calls, multi-step)
 3. **Test thoroughly:** Validate both success and failure paths
 4. **Document:** Add README to your agent directory
-5. **Share:** Contribute useful agents back to the Sett community
+5. **Share:** Contribute useful agents back to the Holt community
 
 For more examples, see:
 - `agents/example-agent/` - Minimal echo agent

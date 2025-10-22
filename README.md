@@ -1,14 +1,14 @@
-# Sett
+# Holt
 
 **A container-native AI agent orchestrator for automating complex software engineering workflows**
 
-Sett manages a clan of specialized, tool-equipped AI agents that collaborate on multi-step development tasks while maintaining complete auditability and human oversight.
+Holt manages a clan of specialized, tool-equipped AI agents that collaborate on multi-step development tasks while maintaining complete auditability and human oversight.
 
 ---
 
 ## Project Status
 
-**Phase 2 Complete** ✅ - Single-agent workflows with Git integration
+**Phase 3 (M3.4) Complete** ✅ - Multi-agent coordination with horizontal scaling
 
 Current capabilities:
 - ✅ Event-driven orchestration via Redis blackboard
@@ -17,11 +17,17 @@ Current capabilities:
 - ✅ Complete immutable audit trail
 - ✅ Human-in-the-loop support
 - ✅ Multi-instance workspace safety
+- ✅ Multi-agent coordination (review → parallel → exclusive phases)
+- ✅ Consensus-based bidding system
+- ✅ Automated feedback loops with review-based iteration
+- ✅ Automatic version management for iterative refinement
+- ✅ Controller-worker pattern for horizontal scaling
+- ✅ Ephemeral worker containers with automatic cleanup
+- ✅ Concurrency limits with stateless grant pausing
 
-Coming in Phase 3:
-- 🚧 Multi-agent coordination (review → parallel → exclusive phases)
-- 🚧 Controller-worker scaling pattern
-- 🚧 Advanced consensus mechanisms
+Coming in Phase 3+:
+- 🚧 Runtime failure detection & timeouts (M3.6+)
+- 🚧 Orchestrator restart resilience (M3.5+)
 
 ---
 
@@ -31,14 +37,14 @@ Coming in Phase 3:
 
 - **Docker** (20.10+) - For running agent containers
 - **Git** (2.x+) - For workspace management
-- **Go** (1.21+) - For building Sett binaries
+- **Go** (1.21+) - For building Holt binaries
 
 ### Installation & First Workflow
 
 ```bash
 # 1. Clone repository
-git clone https://github.com/anthropics/sett.git
-cd sett
+git clone https://github.com/anthropics/holt.git
+cd holt
 
 # 2. Build binaries
 make build
@@ -48,14 +54,14 @@ mkdir my-project && cd my-project
 git init
 git commit --allow-empty -m "Initial commit"
 
-# 4. Initialize Sett
-sett init
+# 4. Initialize Holt
+holt init
 
 # 5. Build example git agent
 docker build -t example-git-agent:latest -f agents/example-git-agent/Dockerfile ..
 
-# 6. Configure agent in sett.yml
-cat > sett.yml <<EOF
+# 6. Configure agent in holt.yml
+cat > holt.yml <<EOF
 version: "1.0"
 agents:
   git-agent:
@@ -69,24 +75,24 @@ services:
     image: redis:7-alpine
 EOF
 
-# 7. Start Sett instance
-sett up
+# 7. Start Holt instance
+holt up
 
 # 8. Create workflow
-sett forage --goal "hello.txt"
+holt forage --goal "hello.txt"
 
 # 9. Watch agent execute
-sett watch
+holt watch
 
 # 10. View results
-sett hoard
+holt hoard
 git log --oneline
 ls -la hello.txt  # File created by agent!
 ```
 
 **What just happened?**
 
-1. Sett started an orchestrator and your git agent in Docker containers
+1. Holt started an orchestrator and your git agent in Docker containers
 2. The orchestrator created a claim for your goal ("hello.txt")
 3. The git agent bid on and won the claim
 4. The agent created `hello.txt` in your workspace and committed it
@@ -97,13 +103,13 @@ ls -la hello.txt  # File created by agent!
 
 ## How It Works: A Conceptual Overview
 
-This diagram illustrates the high-level conceptual workflow of the Sett system, demonstrating how a user goal initiates a collaborative, auditable process between the orchestrator and a clan of specialized AI agents interacting via the central Redis Blackboard.
+This diagram illustrates the high-level conceptual workflow of the Holt system, demonstrating how a user goal initiates a collaborative, auditable process between the orchestrator and a clan of specialized AI agents interacting via the central Redis Blackboard.
 
 ```mermaid
 graph TD
-    User([fa:fa-user User]) -- "1. `sett forage --goal '...'`" --> CLI(fa:fa-terminal Sett CLI)
+    User([fa:fa-user User]) -- "1. `holt forage --goal '...'`" --> CLI(fa:fa-terminal Holt CLI)
 
-    subgraph "Sett System"
+    subgraph "Holt System"
         direction LR
         
         subgraph "Execution Plane"
@@ -184,7 +190,7 @@ When an artefact is created, the orchestrator creates a **claim** and agents bid
 
 Agents submit bids ("review", "claim", "exclusive", "ignore") based on their capabilities and the work required.
 
-### The Agent Cub
+### The Agent Pup
 
 A lightweight Go binary that runs as the entrypoint in every agent container. It:
 
@@ -195,17 +201,17 @@ A lightweight Go binary that runs as the entrypoint in every agent container. It
 - Creates artefacts from tool output
 - Operates concurrently to remain responsive
 
-**Key insight:** The cub handles orchestration complexity. You just write the tool logic.
+**Key insight:** The pup handles orchestration complexity. You just write the tool logic.
 
 ### Agents
 
 Docker containers packaging:
 
-1. **Agent cub binary** (handles Sett integration)
+1. **Agent pup binary** (handles Holt integration)
 2. **Tool script** (your custom logic - shell, Python, anything)
 3. **Dependencies** (LLM APIs, compilers, CLIs, etc.)
 
-Agents communicate with the cub via stdin/stdout JSON:
+Agents communicate with the pup via stdin/stdout JSON:
 
 **Input:**
 ```json
@@ -227,17 +233,17 @@ Agents communicate with the cub via stdin/stdout JSON:
 
 ### Git-Centric Workflow
 
-Sett assumes and requires a clean Git repository. Code artefacts are git commit hashes, and agents are responsible for:
+Holt assumes and requires a clean Git repository. Code artefacts are git commit hashes, and agents are responsible for:
 
 - Creating or modifying files
 - Committing changes with descriptive messages
 - Returning commit hashes as `CodeCommit` artefacts
 
-The cub validates commit hashes exist before creating artefacts, ensuring integrity.
+The pup validates commit hashes exist before creating artefacts, ensuring integrity.
 
 ### Human-in-the-Loop
 
-Sett is designed for human oversight:
+Holt is designed for human oversight:
 
 - **Question artefacts**: Agents can ask humans for guidance (Phase 4)
 - **Review phase**: Humans or review agents can provide feedback before execution (Phase 3)
@@ -252,57 +258,57 @@ Sett is designed for human oversight:
 ### Instance Management
 
 ```bash
-# Initialize new Sett project
-sett init
+# Initialize new Holt project
+holt init
 
-# Start Sett instance (auto-incremented name: default-1, default-2, ...)
-sett up
+# Start Holt instance (auto-incremented name: default-1, default-2, ...)
+holt up
 
 # Start with specific name
-sett up --name prod
+holt up --name prod
 
 # Stop instance (infers most recent if name omitted)
-sett down
-sett down --name prod
+holt down
+holt down --name prod
 
 # List all running instances
-sett list
+holt list
 ```
 
 ### Workflow Management
 
 ```bash
 # Create workflow with a goal
-sett forage --goal "Build REST API for user management"
+holt forage --goal "Build REST API for user management"
 
 # Target specific instance
-sett forage --name prod --goal "Refactor authentication"
+holt forage --name prod --goal "Refactor authentication"
 
 # Validate orchestrator creates claim (Phase 1)
-sett forage --watch --goal "Add logging to endpoints"
+holt forage --watch --goal "Add logging to endpoints"
 ```
 
 ### Monitoring & Debugging
 
 ```bash
 # View live activity (infers most recent instance)
-sett watch
+holt watch
 
 # Target specific instance
-sett watch --name prod
+holt watch --name prod
 
 # View all artefacts on blackboard
-sett hoard
+holt hoard
 
 # View agent logs
-sett logs git-agent
-sett logs orchestrator
+holt logs git-agent
+holt logs orchestrator
 
 # View questions requiring human input (Phase 4)
-sett questions --wait
+holt questions --wait
 
 # Answer a question (Phase 4)
-sett answer <question-id> "Use JWT tokens with RS256"
+holt answer <question-id> "Use JWT tokens with RS256"
 ```
 
 ---
@@ -337,23 +343,23 @@ FROM golang:1.24-alpine AS builder
 WORKDIR /build
 COPY go.mod go.sum ./
 RUN go mod download
-COPY cmd/cub ./cmd/cub
-COPY internal/cub ./internal/cub
+COPY cmd/pup ./cmd/pup
+COPY internal/pup ./internal/pup
 COPY pkg/blackboard ./pkg/blackboard
-RUN CGO_ENABLED=0 go build -o cub ./cmd/cub
+RUN CGO_ENABLED=0 go build -o pup ./cmd/pup
 
 FROM alpine:latest
 RUN apk --no-cache add ca-certificates
 WORKDIR /app
-COPY --from=builder /build/cub /app/cub
+COPY --from=builder /build/pup /app/pup
 COPY agents/my-agent/run.sh /app/run.sh
 RUN chmod +x /app/run.sh
 RUN adduser -D -u 1000 agent
 USER agent
-ENTRYPOINT ["/app/cub"]
+ENTRYPOINT ["/app/pup"]
 ```
 
-**sett.yml:**
+**holt.yml:**
 ```yaml
 version: "1.0"
 agents:
@@ -371,9 +377,9 @@ services:
 **Build & Run:**
 ```bash
 docker build -t my-agent:latest -f agents/my-agent/Dockerfile .
-sett up
-sett forage --goal "test input"
-sett logs my-agent
+holt up
+holt forage --goal "test input"
+holt logs my-agent
 ```
 
 For complete agent development guide, see: **[docs/agent-development.md](./docs/agent-development.md)**
@@ -401,16 +407,16 @@ Creates files in workspace and commits them, returning `CodeCommit` artefacts.
 # Build agent
 docker build -t example-git-agent:latest -f agents/example-git-agent/Dockerfile .
 
-# Start Sett
-sett up
+# Start Holt
+holt up
 
 # Create file via agent
-sett forage --goal "implementation.go"
+holt forage --goal "implementation.go"
 
 # Verify result
 git log --oneline  # Shows commit by agent
 ls implementation.go  # File exists
-sett hoard  # Shows CodeCommit artefact
+holt hoard  # Shows CodeCommit artefact
 ```
 
 ---
@@ -426,7 +432,7 @@ make build
 # Build specific binary
 make build-cli
 make build-orchestrator
-make build-cub
+make build-pup
 
 # Run tests
 make test
@@ -441,13 +447,13 @@ make coverage
 ### Project Structure
 
 ```
-sett/
+holt/
 ├── cmd/                      # Binaries
-│   ├── sett/                # CLI
+│   ├── holt/                # CLI
 │   ├── orchestrator/        # Orchestrator daemon
-│   └── cub/                 # Agent cub binary
+│   └── pup/                 # Agent pup binary
 ├── internal/                # Private packages
-│   ├── cub/                 # Cub logic
+│   ├── pup/                 # Pup logic
 │   ├── orchestrator/        # Orchestrator engine
 │   ├── config/              # Configuration
 │   ├── git/                 # Git integration
@@ -458,7 +464,7 @@ sett/
 │   └── example-git-agent/   # Git workflow agent
 ├── design/                  # Design documents
 │   ├── features/            # Feature specs by phase
-│   └── sett-system-specification.md
+│   └── holt-system-specification.md
 └── docs/                    # User documentation
     ├── agent-development.md # Agent building guide
     └── troubleshooting.md   # Common issues & solutions
@@ -470,11 +476,11 @@ sett/
 
 ### Pragmatism over Novelty (YAGNI)
 
-We use battle-hardened tools (Docker, Redis, Git) rather than building custom solutions. Sett is an orchestrator, not a database or container runtime.
+We use battle-hardened tools (Docker, Redis, Git) rather than building custom solutions. Holt is an orchestrator, not a database or container runtime.
 
 ### Zero-Configuration, Progressively Enhanced
 
-`sett init && sett up` creates a working system. Smart defaults cover 90% of use cases. Advanced features available when needed.
+`holt init && holt up` creates a working system. Smart defaults cover 90% of use cases. Advanced features available when needed.
 
 ### Auditability as a Core Feature
 
@@ -482,7 +488,7 @@ Artefacts are immutable. Every decision is recorded on the blackboard with times
 
 ### Small, Single-Purpose Components
 
-Each component (orchestrator, CLI, agent cub) has one job and does it excellently. Complexity is managed through composition.
+Each component (orchestrator, CLI, agent pup) has one job and does it excellently. Complexity is managed through composition.
 
 ### Container-Native by Design
 
@@ -501,7 +507,7 @@ Agents can use any tool that can be containerized - not just Python functions. T
 
 ### Regulated Industries
 
-Sett's immutable audit trail and human-in-the-loop design make it uniquely suited for:
+Holt's immutable audit trail and human-in-the-loop design make it uniquely suited for:
 
 - **Financial services**: Auditable AI workflows for risk assessment, compliance reporting
 - **Healthcare**: Traceable AI-assisted processes for clinical documentation, research protocols
@@ -516,7 +522,7 @@ Sett's immutable audit trail and human-in-the-loop design make it uniquely suite
 
 ---
 
-## What Makes Sett Different
+## What Makes Holt Different
 
 ### vs. LangChain / LlamaIndex
 
@@ -529,7 +535,7 @@ Sett's immutable audit trail and human-in-the-loop design make it uniquely suite
 
 - **Production-ready**: Built for reliability, not research demos
 - **Git-centric**: Version control integrated from the ground up
-- **Multi-instance**: Multiple Setts can run concurrently with workspace safety
+- **Multi-instance**: Multiple Holts can run concurrently with workspace safety
 - **Compliance-focused**: Audit trail and human controls for regulated industries
 
 ### vs. Temporal / Airflow
@@ -552,7 +558,7 @@ Sett's immutable audit trail and human-in-the-loop design make it uniquely suite
 
 ### Phase 2: "Single Agent" ✅
 
-- Agent cub implementation
+- Agent pup implementation
 - Claim watching and bidding
 - Tool execution contract
 - Git workspace integration
@@ -586,18 +592,18 @@ Sett's immutable audit trail and human-in-the-loop design make it uniquely suite
 - **[Agent Development Guide](./docs/agent-development.md)** - Build custom agents
 - **[Troubleshooting Guide](./docs/troubleshooting.md)** - Common issues & solutions
 - **[Project Context](./PROJECT_CONTEXT.md)** - Philosophy, principles, vision
-- **[System Specification](./design/sett-system-specification.md)** - Complete architecture
-- **[Feature Design Template](./design/sett-feature-design-template.md)** - Development process
+- **[System Specification](./design/holt-system-specification.md)** - Complete architecture
+- **[Feature Design Template](./design/holt-feature-design-template.md)** - Development process
 
 ---
 
 ## Contributing
 
-Sett uses a systematic, template-driven feature design process. Every feature must be designed using the standardized template before implementation.
+Holt uses a systematic, template-driven feature design process. Every feature must be designed using the standardized template before implementation.
 
 **Process:**
 
-1. **Design**: Create feature document using `design/sett-feature-design-template.md`
+1. **Design**: Create feature document using `design/holt-feature-design-template.md`
 2. **Review**: Iterate on design with human review
 3. **Implement**: Build feature according to approved design
 4. **Test**: Comprehensive unit, integration, and E2E tests
@@ -615,7 +621,7 @@ See `DEVELOPMENT_PROCESS.md` for details.
 
 ## Support
 
-- **Issues**: https://github.com/anthropics/sett/issues
+- **Issues**: https://github.com/anthropics/holt/issues
 - **Documentation**: Start with this README, then see `docs/`
 - **Examples**: See `agents/` directory for reference implementations
 

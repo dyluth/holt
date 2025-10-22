@@ -11,10 +11,10 @@ import (
 	"github.com/docker/docker/api/types"
 	"github.com/docker/docker/api/types/filters"
 	"github.com/docker/docker/client"
-	dockerpkg "github.com/dyluth/sett/internal/docker"
+	dockerpkg "github.com/dyluth/holt/internal/docker"
 )
 
-// FindInstanceByWorkspace finds the Sett instance running on the given workspace path.
+// FindInstanceByWorkspace finds the Holt instance running on the given workspace path.
 // Returns the instance name or an error if 0 or 2+ instances are found.
 // Canonicalizes the workspace path before comparison to handle symlinks.
 func FindInstanceByWorkspace(ctx context.Context, cli *client.Client, workspacePath string) (string, error) {
@@ -28,7 +28,7 @@ func FindInstanceByWorkspace(ctx context.Context, cli *client.Client, workspaceP
 		return "", fmt.Errorf("failed to get absolute workspace path: %w", err)
 	}
 
-	// Find all Sett containers
+	// Find all Holt containers
 	filter := filters.NewArgs()
 	filter.Add("label", fmt.Sprintf("%s=true", dockerpkg.LabelProject))
 
@@ -181,7 +181,7 @@ func InferInstanceFromWorkspace(ctx context.Context, cli *client.Client) (string
 	instanceName, err := FindInstanceByWorkspace(ctx, cli, canonicalPath)
 	if err != nil {
 		if strings.Contains(err.Error(), "no instances found") {
-			return "", fmt.Errorf("no Sett instances found for this workspace")
+			return "", fmt.Errorf("no Holt instances found for this workspace")
 		}
 		if strings.Contains(err.Error(), "multiple instances found") {
 			return "", fmt.Errorf("multiple instances found for this workspace, use --name to specify which one")

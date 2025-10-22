@@ -29,15 +29,15 @@ cd /workspace
 # Configure git if not already configured (required for commits)
 if ! git config user.name > /dev/null 2>&1; then
   echo "Configuring git user..." >&2
-  git config user.name "Sett Agent"
-  git config user.email "agent@sett.local"
+  git config user.name "Holt Agent"
+  git config user.email "agent@holt.local"
 fi
 
 # Create file with simple content
 cat > "$filename" <<EOF
-# File created by Sett example-git-agent
+# File created by Holt example-git-agent
 
-This file was generated as part of a Sett workflow.
+This file was generated as part of a Holt workflow.
 Filename: $filename
 Timestamp: $(date -u +"%Y-%m-%d %H:%M:%S UTC")
 EOF
@@ -48,7 +48,7 @@ echo "File created, adding to git..." >&2
 git add "$filename"
 
 # Commit with descriptive message including claim ID
-git commit -m "[sett-agent: git-agent] Created $filename
+git commit -m "[holt-agent: git-agent] Created $filename
 
 Claim-ID: $claim_id" >&2
 

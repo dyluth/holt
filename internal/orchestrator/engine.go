@@ -7,23 +7,28 @@ import (
 	"log"
 	"time"
 
-	"github.com/dyluth/sett/internal/config"
-	"github.com/dyluth/sett/pkg/blackboard"
+	"github.com/dyluth/holt/internal/config"
+	"github.com/dyluth/holt/pkg/blackboard"
 	"github.com/google/uuid"
 )
 
 // Engine is the core orchestrator that watches for artefacts and creates claims.
 // It implements the event-driven coordination logic for Phase 1.
 type Engine struct {
-	client        *blackboard.Client
-	instanceName  string
-	healthServer  *HealthServer
-	agentRegistry map[string]string // agent_name -> agent_role
+	client                  *blackboard.Client
+	instanceName            string
+	config                  *config.HoltConfig // M3.3: Need config for max_review_iterations
+	healthServer            *HealthServer
+	agentRegistry           map[string]string      // agent_name -> agent_role
+	phaseStates             map[string]*PhaseState // claimID -> PhaseState (M3.2: in-memory tracking)
+	pendingAssignmentClaims map[string]string      // claimID -> targetArtefactID (M3.3: feedback claim tracking)
+	workerManager           *WorkerManager         // M3.4: Worker lifecycle management
 }
 
 // NewEngine creates a new orchestrator engine.
 // Config is required in M2.2+ to build the agent registry for consensus.
-func NewEngine(client *blackboard.Client, instanceName string, cfg *config.SettConfig) *Engine {
+// M3.4: workerManager can be nil if Docker socket is not available (workers disabled)
+func NewEngine(client *blackboard.Client, instanceName string, cfg *config.HoltConfig, workerManager *WorkerManager) *Engine {
 	// Build agent registry from config
 	agentRegistry := make(map[string]string)
 	if cfg != nil {
@@ -32,12 +37,23 @@ func NewEngine(client *blackboard.Client, instanceName string, cfg *config.SettC
 		}
 	}
 
-	return &Engine{
-		client:        client,
-		instanceName:  instanceName,
-		healthServer:  NewHealthServer(client),
-		agentRegistry: agentRegistry,
+	engine := &Engine{
+		client:                  client,
+		instanceName:            instanceName,
+		config:                  cfg, // M3.3: Store config for feedback loop logic
+		healthServer:            NewHealthServer(client),
+		agentRegistry:           agentRegistry,
+		phaseStates:             make(map[string]*PhaseState), // M3.2: Initialize phase state tracking
+		pendingAssignmentClaims: make(map[string]string),      // M3.3: Initialize feedback claim tracking
+		workerManager:           workerManager,                // M3.4: Worker lifecycle management
 	}
+
+	// M3.5: Set worker slot available callback for grant queue resumption
+	if workerManager != nil {
+		workerManager.SetWorkerSlotAvailableCallback(engine.handleWorkerSlotAvailable)
+	}
+
+	return engine
 }
 
 // Run starts the orchestrator engine and blocks until context is cancelled.
@@ -50,6 +66,11 @@ func (e *Engine) Run(ctx context.Context) error {
 	defer e.healthServer.Shutdown(context.Background())
 
 	log.Printf("[Orchestrator] Starting for instance '%s'", e.instanceName)
+
+	// M3.5: Recover state from Redis before starting event loop
+	if err := e.RecoverState(ctx); err != nil {
+		return fmt.Errorf("failed to recover state: %w", err)
+	}
 
 	// Subscribe to artefact events
 	subscription, err := e.client.SubscribeArtefactEvents(ctx)
@@ -74,8 +95,8 @@ func (e *Engine) Run(ctx context.Context) error {
 			}
 
 			e.logEvent("artefact_received", map[string]interface{}{
-				"artefact_id": artefact.ID,
-				"type":        artefact.Type,
+				"artefact_id":     artefact.ID,
+				"type":            artefact.Type,
 				"structural_type": artefact.StructuralType,
 			})
 
@@ -83,6 +104,9 @@ func (e *Engine) Run(ctx context.Context) error {
 				log.Printf("[Orchestrator] Error processing artefact %s: %v", artefact.ID, err)
 				// Continue processing - don't crash on single artefact failure
 			}
+
+			// M3.2: Also process artefact for phase completion tracking
+			e.processArtefactForPhases(ctx, artefact)
 
 		case err, ok := <-subscription.Errors():
 			if !ok {
@@ -157,7 +181,7 @@ func (e *Engine) processArtefact(ctx context.Context, artefact *blackboard.Artef
 		"latency_ms":  latencyMs,
 	})
 
-	// M2.2: Wait for consensus and grant claim
+	// M3.1: Wait for consensus and grant claim
 	if len(e.agentRegistry) > 0 {
 		if err := e.waitForConsensusAndGrant(ctx, claim); err != nil {
 			log.Printf("[Orchestrator] Error in consensus/granting for claim %s: %v", claimID, err)
@@ -168,58 +192,135 @@ func (e *Engine) processArtefact(ctx context.Context, artefact *blackboard.Artef
 	return nil
 }
 
-// waitForConsensusAndGrant implements the consensus polling and claim granting logic.
-// Polls for bids every 100ms until all known agents have submitted bids (full consensus).
-// Once consensus is reached, grants the claim to the winning agent and publishes notification.
-func (e *Engine) waitForConsensusAndGrant(ctx context.Context, claim *blackboard.Claim) error {
-	log.Printf("[Orchestrator] Waiting for consensus on claim_id=%s", claim.ID)
+// processArtefactForPhases checks if this artefact completes a phase for any active claims.
+// M3.2: Tracks artefacts produced by granted agents and triggers phase completion checks.
+// M3.3: Also handles pending_assignment claims (feedback claims).
+func (e *Engine) processArtefactForPhases(ctx context.Context, artefact *blackboard.Artefact) {
+	// Skip non-phase-relevant artefacts
+	if artefact.StructuralType == blackboard.StructuralTypeTerminal ||
+		artefact.StructuralType == blackboard.StructuralTypeFailure {
+		return
+	}
 
-	expectedBidCount := len(e.agentRegistry)
-	ticker := time.NewTicker(100 * time.Millisecond)
-	defer ticker.Stop()
+	// M3.3: Check for pending_assignment claims (feedback claims)
+	// These don't use phaseStates - they complete immediately when agent produces artefact
+	e.checkPendingAssignmentClaims(ctx, artefact)
 
-	consensusStart := time.Now()
-	var lastLogTime time.Time
+	// Find claims waiting for artefacts from this producer (phased claims)
+	for claimID, phaseState := range e.phaseStates {
+		claim, err := e.client.GetClaim(ctx, claimID)
+		if err != nil {
+			log.Printf("[Orchestrator] Error fetching claim %s: %v", claimID, err)
+			continue
+		}
 
-	for {
-		select {
-		case <-ctx.Done():
-			return fmt.Errorf("context cancelled while waiting for consensus")
+		// Check if this artefact is derived from the claim's target artefact
+		if !isSourceOfClaim(artefact, claim.ArtefactID) {
+			continue
+		}
 
-		case <-ticker.C:
-			// Poll for bids
-			bids, err := e.client.GetAllBids(ctx, claim.ID)
-			if err != nil {
-				return fmt.Errorf("failed to get bids: %w", err)
-			}
+		// Check if this artefact is from a granted agent in the current phase
+		if !e.isProducedByGrantedAgent(claim, artefact.ProducedByRole, phaseState.Phase) {
+			continue
+		}
 
-			receivedBidCount := len(bids)
+		// Track this artefact as received
+		phaseState.ReceivedArtefacts[artefact.ProducedByRole] = artefact.ID
 
-			// Log warning every 10 seconds if still waiting
-			if time.Since(lastLogTime) >= 10*time.Second {
-				waitingFor := e.getAgentsStillToSubmitBids(bids)
-				log.Printf("[Orchestrator] Still waiting for bids from: %v (waited %v)",
-					waitingFor, time.Since(consensusStart).Round(time.Second))
-				lastLogTime = time.Now()
-			}
+		log.Printf("[Orchestrator] Phase %s artefact received for claim %s: producer=%s, artefact=%s",
+			phaseState.Phase, claim.ID, artefact.ProducedByRole, artefact.ID)
 
-			// Check if consensus achieved
-			if receivedBidCount == expectedBidCount {
-				consensusDuration := time.Since(consensusStart)
-				log.Printf("[Orchestrator] Consensus achieved for claim_id=%s: received %d/%d bids (took %v)",
-					claim.ID, receivedBidCount, expectedBidCount, consensusDuration.Round(time.Millisecond))
+		e.logEvent("phase_artefact_received", map[string]interface{}{
+			"claim_id":    claim.ID,
+			"phase":       phaseState.Phase,
+			"agent_role":  artefact.ProducedByRole,
+			"artefact_id": artefact.ID,
+		})
 
-				e.logEvent("consensus_achieved", map[string]interface{}{
-					"claim_id":           claim.ID,
-					"bid_count":          receivedBidCount,
-					"consensus_duration": consensusDuration.Milliseconds(),
-				})
+		// Check phase completion
+		e.checkPhaseCompletion(ctx, claim, phaseState, artefact)
+	}
+}
 
-				// Grant claim to winner
-				return e.grantClaim(ctx, claim, bids)
-			}
+// isSourceOfClaim checks if an artefact is derived from the claim's target artefact.
+func isSourceOfClaim(artefact *blackboard.Artefact, claimArtefactID string) bool {
+	for _, sourceID := range artefact.SourceArtefacts {
+		if sourceID == claimArtefactID {
+			return true
 		}
 	}
+	return false
+}
+
+// isProducedByGrantedAgent checks if the artefact's producer role matches any granted agent.
+// Uses the engine's agent registry to map agent names to roles.
+func (e *Engine) isProducedByGrantedAgent(claim *blackboard.Claim, producerRole string, phase string) bool {
+	var grantedAgentNames []string
+
+	switch phase {
+	case "review":
+		grantedAgentNames = claim.GrantedReviewAgents
+	case "parallel":
+		grantedAgentNames = claim.GrantedParallelAgents
+	case "exclusive":
+		// For exclusive, check if the granted agent's role matches
+		if claim.GrantedExclusiveAgent == "" {
+			return false
+		}
+		grantedAgentNames = []string{claim.GrantedExclusiveAgent}
+	default:
+		return false
+	}
+
+	// Map agent names to roles and check if any match the producer role
+	for _, agentName := range grantedAgentNames {
+		// Look up the agent's role in the registry
+		agentRole, exists := e.agentRegistry[agentName]
+		if exists && agentRole == producerRole {
+			return true
+		}
+	}
+
+	return false
+}
+
+// checkPhaseCompletion checks if a phase is complete and triggers appropriate logic.
+func (e *Engine) checkPhaseCompletion(ctx context.Context, claim *blackboard.Claim, phaseState *PhaseState, artefact *blackboard.Artefact) {
+	switch phaseState.Phase {
+	case "review":
+		if err := e.CheckReviewPhaseCompletion(ctx, claim, phaseState); err != nil {
+			log.Printf("[Orchestrator] Error checking review phase completion: %v", err)
+		}
+
+	case "parallel":
+		if err := e.CheckParallelPhaseCompletion(ctx, claim, phaseState); err != nil {
+			log.Printf("[Orchestrator] Error checking parallel phase completion: %v", err)
+		}
+
+	case "exclusive":
+		// Exclusive phase completes immediately when artefact is received
+		log.Printf("[Orchestrator] Exclusive phase complete for claim %s", claim.ID)
+		if err := e.TransitionToNextPhase(ctx, claim, phaseState); err != nil {
+			log.Printf("[Orchestrator] Error transitioning from exclusive phase: %v", err)
+		}
+	}
+}
+
+// waitForConsensusAndGrant orchestrates the full consensus and granting process.
+// Uses the new M3.1 consensus and granting logic with bid tracking and alphabetical tie-breaking.
+func (e *Engine) waitForConsensusAndGrant(ctx context.Context, claim *blackboard.Claim) error {
+	// Wait for full consensus (all agents bid)
+	bids, err := e.WaitForConsensus(ctx, claim.ID)
+	if err != nil {
+		return fmt.Errorf("failed to achieve consensus: %w", err)
+	}
+
+	// Grant claim using deterministic selection
+	if err := e.GrantClaim(ctx, claim, bids); err != nil {
+		return fmt.Errorf("failed to grant claim: %w", err)
+	}
+
+	return nil
 }
 
 // getAgentsStillToSubmitBids returns a list of agent names that haven't submitted bids yet.
@@ -231,122 +332,6 @@ func (e *Engine) getAgentsStillToSubmitBids(receivedBids map[string]blackboard.B
 		}
 	}
 	return waiting
-}
-
-// grantClaim determines the winning agent and grants them the claim.
-// M2.2 strategy: First agent with "exclusive" bid wins.
-// Updates claim in Redis and publishes grant notification.
-func (e *Engine) grantClaim(ctx context.Context, claim *blackboard.Claim, bids map[string]blackboard.BidType) error {
-	// Find first exclusive bidder (M2.2 simple strategy)
-	var winner string
-	for agentName, bidType := range bids {
-		if bidType == blackboard.BidTypeExclusive {
-			winner = agentName
-			break
-		}
-	}
-
-	if winner == "" {
-		log.Printf("[Orchestrator] No exclusive bids for claim %s, ignoring", claim.ID)
-		e.logEvent("no_exclusive_bids", map[string]interface{}{
-			"claim_id": claim.ID,
-			"bids":     bids,
-		})
-		return nil
-	}
-
-	// Update claim with granted agent
-	claim.GrantedExclusiveAgent = winner
-	// Keep status as pending_review (M2.2 doesn't change status yet)
-
-	if err := e.client.UpdateClaim(ctx, claim); err != nil {
-		return fmt.Errorf("failed to update claim with grant: %w", err)
-	}
-
-	log.Printf("[Orchestrator] Granted claim_id=%s to agent '%s'", claim.ID, winner)
-
-	e.logEvent("claim_granted", map[string]interface{}{
-		"claim_id":   claim.ID,
-		"winner":     winner,
-		"bid_count":  len(bids),
-		"bid_types":  bids,
-	})
-
-	// Publish claim_granted event to workflow_events channel (M2.6)
-	if err := e.publishClaimGrantedEvent(ctx, claim, winner); err != nil {
-		// Log error but don't fail the grant (best-effort delivery)
-		log.Printf("[Orchestrator] Failed to publish claim_granted event: %v", err)
-	}
-
-	// Publish grant notification to agent's channel
-	if err := e.publishGrantNotification(ctx, winner, claim.ID); err != nil {
-		log.Printf("[Orchestrator] Failed to publish grant notification: %v", err)
-		// Not a fatal error - claim is still granted in Redis
-		return nil
-	}
-
-	return nil
-}
-
-// publishGrantNotification publishes a grant notification to the agent's event channel.
-func (e *Engine) publishGrantNotification(ctx context.Context, agentName, claimID string) error {
-	notification := map[string]string{
-		"event_type": "grant",
-		"claim_id":   claimID,
-	}
-
-	notificationJSON, err := json.Marshal(notification)
-	if err != nil {
-		return fmt.Errorf("failed to marshal grant notification: %w", err)
-	}
-
-	channel := blackboard.AgentEventsChannel(e.instanceName, agentName)
-
-	log.Printf("[Orchestrator] Publishing grant notification to %s: claim_id=%s", channel, claimID)
-
-	if err := e.client.PublishRaw(ctx, channel, string(notificationJSON)); err != nil {
-		return fmt.Errorf("failed to publish grant notification: %w", err)
-	}
-
-	e.logEvent("grant_notification_published", map[string]interface{}{
-		"claim_id":   claimID,
-		"agent_name": agentName,
-		"channel":    channel,
-	})
-
-	return nil
-}
-
-// publishClaimGrantedEvent publishes a claim_granted event to the workflow_events channel.
-// Detects grant type from claim fields (exclusive, review, or parallel).
-func (e *Engine) publishClaimGrantedEvent(ctx context.Context, claim *blackboard.Claim, agentName string) error {
-	// Detect grant type from claim fields
-	var grantType string
-	if claim.GrantedExclusiveAgent != "" {
-		grantType = "exclusive"
-	} else if len(claim.GrantedReviewAgents) > 0 {
-		grantType = "review"
-	} else if len(claim.GrantedParallelAgents) > 0 {
-		grantType = "parallel"
-	} else {
-		// Should not happen, but handle gracefully
-		return fmt.Errorf("claim has no granted agents")
-	}
-
-	eventData := map[string]interface{}{
-		"claim_id":   claim.ID,
-		"agent_name": agentName,
-		"grant_type": grantType,
-	}
-
-	if err := e.client.PublishWorkflowEvent(ctx, "claim_granted", eventData); err != nil {
-		return fmt.Errorf("failed to publish workflow event: %w", err)
-	}
-
-	log.Printf("[Orchestrator] Published claim_granted event: claim_id=%s, agent=%s, type=%s",
-		claim.ID, agentName, grantType)
-
-	return nil
 }
 
 // logEvent logs a structured event in JSON format.
@@ -364,4 +349,62 @@ func (e *Engine) logEvent(eventType string, data map[string]interface{}) {
 	}
 
 	log.Println(string(jsonData))
+}
+
+// checkPendingAssignmentClaims checks if an artefact completes any pending_assignment claims.
+// M3.3: Feedback claims complete immediately when the granted agent produces an artefact.
+func (e *Engine) checkPendingAssignmentClaims(ctx context.Context, artefact *blackboard.Artefact) {
+	for claimID, targetArtefactID := range e.pendingAssignmentClaims {
+		// Check if this artefact is derived from the claim's target artefact
+		if !isSourceOfClaim(artefact, targetArtefactID) {
+			continue
+		}
+
+		// Fetch the claim
+		claim, err := e.client.GetClaim(ctx, claimID)
+		if err != nil {
+			log.Printf("[Orchestrator] Error fetching pending_assignment claim %s: %v", claimID, err)
+			continue
+		}
+
+		// Verify claim is still pending_assignment (defensive check)
+		if claim.Status != blackboard.ClaimStatusPendingAssignment {
+			log.Printf("[Orchestrator] Warning: claim %s is not pending_assignment (status=%s), removing from tracking",
+				claimID, claim.Status)
+			delete(e.pendingAssignmentClaims, claimID)
+			continue
+		}
+
+		// Check if artefact is produced by the granted agent
+		grantedAgentRole, exists := e.agentRegistry[claim.GrantedExclusiveAgent]
+		if !exists {
+			log.Printf("[Orchestrator] Warning: granted agent %s not found in registry for claim %s",
+				claim.GrantedExclusiveAgent, claimID)
+			continue
+		}
+
+		if artefact.ProducedByRole != grantedAgentRole {
+			// Artefact not from granted agent, continue waiting
+			continue
+		}
+
+		// Artefact received from granted agent - mark claim as complete
+		claim.Status = blackboard.ClaimStatusComplete
+		if err := e.client.UpdateClaim(ctx, claim); err != nil {
+			log.Printf("[Orchestrator] Error updating claim %s to complete: %v", claimID, err)
+			continue
+		}
+
+		// Remove from tracking
+		delete(e.pendingAssignmentClaims, claimID)
+
+		e.logEvent("feedback_claim_complete", map[string]interface{}{
+			"claim_id":    claimID,
+			"artefact_id": artefact.ID,
+			"agent":       claim.GrantedExclusiveAgent,
+		})
+
+		log.Printf("[Orchestrator] Feedback claim %s completed by agent %s (artefact: %s)",
+			claimID, claim.GrantedExclusiveAgent, artefact.ID)
+	}
 }

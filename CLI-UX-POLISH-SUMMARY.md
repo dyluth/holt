@@ -29,10 +29,10 @@ Added single-letter shorthand versions for all common command flags using Cobra'
 **Examples:**
 ```bash
 # Before
-sett forage --name prod --watch --goal "Build API"
+holt forage --name prod --watch --goal "Build API"
 
 # After (much shorter!)
-sett forage -n prod -w -g "Build API"
+holt forage -n prod -w -g "Build API"
 ```
 
 ---
@@ -49,7 +49,7 @@ Created a centralized `internal/printer` package that provides consistent, color
 printer.Success("Instance '%s' started successfully\n", name)
 
 // Informational messages (default color)
-printer.Info("Next steps:\n  1. Run 'sett forage'...")
+printer.Info("Next steps:\n  1. Run 'holt forage'...")
 
 // Warnings (yellow with ⚠️ prefix)
 printer.Warning("failed to stop %s: %v\n", name, err)
@@ -88,33 +88,33 @@ printer.Printf(format, args...)
 ## Files Modified
 
 ### Commands (6 files)
-1. **`cmd/sett/commands/init.go`**
+1. **`cmd/holt/commands/init.go`**
    - Added shorthand: `-f` for `--force`
 
-2. **`cmd/sett/commands/up.go`**
+2. **`cmd/holt/commands/up.go`**
    - Added shorthands: `-n` for `--name`, `-f` for `--force`
    - Converted 30+ user-facing messages to use printer
    - Success messages: Redis port, network creation, container starts
    - Errors: 6 structured errors with printer.Error/ErrorWithContext
    - Rollback messages: Info and Warning outputs
 
-3. **`cmd/sett/commands/down.go`**
+3. **`cmd/holt/commands/down.go`**
    - Added shorthand: `-n` for `--name`
    - Converted to printer: Step messages, warnings, success confirmation
    - Error: "instance not found" with structured format
 
-4. **`cmd/sett/commands/list.go`**
+4. **`cmd/holt/commands/list.go`**
    - Added shorthand: `-j` for `--json`
    - Converted to printer: Empty state messages, table output
 
-5. **`cmd/sett/commands/forage.go`**
+5. **`cmd/holt/commands/forage.go`**
    - Added shorthands: `-n`, `-g`, `-w` for name/goal/watch
    - Converted 17+ user-facing messages to use printer
    - Success: Goal artefact creation, claim detection
    - Errors: 10 structured errors covering all failure modes
    - Info: Waiting messages, next steps output
 
-6. **`cmd/sett/commands/watch.go`**
+6. **`cmd/holt/commands/watch.go`**
    - Added shorthand: `-n` for `--name`
    - Converted stub message to printer.Info
    - Updated example to use shorthand flags
@@ -145,21 +145,21 @@ printer.Printf(format, args...)
 ```bash
 make test
 # Result:
-ok  	github.com/dyluth/sett/cmd/sett/commands	0.050s
-ok  	github.com/dyluth/sett/internal/printer	0.003s
+ok  	github.com/dyluth/holt/cmd/holt/commands	0.050s
+ok  	github.com/dyluth/holt/internal/printer	0.003s
 # All other packages: cached (passing)
 ```
 
 ### ✅ Build Successful
 ```bash
 make build
-# ✓ Built: bin/sett
+# ✓ Built: bin/holt
 ```
 
 ### ✅ Shorthand Flags Verified
 ```bash
 # All commands show correct shorthand flags
-sett forage -h
+holt forage -h
   -g, --goal string   Goal description (required)
   -n, --name string   Target instance name
   -w, --watch         Wait for orchestrator
@@ -173,12 +173,12 @@ sett forage -h
 
 **Before:**
 ```bash
-sett forage --name production --watch --goal "Implement user authentication"
+holt forage --name production --watch --goal "Implement user authentication"
 ```
 
 **After:**
 ```bash
-sett forage -n production -w -g "Implement user authentication"
+holt forage -n production -w -g "Implement user authentication"
 ```
 **Savings:** 30 characters (23% shorter)
 
@@ -190,7 +190,7 @@ Error: instance 'prod' not found
 
 No containers found with instance name 'prod'.
 
-Run 'sett list' to see available instances.
+Run 'holt list' to see available instances.
 ```
 
 **After (with printer):**
@@ -199,7 +199,7 @@ instance 'prod' not found    ← RED bold
 
 No containers found with instance name 'prod'.
 
-Run 'sett list' to see available instances.
+Run 'holt list' to see available instances.
 ```
 
 ### Example 3: Success Messages
@@ -209,8 +209,8 @@ Run 'sett list' to see available instances.
 ✓ Instance 'default-1' started successfully
 
 Containers:
-  • sett-redis-default-1 (running)
-  • sett-orchestrator-default-1 (running)
+  • holt-redis-default-1 (running)
+  • holt-orchestrator-default-1 (running)
 ```
 
 **After (with color):**
@@ -218,8 +218,8 @@ Containers:
 ✓ Instance 'default-1' started successfully    ← GREEN
 
 Containers:
-  • sett-redis-default-1 (running)
-  • sett-orchestrator-default-1 (running)
+  • holt-redis-default-1 (running)
+  • holt-orchestrator-default-1 (running)
 ```
 
 ---
@@ -259,8 +259,8 @@ return printer.Error(
     "instance not found",                    // Title (red)
     "No containers found with instance...",  // Explanation
     []string{                                // Suggestions (numbered)
-        "Stop existing instance: sett down -n prod",
-        "Choose different name: sett up -n other",
+        "Stop existing instance: holt down -n prod",
+        "Choose different name: holt up -n other",
     },
 )
 ```
@@ -274,7 +274,7 @@ return printer.ErrorWithContext(
         "Workspace": "/path/to/workspace",
         "Instance":  "default-1",
     },
-    []string{"Stop other instance: sett down -n default-1"},
+    []string{"Stop other instance: holt down -n default-1"},
 )
 ```
 

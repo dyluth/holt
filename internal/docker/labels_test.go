@@ -57,9 +57,9 @@ func TestNetworkName(t *testing.T) {
 		instanceName string
 		expected     string
 	}{
-		{"prod", "sett-network-prod"},
-		{"dev", "sett-network-dev"},
-		{"staging-1", "sett-network-staging-1"},
+		{"prod", "holt-network-prod"},
+		{"dev", "holt-network-dev"},
+		{"staging-1", "holt-network-staging-1"},
 	}
 
 	for _, tc := range testCases {
@@ -73,9 +73,9 @@ func TestRedisContainerName(t *testing.T) {
 		instanceName string
 		expected     string
 	}{
-		{"prod", "sett-redis-prod"},
-		{"dev", "sett-redis-dev"},
-		{"default-1", "sett-redis-default-1"},
+		{"prod", "holt-redis-prod"},
+		{"dev", "holt-redis-dev"},
+		{"default-1", "holt-redis-default-1"},
 	}
 
 	for _, tc := range testCases {
@@ -89,9 +89,9 @@ func TestOrchestratorContainerName(t *testing.T) {
 		instanceName string
 		expected     string
 	}{
-		{"prod", "sett-orchestrator-prod"},
-		{"dev", "sett-orchestrator-dev"},
-		{"test-123", "sett-orchestrator-test-123"},
+		{"prod", "holt-orchestrator-prod"},
+		{"dev", "holt-orchestrator-dev"},
+		{"test-123", "holt-orchestrator-test-123"},
 	}
 
 	for _, tc := range testCases {

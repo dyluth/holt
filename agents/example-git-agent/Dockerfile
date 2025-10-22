@@ -1,7 +1,7 @@
 # Example Git Agent Dockerfile for M2.5
 # Demonstrates CodeCommit workflow with Git integration
 
-# Build stage - compile the cub binary
+# Build stage - compile the pup binary
 FROM golang:1.24-alpine AS builder
 
 WORKDIR /build
@@ -10,13 +10,13 @@ WORKDIR /build
 COPY go.mod go.sum ./
 RUN go mod download
 
-# Copy cub source code
-COPY cmd/cub ./cmd/cub
-COPY internal/cub ./internal/cub
+# Copy pup source code
+COPY cmd/pup ./cmd/pup
+COPY internal/pup ./internal/pup
 COPY pkg/blackboard ./pkg/blackboard
 
-# Build the cub binary
-RUN CGO_ENABLED=0 GOOS=linux go build -o cub ./cmd/cub
+# Build the pup binary
+RUN CGO_ENABLED=0 GOOS=linux go build -o pup ./cmd/pup
 
 # Runtime stage - Alpine with Git
 FROM alpine:latest
@@ -26,8 +26,8 @@ RUN apk --no-cache add git ca-certificates
 
 WORKDIR /app
 
-# Copy cub binary from builder
-COPY --from=builder /build/cub /app/cub
+# Copy pup binary from builder
+COPY --from=builder /build/pup /app/pup
 
 # Copy run script
 COPY agents/example-git-agent/run.sh /app/run.sh
@@ -39,9 +39,9 @@ USER agent
 
 # Configure git (required for commits) - MUST be done AFTER switching to agent user
 # so the config is written to /home/agent/.gitconfig instead of /root/.gitconfig
-RUN git config --global user.email "agent@sett.local" && \
-    git config --global user.name "Sett Git Agent" && \
+RUN git config --global user.email "agent@holt.local" && \
+    git config --global user.name "Holt Git Agent" && \
     git config --global --add safe.directory /workspace
 
-# Entrypoint is the cub binary
-ENTRYPOINT ["/app/cub"]
+# Entrypoint is the pup binary
+ENTRYPOINT ["/app/pup"]

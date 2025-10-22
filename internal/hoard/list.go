@@ -7,7 +7,7 @@ import (
 	"os"
 	"sort"
 
-	"github.com/dyluth/sett/pkg/blackboard"
+	"github.com/dyluth/holt/pkg/blackboard"
 )
 
 // OutputFormat specifies how to format the artefact list output.
@@ -27,7 +27,7 @@ const (
 // Skips malformed artefacts with a warning to stderr but continues processing.
 func ListArtefacts(ctx context.Context, bbClient *blackboard.Client, instanceName string, format OutputFormat, w io.Writer) error {
 	// Scan for all artefact keys using Redis SCAN
-	pattern := fmt.Sprintf("sett:%s:artefact:*", instanceName)
+	pattern := fmt.Sprintf("holt:%s:artefact:*", instanceName)
 	iter := bbClient.RedisClient().Scan(ctx, 0, pattern, 0).Iterator()
 
 	var artefacts []*blackboard.Artefact
@@ -36,8 +36,8 @@ func ListArtefacts(ctx context.Context, bbClient *blackboard.Client, instanceNam
 	for iter.Next(ctx) {
 		key := iter.Val()
 
-		// Extract artefact ID from key (format: sett:{instance}:artefact:{id})
-		artefactID := key[len(fmt.Sprintf("sett:%s:artefact:", instanceName)):]
+		// Extract artefact ID from key (format: holt:{instance}:artefact:{id})
+		artefactID := key[len(fmt.Sprintf("holt:%s:artefact:", instanceName)):]
 
 		// Fetch artefact
 		artefact, err := bbClient.GetArtefact(ctx, artefactID)

@@ -23,7 +23,7 @@ func (c *Checker) IsGitRepository() (bool, error) {
 	if err != nil {
 		// Check if error is because git command not found
 		if _, ok := err.(*exec.Error); ok {
-			return false, fmt.Errorf("git not found in PATH\nSett requires Git to be installed.\nInstall Git: https://git-scm.com/downloads")
+			return false, fmt.Errorf("git not found in PATH\nHolt requires Git to be installed.\nInstall Git: https://git-scm.com/downloads")
 		}
 		// Not in a Git repository
 		return false, nil
@@ -76,7 +76,7 @@ func (c *Checker) ValidateGitContext() error {
 	}
 
 	if !isRepo {
-		return fmt.Errorf("not a Git repository\n\nSett requires initialization from within a Git repository.\n\nRun 'git init' first, then 'sett init'")
+		return fmt.Errorf("not a Git repository\n\nHolt requires initialization from within a Git repository.\n\nRun 'git init' first, then 'holt init'")
 	}
 
 	// Check if we're at the Git root
@@ -87,7 +87,7 @@ func (c *Checker) ValidateGitContext() error {
 
 	if !isRoot {
 		currentDir, _ := os.Getwd()
-		return fmt.Errorf("must run from Git repository root\n\nGit root: %s\nCurrent directory: %s\n\nPlease cd to the Git root and run 'sett init'", gitRoot, currentDir)
+		return fmt.Errorf("must run from Git repository root\n\nGit root: %s\nCurrent directory: %s\n\nPlease cd to the Git root and run 'holt init'", gitRoot, currentDir)
 	}
 
 	return nil

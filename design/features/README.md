@@ -1,6 +1,6 @@
-# **Sett Feature Design Documents**
+# **Holt Feature Design Documents**
 
-This directory contains feature design documents organized by delivery phase. Each feature must be designed using the systematic template (`../sett-feature-design-template.md`) before implementation.
+This directory contains feature design documents organized by delivery phase. Each feature must be designed using the systematic template (`../holt-feature-design-template.md`) before implementation.
 
 ## **Directory Structure**
 
@@ -29,9 +29,9 @@ Feature design files should be named descriptively:
 Every feature design must:
 - Complete all sections of the template with specific, actionable content
 - Define measurable success criteria and comprehensive testing strategy
-- Analyze impact on all system components (Orchestrator, Cub, CLI, Blackboard)
+- Analyze impact on all system components (Orchestrator, Pup, CLI, Blackboard)
 - Include error handling and edge case analysis
-- Align with Sett's guiding principles and architectural consistency
+- Align with Holt's guiding principles and architectural consistency
 
 ## **Phase Dependencies**
 

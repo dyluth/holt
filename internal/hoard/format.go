@@ -6,7 +6,7 @@ import (
 	"io"
 	"strings"
 
-	"github.com/dyluth/sett/pkg/blackboard"
+	"github.com/dyluth/holt/pkg/blackboard"
 	"github.com/olekukonko/tablewriter"
 )
 

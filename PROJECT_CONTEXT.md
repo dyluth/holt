@@ -1,29 +1,29 @@
-# **Sett Project Context: Purpose, Philosophy & Vision**
+# **Holt Project Context: Purpose, Philosophy & Vision**
 
 **Purpose**: Essential project overview and architectural foundation  
 **Scope**: Essential - required reading for all development tasks  
 **Estimated tokens**: ~1,500 tokens  
-**Read when**: Starting any Sett development work, need project context
+**Read when**: Starting any Holt development work, need project context
 
-## **What is Sett?**
+## **What is Holt?**
 
-Sett is a **container-native AI agent orchestrator** designed to manage a clan of specialized, tool-equipped AI agents for automating complex software engineering tasks. It is **not** an LLM-chaining library—it is an orchestration engine for real-world toolchains that software professionals use every day.
+Holt is a **container-native AI agent orchestrator** designed to manage a clan of specialized, tool-equipped AI agents for automating complex software engineering tasks. It is **not** an LLM-chaining library—it is an orchestration engine for real-world toolchains that software professionals use every day.
 
 ## **Core Philosophy & Guiding Principles**
 
 ### **Pragmatism over novelty (YAGNI)**
 We prioritise using existing, battle-hardened tools rather than building our own. This principle applies at all levels:
-* Core components: We use Docker for containers and Redis for state because they are excellent. Sett's core is an orchestrator, not a database or container runtime.
-* Internal logic: We prefer wrapping an existing, stable tool over reimplementing its functionality. For example, the sett logs command is a thin, user-friendly wrapper around docker logs, not a custom logging pipeline.
+* Core components: We use Docker for containers and Redis for state because they are excellent. Holt's core is an orchestrator, not a database or container runtime.
+* Internal logic: We prefer wrapping an existing, stable tool over reimplementing its functionality. For example, the holt logs command is a thin, user-friendly wrapper around docker logs, not a custom logging pipeline.
 
 ### **Zero-configuration, progressively enhanced**
-The experience must be seamless out of the box. A developer should be able to get a basic sett running with a single command. Smart defaults cover 90% of use cases, while advanced features are available for those who need them.
+The experience must be seamless out of the box. A developer should be able to get a basic holt running with a single command. Smart defaults cover 90% of use cases, while advanced features are available for those who need them.
 
 ### **Small, single-purpose components**
-Each element—the orchestrator, the CLI, the agent cub—has a clear, well-defined job and does that one thing excellently. Complexity is managed by composing simple parts.
+Each element—the orchestrator, the CLI, the agent pup—has a clear, well-defined job and does that one thing excellently. Complexity is managed by composing simple parts.
 
 ### **Auditability as a core feature**
-Artefacts are immutable. Every decision and agent interaction is recorded on the blackboard, providing a complete, auditable history of the workflow. This makes Sett particularly valuable for regulated industries, compliance workflows, and any environment where AI transparency and accountability are business-critical or legally required.
+Artefacts are immutable. Every decision and agent interaction is recorded on the blackboard, providing a complete, auditable history of the workflow. This makes Holt particularly valuable for regulated industries, compliance workflows, and any environment where AI transparency and accountability are business-critical or legally required.
 
 ### **ARM64-first design**
 Development and deployment are optimized for ARM64, with AMD64 as a fully supported, compatible target.
@@ -31,10 +31,10 @@ Development and deployment are optimized for ARM64, with AMD64 as a fully suppor
 ### **Principle of least privilege**
 Agents run in non-root containers with the minimal set of privileges required to perform their function.
 
-## **What Makes Sett Different**
+## **What Makes Holt Different**
 
 ### **Container-native by design**
-Unlike Python-based frameworks, Sett orchestrates agents whose tools are **any command-line tool that can be packaged into a container**. This enables automation of tasks that rely on compilers, CLIs, and infrastructure tools (git, docker, kubectl).
+Unlike Python-based frameworks, Holt orchestrates agents whose tools are **any command-line tool that can be packaged into a container**. This enables automation of tasks that rely on compilers, CLIs, and infrastructure tools (git, docker, kubectl).
 
 ### **Event-driven architecture**
 The system uses Redis Pub/Sub for efficient, non-polling communication between components. Agents watch for claims and bid on them, creating a robust, event-driven workflow.
@@ -46,7 +46,7 @@ Every artefact is immutable. To handle iteration and feedback, agents create new
 The system is explicitly designed for human oversight and intervention, with Question/Answer artefacts and CLI commands for human interaction. This architecture ensures compliance with regulations requiring human review of AI decisions and provides the control mechanisms needed in high-stakes environments.
 
 ### **Git-centric workflow**
-Sett assumes and requires a clean Git repository. Code artefacts are git commit hashes, and agents are responsible for Git interactions, making the entire workflow version-controlled. The specific branching and commit strategy is detailed in `agent-cub.md`.
+Holt assumes and requires a clean Git repository. Code artefacts are git commit hashes, and agents are responsible for Git interactions, making the entire workflow version-controlled. The specific branching and commit strategy is detailed in `agent-pup.md`.
 
 ## **Key Architectural Concepts**
 
@@ -66,7 +66,7 @@ Records of the Orchestrator's decisions about specific Artefacts. Claims go thro
 2. **Parallel phase**: Concurrent work by multiple agents
 3. **Exclusive phase**: Single agent gets exclusive access
 
-### **The Agent Cub**
+### **The Agent Pup**
 A lightweight binary that runs as the entrypoint in every agent container. It:
 - Watches for claims and bids on them
 - Assembles historical context from the blackboard
@@ -78,23 +78,23 @@ A lightweight binary that runs as the entrypoint in every agent container. It:
 The orchestrator waits until it receives a bid from every known agent before proceeding with the grant process. This V1 model prioritizes determinism and debuggability over performance, ensuring predictable workflows in early development. Future versions are planned to incorporate timeout or quorum-based mechanisms for greater scalability.
 
 ### **Agent Scaling (Controller-Worker Pattern)**
-For agents that need to run multiple instances concurrently (configured with `replicas > 1` in `sett.yml`), Sett uses a **controller-worker pattern**. A single, persistent "controller" agent is responsible for bidding on claims. When a claim is won, the orchestrator launches ephemeral "worker" agents to execute the work in parallel. This avoids race conditions while enabling horizontal scaling.
+For agents that need to run multiple instances concurrently (configured with `replicas > 1` in `holt.yml`), Holt uses a **controller-worker pattern**. A single, persistent "controller" agent is responsible for bidding on claims. When a claim is won, the orchestrator launches ephemeral "worker" agents to execute the work in parallel. This avoids race conditions while enabling horizontal scaling.
 
 ## **Core Workflow**
 
-1. **Bootstrap**: User runs `sett forage --goal "Create a REST API"` 
+1. **Bootstrap**: User runs `holt forage --goal "Create a REST API"` 
 2. **Initial Artefact**: CLI creates a GoalDefined artefact on the blackboard
 3. **Claim Creation**: Orchestrator sees the artefact and creates a corresponding claim
 4. **Bidding**: All agents evaluate the claim and submit bids ('review', 'claim', 'exclusive', 'ignore')
 5. **Phased Execution**: Orchestrator grants claims in review → parallel → exclusive phases
-6. **Work Execution**: Agent cubs execute their tools and create new artefacts
+6. **Work Execution**: Agent pups execute their tools and create new artefacts
 7. **Iteration**: New artefacts trigger new claims, continuing the workflow
 8. **Termination**: Workflow ends when an agent creates a Terminal artefact
 
 ## **Technology Stack**
 
 ### **Core Technologies**
-- **Go**: Single module with multiple binaries (orchestrator, CLI, cub)
+- **Go**: Single module with multiple binaries (orchestrator, CLI, pup)
 - **Redis**: Blackboard state storage and Pub/Sub messaging
 - **Docker**: Agent containerization and lifecycle management
 - **Git**: Version control integration and workspace management
@@ -108,8 +108,8 @@ Agents can use any technology that can be containerized:
 ## **Project Structure**
 
 ```
-sett/
-├── cmd/             # Binaries: sett, orchestrator, cub
+holt/
+├── cmd/             # Binaries: holt, orchestrator, pup
 ├── pkg/             # Shared public packages (blackboard types)
 ├── internal/        # Private implementation details
 ├── agents/          # Example agent definitions
@@ -119,10 +119,10 @@ sett/
 │   │   ├── phase-2-single-agent/        # Phase 2: Basic execution
 │   │   ├── phase-3-coordination/        # Phase 3: Multi-agent coordination
 │   │   └── phase-4-human-loop/          # Phase 4: Human-in-the-loop
-│   ├── sett-system-specification.md      # Complete system architecture
-│   ├── sett-orchestrator-component.md    # Orchestrator component design
-│   ├── agent-cub.md                      # Agent cub component design
-│   └── sett-feature-design-template.md   # Systematic development template
+│   ├── holt-system-specification.md      # Complete system architecture
+│   ├── holt-orchestrator-component.md    # Orchestrator component design
+│   ├── agent-pup.md                      # Agent pup component design
+│   └── holt-feature-design-template.md   # Systematic development template
 └── Makefile
 ```
 
@@ -130,10 +130,10 @@ sett/
 
 The design documentation follows a clear component-based structure optimized for AI agent comprehension:
 
-* **`sett-system-specification.md`** - Complete system overview, architecture, and shared components (blackboard, CLI, configuration)
-* **`sett-orchestrator-component.md`** - Focused specification for the orchestrator component's logic and behavior
-* **`agent-cub.md`** - Focused specification for the agent cub component's architecture and execution model
-* **`sett-feature-design-template.md`** - Systematic template for designing new features with comprehensive analysis framework
+* **`holt-system-specification.md`** - Complete system overview, architecture, and shared components (blackboard, CLI, configuration)
+* **`holt-orchestrator-component.md`** - Focused specification for the orchestrator component's logic and behavior
+* **`agent-pup.md`** - Focused specification for the agent pup component's architecture and execution model
+* **`holt-feature-design-template.md`** - Systematic template for designing new features with comprehensive analysis framework
 
 This separation ensures each document has a single, clear purpose and minimal cognitive load while maintaining necessary cross-references for component integration.
 
@@ -170,8 +170,8 @@ Ensures maximum efficiency—agents are never too busy to evaluate new opportuni
 
 ## **Success Criteria**
 
-A successful Sett implementation should:
-1. **Enable zero-configuration startup** - `sett init && sett up` creates a working system
+A successful Holt implementation should:
+1. **Enable zero-configuration startup** - `holt init && holt up` creates a working system
 2. **Provide complete auditability** - Every decision and change is traceable, meeting regulatory requirements
 3. **Support complex workflows** - Multi-agent coordination with mandatory human oversight points
 4. **Be production-ready** - Robust error handling, health checks, monitoring suitable for regulated environments
@@ -202,9 +202,9 @@ A successful Sett implementation should:
 
 ## **Vision Statement**
 
-Sett aims to be the **de facto orchestration platform** for AI-powered workflows in **any environment where auditability, control, and compliance are critical**. While initially focused on software engineering, Sett's immutable audit trails and human-in-the-loop design make it uniquely suited for regulated industries struggling to safely adopt AI.
+Holt aims to be the **de facto orchestration platform** for AI-powered workflows in **any environment where auditability, control, and compliance are critical**. While initially focused on software engineering, Holt's immutable audit trails and human-in-the-loop design make it uniquely suited for regulated industries struggling to safely adopt AI.
 
-By combining the reliability of containerization with the flexibility of AI agents, Sett enables organizations to automate complex tasks while maintaining **full visibility, control, and regulatory compliance**. This makes it invaluable for:
+By combining the reliability of containerization with the flexibility of AI agents, Holt enables organizations to automate complex tasks while maintaining **full visibility, control, and regulatory compliance**. This makes it invaluable for:
 
 - **Regulated industries** (finance, healthcare, government) requiring traceable AI decisions
 - **Compliance workflows** where every AI action must be documented and auditable
@@ -215,11 +215,11 @@ By combining the reliability of containerization with the flexibility of AI agen
 
 ### **Development Methodology & Quality Assurance**
 
-Sett uses a **systematic, template-driven feature design process** to ensure quality, consistency, and architectural alignment. This methodology *is* the core of our quality assurance strategy.
+Holt uses a **systematic, template-driven feature design process** to ensure quality, consistency, and architectural alignment. This methodology *is* the core of our quality assurance strategy.
 
-Every feature **must** be designed using the standardized template (`design/sett-feature-design-template.md`). This is not optional. The template enforces a comprehensive analysis that ensures every feature:
-- **Aligns with Sett's guiding principles** (YAGNI, auditability, etc.).
-- **Considers all architectural components** (blackboard, orchestrator, cub, CLI).
+Every feature **must** be designed using the standardized template (`design/holt-feature-design-template.md`). This is not optional. The template enforces a comprehensive analysis that ensures every feature:
+- **Aligns with Holt's guiding principles** (YAGNI, auditability, etc.).
+- **Considers all architectural components** (blackboard, orchestrator, pup, CLI).
 - **Is designed for failure first**, with robust handling of errors and edge cases.
 - **Maintains backward compatibility** and integration safety.
 - **Includes a comprehensive testing plan** (unit, integration, E2E).

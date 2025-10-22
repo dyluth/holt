@@ -85,6 +85,12 @@ func ClaimToHash(c *Claim) (map[string]interface{}, error) {
 		return nil, fmt.Errorf("failed to marshal granted_parallel_agents: %w", err)
 	}
 
+	// M3.3: Encode additional_context_ids as JSON
+	additionalContextJSON, err := json.Marshal(c.AdditionalContextIDs)
+	if err != nil {
+		return nil, fmt.Errorf("failed to marshal additional_context_ids: %w", err)
+	}
+
 	hash := map[string]interface{}{
 		"id":                      c.ID,
 		"artefact_id":             c.ArtefactID,
@@ -92,7 +98,36 @@ func ClaimToHash(c *Claim) (map[string]interface{}, error) {
 		"granted_review_agents":   string(reviewAgentsJSON),
 		"granted_parallel_agents": string(parallelAgentsJSON),
 		"granted_exclusive_agent": c.GrantedExclusiveAgent,
+		"additional_context_ids":  string(additionalContextJSON), // M3.3
+		"termination_reason":      c.TerminationReason,            // M3.3
 	}
+
+	// M3.5: Encode phase state as JSON if present
+	if c.PhaseState != nil {
+		phaseStateJSON, err := json.Marshal(c.PhaseState)
+		if err != nil {
+			return nil, fmt.Errorf("failed to marshal phase_state: %w", err)
+		}
+		hash["phase_state"] = string(phaseStateJSON)
+	} else {
+		hash["phase_state"] = ""
+	}
+
+	// M3.5: Encode grant queue as JSON if present
+	if c.GrantQueue != nil {
+		grantQueueJSON, err := json.Marshal(c.GrantQueue)
+		if err != nil {
+			return nil, fmt.Errorf("failed to marshal grant_queue: %w", err)
+		}
+		hash["grant_queue"] = string(grantQueueJSON)
+	} else {
+		hash["grant_queue"] = ""
+	}
+
+	// M3.5: Grant tracking fields
+	hash["last_grant_agent"] = c.LastGrantAgent
+	hash["last_grant_time"] = c.LastGrantTime
+	hash["artefact_expected"] = c.ArtefactExpected
 
 	return hash, nil
 }
@@ -116,6 +151,14 @@ func HashToClaim(hash map[string]string) (*Claim, error) {
 		}
 	}
 
+	// M3.3: Decode additional_context_ids JSON array
+	var additionalContextIDs []string
+	if additionalContextJSON := hash["additional_context_ids"]; additionalContextJSON != "" {
+		if err := json.Unmarshal([]byte(additionalContextJSON), &additionalContextIDs); err != nil {
+			return nil, fmt.Errorf("failed to unmarshal additional_context_ids: %w", err)
+		}
+	}
+
 	// Ensure we have empty slices instead of nil for consistency
 	if reviewAgents == nil {
 		reviewAgents = []string{}
@@ -123,6 +166,31 @@ func HashToClaim(hash map[string]string) (*Claim, error) {
 	if parallelAgents == nil {
 		parallelAgents = []string{}
 	}
+	if additionalContextIDs == nil {
+		additionalContextIDs = []string{}
+	}
+
+	// M3.5: Decode phase state JSON if present
+	var phaseState *PhaseState
+	if phaseStateJSON := hash["phase_state"]; phaseStateJSON != "" {
+		phaseState = &PhaseState{}
+		if err := json.Unmarshal([]byte(phaseStateJSON), phaseState); err != nil {
+			return nil, fmt.Errorf("failed to unmarshal phase_state: %w", err)
+		}
+	}
+
+	// M3.5: Decode grant queue JSON if present
+	var grantQueue *GrantQueue
+	if grantQueueJSON := hash["grant_queue"]; grantQueueJSON != "" {
+		grantQueue = &GrantQueue{}
+		if err := json.Unmarshal([]byte(grantQueueJSON), grantQueue); err != nil {
+			return nil, fmt.Errorf("failed to unmarshal grant_queue: %w", err)
+		}
+	}
+
+	// M3.5: Parse grant tracking fields
+	lastGrantTime, _ := strconv.ParseInt(hash["last_grant_time"], 10, 64)
+	artefactExpected, _ := strconv.ParseBool(hash["artefact_expected"])
 
 	claim := &Claim{
 		ID:                    hash["id"],
@@ -131,6 +199,13 @@ func HashToClaim(hash map[string]string) (*Claim, error) {
 		GrantedReviewAgents:   reviewAgents,
 		GrantedParallelAgents: parallelAgents,
 		GrantedExclusiveAgent: hash["granted_exclusive_agent"],
+		AdditionalContextIDs:  additionalContextIDs,  // M3.3
+		TerminationReason:     hash["termination_reason"], // M3.3
+		PhaseState:            phaseState,            // M3.5
+		GrantQueue:            grantQueue,            // M3.5
+		LastGrantAgent:        hash["last_grant_agent"], // M3.5
+		LastGrantTime:         lastGrantTime,         // M3.5
+		ArtefactExpected:      artefactExpected,      // M3.5
 	}
 
 	return claim, nil

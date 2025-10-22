@@ -1,0 +1,62 @@
+# Example Multi-Agent Holt configuration for M3.2+ (Three-Phase Workflow)
+# Demonstrates the complete review → parallel → exclusive phase execution model
+# Copy this to holt.yml and customize as needed
+
+version: "1.0"
+
+agents:
+  # PHASE 1: REVIEW - Provides feedback before work begins
+  reviewer-agent:
+    role: "Reviewer"
+    image: "example-reviewer-agent:latest"
+    command: ["/app/run.sh"]
+    bidding_strategy: "review"  # Runs in review phase (first)
+    workspace:
+      mode: ro  # Read-only - reviewers don't modify code
+    # Review agents evaluate work and provide feedback
+    # Payload of "{}" or "[]" indicates approval
+    # Any other payload is treated as feedback and terminates the claim
+
+  # PHASE 2: PARALLEL - Multiple agents work concurrently
+  parallel-worker:
+    role: "ParallelWorker"
+    image: "example-parallel-agent:latest"
+    command: ["/app/run.sh"]
+    bidding_strategy: "claim"  # Runs in parallel phase (after review approval)
+    workspace:
+      mode: ro  # Read-only for parallel work (e.g., testing, docs generation)
+    # Parallel agents work simultaneously on non-conflicting tasks
+    # Examples: running tests, generating documentation, linting
+
+  # PHASE 3: EXCLUSIVE - Single agent gets exclusive access
+  git-agent:
+    role: "Coder"
+    image: "example-git-agent:latest"
+    command: ["/app/run.sh"]
+    bidding_strategy: "exclusive"  # Runs in exclusive phase (after parallel completes)
+    workspace:
+      mode: rw  # Read-write - needs to modify code and commit
+    # Exclusive agents have sole access to modify the workspace
+    # Ideal for: code changes, git commits, deployments
+
+  # OPTIONAL: Observer agent (never executes)
+  # test-agent:
+  #   role: "Tester"
+  #   image: "example-test-agent:latest"
+  #   command: ["/app/run.sh"]
+  #   bidding_strategy: "ignore"  # Always bids "ignore" - never executes
+  #   workspace:
+  #     mode: ro
+
+# IMPORTANT: All agents must have unique roles in Phase 3
+# Duplicate roles will cause validation errors at `holt up` time
+
+# Phase Skipping: If no agents bid for a phase, it's automatically skipped
+# Example: No "review" bids → workflow skips directly to parallel or exclusive
+
+# Optional: Service overrides
+# services:
+#   redis:
+#     image: "redis:7-alpine"
+#   orchestrator:
+#     image: "holt-orchestrator:latest"

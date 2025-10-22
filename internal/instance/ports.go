@@ -9,7 +9,7 @@ import (
 	"github.com/docker/docker/api/types"
 	"github.com/docker/docker/api/types/filters"
 	"github.com/docker/docker/client"
-	dockerpkg "github.com/dyluth/sett/internal/docker"
+	dockerpkg "github.com/dyluth/holt/internal/docker"
 )
 
 const (
@@ -22,7 +22,7 @@ const (
 // Returns the port number or error if all ports in range (6379-6478) are exhausted.
 // Checks both Docker container labels and actual port bindability on the host.
 func FindNextAvailablePort(ctx context.Context, cli *client.Client) (int, error) {
-	// Query Docker for existing sett.redis.port labels
+	// Query Docker for existing holt.redis.port labels
 	filter := filters.NewArgs()
 	filter.Add("label", fmt.Sprintf("%s=true", dockerpkg.LabelProject))
 	filter.Add("label", fmt.Sprintf("%s=redis", dockerpkg.LabelComponent))

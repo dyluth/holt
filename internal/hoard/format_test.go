@@ -6,7 +6,7 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/dyluth/sett/pkg/blackboard"
+	"github.com/dyluth/holt/pkg/blackboard"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
@@ -111,10 +111,10 @@ func TestFormatTable(t *testing.T) {
 	t.Run("single artefact", func(t *testing.T) {
 		artefacts := []*blackboard.Artefact{
 			{
-				ID:              "abc-123",
-				Type:            "GoalDefined",
-				Payload:         "hello.txt",
-				ProducedByRole:  "user",
+				ID:             "abc-123",
+				Type:           "GoalDefined",
+				Payload:        "hello.txt",
+				ProducedByRole: "user",
 			},
 		}
 
@@ -134,16 +134,16 @@ func TestFormatTable(t *testing.T) {
 	t.Run("multiple artefacts", func(t *testing.T) {
 		artefacts := []*blackboard.Artefact{
 			{
-				ID:              "abc-123",
-				Type:            "GoalDefined",
-				Payload:         "hello.txt",
-				ProducedByRole:  "user",
+				ID:             "abc-123",
+				Type:           "GoalDefined",
+				Payload:        "hello.txt",
+				ProducedByRole: "user",
 			},
 			{
-				ID:              "def-456",
-				Type:            "CodeCommit",
-				Payload:         "a3f5b8c91d2e4f7a9b1c3d5e6f8a9b0c1d2e3f4a5b6c7d8e9f0a",
-				ProducedByRole:  "git-agent",
+				ID:             "def-456",
+				Type:           "CodeCommit",
+				Payload:        "a3f5b8c91d2e4f7a9b1c3d5e6f8a9b0c1d2e3f4a5b6c7d8e9f0a",
+				ProducedByRole: "git-agent",
 			},
 		}
 
@@ -160,10 +160,10 @@ func TestFormatTable(t *testing.T) {
 	t.Run("artefact with empty fields", func(t *testing.T) {
 		artefacts := []*blackboard.Artefact{
 			{
-				ID:              "abc-123",
-				Type:            "Unknown",
-				Payload:         "",
-				ProducedByRole:  "",
+				ID:             "abc-123",
+				Type:           "Unknown",
+				Payload:        "",
+				ProducedByRole: "",
 			},
 		}
 
@@ -178,10 +178,10 @@ func TestFormatTable(t *testing.T) {
 	t.Run("artefact with long payload", func(t *testing.T) {
 		artefacts := []*blackboard.Artefact{
 			{
-				ID:              "abc-123",
-				Type:            "CodeCommit",
-				Payload:         strings.Repeat("x", 100),
-				ProducedByRole:  "agent",
+				ID:             "abc-123",
+				Type:           "CodeCommit",
+				Payload:        strings.Repeat("x", 100),
+				ProducedByRole: "agent",
 			},
 		}
 

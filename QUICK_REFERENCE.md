@@ -1,4 +1,4 @@
-# **Sett Quick Reference: Key Concepts & Patterns**
+# **Holt Quick Reference: Key Concepts & Patterns**
 
 **Purpose**: Essential patterns, structures, and workflows for rapid development  
 **Scope**: Reference - quick lookup for common development patterns  
@@ -16,7 +16,7 @@ structural_type: Standard|Review|Question|Answer|Failure|Terminal
 type: user-defined string (e.g., "CodeCommit", "DesignSpec")
 payload: string (git hash, JSON, text)
 source_artefacts: JSON array of UUIDs
-produced_by_role: string (agent's 'role' from sett.yml or 'user')
+produced_by_role: string (agent's 'role' from holt.yml or 'user')
 ```
 
 ### **Claim (Redis Hash)**
@@ -30,7 +30,7 @@ granted_exclusive_agent: string
 ```
 
 ### **Bid (On Claim)**
-A Redis Hash (`sett:{instance_name}:claim:{uuid}:bids`) where each key-value pair is:
+A Redis Hash (`holt:{instance_name}:claim:{uuid}:bids`) where each key-value pair is:
 - **Key**: Agent's logical name (e.g., 'go-coder-agent')
 - **Value**: Bid type (`review`, `claim`, `exclusive`, `ignore`)
 
@@ -38,22 +38,22 @@ A Redis Hash (`sett:{instance_name}:claim:{uuid}:bids`) where each key-value pai
 
 ```
 # Global keys
-sett:instance_counter                          # Atomic counter for instance naming
-sett:instances                                 # HASH of active instance metadata (workspace path, run_id, etc.)
+holt:instance_counter                          # Atomic counter for instance naming
+holt:instances                                 # HASH of active instance metadata (workspace path, run_id, etc.)
 
 # Instance-specific keys
-sett:{instance_name}:artefact:{uuid}           # Artefact data
-sett:{instance_name}:claim:{uuid}              # Claim data
-sett:{instance_name}:claim:{uuid}:bids         # Bid data (see above)
-sett:{instance_name}:thread:{logical_id}       # Version tracking (ZSET)
-sett:{instance_name}:lock                      # Instance lock (TTL-based, heartbeat)
+holt:{instance_name}:artefact:{uuid}           # Artefact data
+holt:{instance_name}:claim:{uuid}              # Claim data
+holt:{instance_name}:claim:{uuid}:bids         # Bid data (see above)
+holt:{instance_name}:thread:{logical_id}       # Version tracking (ZSET)
+holt:{instance_name}:lock                      # Instance lock (TTL-based, heartbeat)
 ```
 
 ## **Pub/Sub Channels**
 
 ```
-sett:{instance_name}:artefact_events    # Orchestrator watches for new artefacts
-sett:{instance_name}:claim_events       # Agents watch for new claims
+holt:{instance_name}:artefact_events    # Orchestrator watches for new artefacts
+holt:{instance_name}:claim_events       # Agents watch for new claims
 ```
 
 ## **Component Communication Flow**
@@ -70,8 +70,8 @@ pending_review → pending_parallel → pending_exclusive → complete
              ↘ terminated (if review feedback or failure)
 ```
 
-## **Agent Cub Operational Modes**
-*(See 'Agent scaling and concurrency' in sett-system-specification.md for details)*
+## **Agent Pup Operational Modes**
+*(See 'Agent scaling and concurrency' in holt-system-specification.md for details)*
 
 ### **Standard Mode (replicas: 1)**
 - Both Claim Watcher and Work Executor active
@@ -115,35 +115,35 @@ pending_review → pending_parallel → pending_exclusive → complete
 
 ## **Environment Variables**
 
-### **Agent Cub**
+### **Agent Pup**
 ```
-SETT_INSTANCE_NAME     # Sett instance identifier
-SETT_AGENT_NAME        # Agent logical name from sett.yml  
+HOLT_INSTANCE_NAME     # Holt instance identifier
+HOLT_AGENT_NAME        # Agent logical name from holt.yml  
 REDIS_URL              # Blackboard connection
-SETT_PROMPT_CLAIM      # Claim evaluation prompt
-SETT_PROMPT_EXECUTION  # Execution prompt
+HOLT_PROMPT_CLAIM      # Claim evaluation prompt
+HOLT_PROMPT_EXECUTION  # Execution prompt
 ```
 
 ### **Orchestrator**
 ```
-SETT_INSTANCE_NAME     # Sett instance identifier
+HOLT_INSTANCE_NAME     # Holt instance identifier
 REDIS_URL              # Blackboard connection
-SETT_CONFIG_PATH       # Path to sett.yml
+HOLT_CONFIG_PATH       # Path to holt.yml
 ```
 
 ## **Common CLI Commands**
 
 ```bash
-sett init                                # Bootstrap new project
-sett up [--name <instance>] [--force]    # Start sett (auto-increment name, blocks on workspace collision unless --force)
-sett down [--name <instance>]            # Stop sett (name defaults to most recent)
-sett list                                # List active instances
-sett forage --goal "description"         # Start workflow
-sett watch [--name <instance>]           # Live activity (name defaults to most recent)
-sett hoard [--name <instance>]           # List artefacts (name defaults to most recent)
-sett questions [--wait]                  # Human Q&A
-sett answer <id> "response"              # Answer questions
-sett logs <agent-name>                   # Debug logs
+holt init                                # Bootstrap new project
+holt up [--name <instance>] [--force]    # Start holt (auto-increment name, blocks on workspace collision unless --force)
+holt down [--name <instance>]            # Stop holt (name defaults to most recent)
+holt list                                # List active instances
+holt forage --goal "description"         # Start workflow
+holt watch [--name <instance>]           # Live activity (name defaults to most recent)
+holt hoard [--name <instance>]           # List artefacts (name defaults to most recent)
+holt questions [--wait]                  # Human Q&A
+holt answer <id> "response"              # Answer questions
+holt logs <agent-name>                   # Debug logs
 ```
 
 ## **Git Integration Pattern**

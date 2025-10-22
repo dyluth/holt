@@ -8,7 +8,7 @@ import (
 	"testing"
 
 	"github.com/alicebob/miniredis/v2"
-	"github.com/dyluth/sett/pkg/blackboard"
+	"github.com/dyluth/holt/pkg/blackboard"
 	"github.com/redis/go-redis/v9"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
@@ -326,7 +326,7 @@ func TestListArtefacts(t *testing.T) {
 		require.NoError(t, err)
 
 		// Manually create a malformed artefact in Redis (missing required fields)
-		malformedKey := "sett:test-instance:artefact:malformed-id"
+		malformedKey := "holt:test-instance:artefact:malformed-id"
 		bbClient.RedisClient().HSet(ctx, malformedKey, "id", "malformed-id")
 		// Missing other required fields like version, which will cause deserialization to fail
 

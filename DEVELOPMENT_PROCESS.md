@@ -1,4 +1,4 @@
-# **Sett Development Process: Feature Lifecycle & AI Collaboration**
+# **Holt Development Process: Feature Lifecycle & AI Collaboration**
 
 **Purpose**: Detailed process documentation for systematic feature development  
 **Scope**: Reference - read when designing or implementing features  
@@ -7,20 +7,20 @@
 
 ## **Feature Development Lifecycle**
 
-Sett follows a systematic **three-stage feature development process** designed for iterative collaboration between humans and AI agents. This process ensures quality, consistency, and architectural alignment across all feature development.
+Holt follows a systematic **three-stage feature development process** designed for iterative collaboration between humans and AI agents. This process ensures quality, consistency, and architectural alignment across all feature development.
 
 ### **Stage 1: Feature Design (Human-AI Collaboration)**
 
 **Purpose**: Create a comprehensive, unambiguous feature specification
 
 **Process**:
-1. **Initiate Design**: Start with `design/sett-feature-design-template.md` as the foundation
+1. **Initiate Design**: Start with `design/holt-feature-design-template.md` as the foundation
 2. **Iterative Refinement**: 
    - Human provides initial requirements and context
    - AI agent fills out template sections systematically
    - Multiple rounds of discussion and clarification
    - Focus on completeness, clarity, and architectural consistency
-3. **Cross-Component Analysis**: Validate impact on all system components (Orchestrator, Cub, CLI, Blackboard)
+3. **Cross-Component Analysis**: Validate impact on all system components (Orchestrator, Pup, CLI, Blackboard)
 4. **Dependency Verification**: Ensure prerequisites from earlier phases are satisfied
 5. **Design Approval**: Human review and final approval of completed design document
 
@@ -90,7 +90,7 @@ design/features/
 │   ├── basic-orchestrator-engine.md
 │   └── cli-lifecycle-commands.md
 ├── phase-2-single-agent/           # Basic Execution
-│   ├── agent-cub-implementation.md
+│   ├── agent-pup-implementation.md
 │   ├── git-workspace-integration.md
 │   └── basic-claim-execution.md
 ├── phase-3-coordination/           # Multi-Agent Workflow
@@ -130,9 +130,9 @@ design/features/
 Every feature design must:
 - Complete all sections of the template with specific, actionable content
 - Define measurable success criteria and comprehensive testing strategy
-- Analyze impact on all system components (Orchestrator, Cub, CLI, Blackboard)
+- Analyze impact on all system components (Orchestrator, Pup, CLI, Blackboard)
 - Include error handling and edge case analysis
-- Align with Sett's guiding principles and architectural consistency
+- Align with Holt's guiding principles and architectural consistency
 
 ## **Phase Dependencies**
 

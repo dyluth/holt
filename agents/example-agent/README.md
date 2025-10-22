@@ -1,10 +1,10 @@
 # Example Agent
 
-A minimal Sett agent for testing M2.3: Work Execution & Tool Contract.
+A minimal Holt agent for testing M2.3: Work Execution & Tool Contract.
 
 ## Purpose
 
-This agent demonstrates the complete agent cub architecture including tool execution via stdin/stdout JSON contract. It's a simple "echo" agent that processes claims and creates result artefacts.
+This agent demonstrates the complete agent pup architecture including tool execution via stdin/stdout JSON contract. It's a simple "echo" agent that processes claims and creates result artefacts.
 
 ## What It Does
 
@@ -23,11 +23,11 @@ From the project root directory:
 docker build -t example-agent:latest -f agents/example-agent/Dockerfile .
 ```
 
-**Note:** The Dockerfile context must be the project root (`.`) so it can access the cub source code.
+**Note:** The Dockerfile context must be the project root (`.`) so it can access the pup source code.
 
 ## Configuration
 
-Add to your `sett.yml`:
+Add to your `holt.yml`:
 
 ```yaml
 version: "1.0"
@@ -46,18 +46,18 @@ agents:
 # Build the agent image
 docker build -t example-agent:latest -f agents/example-agent/Dockerfile .
 
-# Start the Sett instance (which will launch the agent)
-sett up
+# Start the Holt instance (which will launch the agent)
+holt up
 
 # View agent logs
-sett logs example-agent
+holt logs example-agent
 ```
 
 ## Tool Contract (M2.4)
 
 ### Stdin JSON Format
 
-The cub passes this JSON structure to the tool via stdin:
+The pup passes this JSON structure to the tool via stdin:
 
 ```json
 {
@@ -134,21 +134,21 @@ The echo agent creates derivatives: each output is a NEW work product derived fr
 
 For code-generating agents that return `CodeCommit` artefacts:
 
-- The cub validates git commit hashes before creating artefacts
+- The pup validates git commit hashes before creating artefacts
 - Validation uses `git cat-file -e <hash>` to verify commit exists
 - If validation fails, a Failure artefact is created instead
 - Agent scripts should commit code changes before returning the hash
 
 **Recommended commit message format** (not enforced):
 ```
-[sett-agent: {agent-role}] {summary}
+[holt-agent: {agent-role}] {summary}
 
 Claim-ID: {claim-id}
 ```
 
 Example:
 ```
-[sett-agent: code-generator] Implemented user authentication endpoint
+[holt-agent: code-generator] Implemented user authentication endpoint
 
 Claim-ID: claim-abc-123
 ```
@@ -158,12 +158,12 @@ Claim-ID: claim-abc-123
 When an artefact is created on the blackboard:
 
 1. Orchestrator creates a claim
-2. Agent cub receives claim event via claim_events channel
-3. Agent cub submits "exclusive" bid
+2. Agent pup receives claim event via claim_events channel
+3. Agent pup submits "exclusive" bid
 4. Orchestrator waits for consensus (all agents bid)
 5. Orchestrator grants claim to agent
 6. Orchestrator publishes grant notification to agent's channel
-7. Agent cub receives grant, validates it, and queues claim for execution
+7. Agent pup receives grant, validates it, and queues claim for execution
 8. Work executor fetches target artefact
 9. **Work executor assembles context chain via BFS graph traversal**
 10. Work executor prepares stdin JSON with context_chain
@@ -180,7 +180,7 @@ When an artefact is created on the blackboard:
 ┌──────────────────────────────────────┐
 │  example-agent container             │
 │  ┌────────────────────────────────┐  │
-│  │  Agent Cub                     │  │
+│  │  Agent Pup                     │  │
 │  │  ┌──────────────────────────┐  │  │
 │  │  │  Claim Watcher           │  │  │
 │  │  │  - Subscribe claim_events│  │  │

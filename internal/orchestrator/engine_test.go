@@ -6,7 +6,7 @@ import (
 	"time"
 
 	"github.com/alicebob/miniredis/v2"
-	"github.com/dyluth/sett/pkg/blackboard"
+	"github.com/dyluth/holt/pkg/blackboard"
 	"github.com/google/uuid"
 	"github.com/redis/go-redis/v9"
 	"github.com/stretchr/testify/assert"
@@ -118,7 +118,7 @@ func setupTestEngine(t *testing.T) (*Engine, *blackboard.Client, *miniredis.Mini
 	require.NoError(t, err)
 	t.Cleanup(func() { client.Close() })
 
-	engine := NewEngine(client, "test-instance", nil)
+	engine := NewEngine(client, "test-instance", nil, nil)
 
 	return engine, client, mr
 }

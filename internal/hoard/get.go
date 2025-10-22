@@ -5,7 +5,7 @@ import (
 	"fmt"
 	"io"
 
-	"github.com/dyluth/sett/pkg/blackboard"
+	"github.com/dyluth/holt/pkg/blackboard"
 	"github.com/google/uuid"
 )
 

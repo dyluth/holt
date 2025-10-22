@@ -10,7 +10,7 @@ import (
 	"github.com/docker/docker/api/types"
 	"github.com/docker/docker/api/types/filters"
 	"github.com/docker/docker/client"
-	dockerpkg "github.com/dyluth/sett/internal/docker"
+	dockerpkg "github.com/dyluth/holt/internal/docker"
 )
 
 const (
@@ -46,9 +46,9 @@ func ValidateName(name string) error {
 }
 
 // GenerateDefaultName generates the next available default-N instance name.
-// It queries Docker for all existing sett containers and finds the highest N in default-N names.
+// It queries Docker for all existing holt containers and finds the highest N in default-N names.
 func GenerateDefaultName(ctx context.Context, cli *client.Client) (string, error) {
-	// Find all Sett containers
+	// Find all Holt containers
 	filter := filters.NewArgs()
 	filter.Add("label", fmt.Sprintf("%s=true", dockerpkg.LabelProject))
 

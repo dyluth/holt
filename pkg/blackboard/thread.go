@@ -4,7 +4,7 @@ package blackboard
 //
 // Threads group multiple versions of the same logical artefact. They are stored
 // in Redis as ZSETs (sorted sets) where:
-// - Key: sett:{instance_name}:thread:{logical_id}
+// - Key: holt:{instance_name}:thread:{logical_id}
 // - Members: artefact IDs
 // - Score: The artefact's version number (as float64)
 //

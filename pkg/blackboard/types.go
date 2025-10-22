@@ -1,10 +1,10 @@
 // Package blackboard provides type-safe Go definitions and Redis schema patterns
-// for the Sett blackboard architecture. The blackboard is the central shared state
-// system where all Sett components (orchestrator, cubs, CLI) interact via well-defined
+// for the Holt blackboard architecture. The blackboard is the central shared state
+// system where all Holt components (orchestrator, pups, CLI) interact via well-defined
 // data structures stored in Redis.
 //
 // All Redis keys and channels are namespaced by instance name to enable multiple
-// Sett instances to safely coexist on a single Redis server.
+// Holt instances to safely coexist on a single Redis server.
 package blackboard
 
 import (
@@ -14,7 +14,7 @@ import (
 )
 
 // Artefact represents an immutable work product on the blackboard.
-// Artefacts are the fundamental unit of state in Sett - every piece of work,
+// Artefacts are the fundamental unit of state in Holt - every piece of work,
 // decision, and result is represented as an artefact with complete provenance.
 type Artefact struct {
 	ID              string         `json:"id"`               // UUID - unique identifier for this artefact
@@ -24,7 +24,7 @@ type Artefact struct {
 	Type            string         `json:"type"`             // User-defined domain type (e.g., "CodeCommit", "DesignSpec")
 	Payload         string         `json:"payload"`          // Main content (git hash, JSON, text)
 	SourceArtefacts []string       `json:"source_artefacts"` // Array of artefact UUIDs this was derived from
-	ProducedByRole  string         `json:"produced_by_role"` // Agent's role from sett.yml or "user"
+	ProducedByRole  string         `json:"produced_by_role"` // Agent's role from holt.yml or "user"
 }
 
 // StructuralType defines the role an artefact plays in the orchestration flow.
@@ -61,6 +61,21 @@ type Claim struct {
 	GrantedReviewAgents   []string    `json:"granted_review_agents"`   // Agent names granted review access
 	GrantedParallelAgents []string    `json:"granted_parallel_agents"` // Agent names granted parallel access
 	GrantedExclusiveAgent string      `json:"granted_exclusive_agent"` // Single agent name granted exclusive access
+
+	// M3.3: Feedback loop support
+	AdditionalContextIDs []string `json:"additional_context_ids,omitempty"` // Review artefact IDs for feedback claims
+	TerminationReason    string   `json:"termination_reason,omitempty"`     // Explicit reason when status=terminated
+
+	// M3.5: Phase state persistence (for orchestrator restart resilience)
+	PhaseState *PhaseState `json:"phase_state,omitempty"` // Current phase execution state
+
+	// M3.5: Grant queue persistence (for controller-worker max_concurrent pausing)
+	GrantQueue *GrantQueue `json:"grant_queue,omitempty"` // Queue metadata when paused at max_concurrent
+
+	// M3.5: Grant tracking (for re-triggering on restart)
+	LastGrantAgent    string `json:"last_grant_agent,omitempty"`    // Last agent granted this claim
+	LastGrantTime     int64  `json:"last_grant_time,omitempty"`     // Unix timestamp of last grant
+	ArtefactExpected  bool   `json:"artefact_expected,omitempty"`   // Whether we're waiting for artefact from granted agent
 }
 
 // ClaimStatus defines the lifecycle state of a claim.
@@ -76,6 +91,9 @@ const (
 
 	// ClaimStatusPendingExclusive indicates the claim is in the exclusive execution phase
 	ClaimStatusPendingExclusive ClaimStatus = "pending_exclusive"
+
+	// ClaimStatusPendingAssignment indicates a feedback claim with pre-assigned agent (M3.3)
+	ClaimStatusPendingAssignment ClaimStatus = "pending_assignment"
 
 	// ClaimStatusComplete indicates the claim has been successfully processed
 	ClaimStatusComplete ClaimStatus = "complete"
@@ -108,6 +126,24 @@ const (
 type Bid struct {
 	AgentName string  `json:"agent_name"` // Logical name of the agent
 	BidType   BidType `json:"bid_type"`   // Type of bid submitted
+}
+
+// PhaseState represents persisted phase execution state for restart resilience (M3.5).
+// Stored as JSON-encoded fields in the Claim Redis hash.
+type PhaseState struct {
+	Current       string            `json:"current"`        // Current phase: "review", "parallel", or "exclusive"
+	GrantedAgents []string          `json:"granted_agents"` // Agents granted in this phase
+	Received      map[string]string `json:"received"`       // agentRole → artefactID (received artefacts)
+	AllBids       map[string]BidType `json:"all_bids"`      // agentName → bidType (all original bids)
+	StartTime     int64             `json:"start_time"`     // Unix timestamp when phase started
+}
+
+// GrantQueue represents grant queue metadata for paused claims (M3.5).
+// Used when controller-worker agents hit max_concurrent limit.
+type GrantQueue struct {
+	PausedAt  int64  `json:"paused_at"`  // Unix timestamp when claim was paused
+	AgentName string `json:"agent_name"` // Agent name that would be granted
+	Position  int    `json:"position"`   // Reserved for future display/debugging (not populated in M3.5)
 }
 
 // Validate checks if the Artefact has valid field values.
@@ -182,7 +218,8 @@ func (c *Claim) Validate() error {
 func (cs ClaimStatus) Validate() error {
 	switch cs {
 	case ClaimStatusPendingReview, ClaimStatusPendingParallel,
-		ClaimStatusPendingExclusive, ClaimStatusComplete, ClaimStatusTerminated:
+		ClaimStatusPendingExclusive, ClaimStatusPendingAssignment,
+		ClaimStatusComplete, ClaimStatusTerminated:
 		return nil
 	default:
 		return fmt.Errorf("unknown claim status: %q", cs)

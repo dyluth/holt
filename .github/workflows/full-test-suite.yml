@@ -50,9 +50,9 @@ jobs:
       if: always()
       run: |
         # Clean up any leftover test containers
-        docker ps -a | grep "sett-" | awk '{print $1}' | xargs -r docker rm -f 2>/dev/null || true
+        docker ps -a | grep "holt-" | awk '{print $1}' | xargs -r docker rm -f 2>/dev/null || true
         # Clean up test networks
-        docker network ls | grep "sett-network" | awk '{print $1}' | xargs -r docker network rm 2>/dev/null || true
+        docker network ls | grep "holt-network" | awk '{print $1}' | xargs -r docker network rm 2>/dev/null || true
 
     - name: Test Results Summary
       if: success()
@@ -61,7 +61,7 @@ jobs:
         echo ""
         echo "All test categories completed successfully:"
         echo "  ✅ Unit tests"
-        echo "  ✅ Cub tests"
+        echo "  ✅ Pup tests"
         echo "  ✅ Integration tests"
         echo "  ✅ E2E tests"
         echo "  ✅ Performance tests"
