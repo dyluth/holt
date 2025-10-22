@@ -10,7 +10,13 @@ input=$(cat)
 
 # Extract the target artefact version from input JSON
 # Input structure: {"claim_type": "...", "target_artefact": {...}, "context_chain": [...]}
-version=$(echo "$input" | grep -o '"version":[0-9]*' | head -1 | grep -o '[0-9]*')
+version=$(echo "$input" | grep -o '"version":[[:space:]]*[0-9]*' | head -1 | sed 's/[^0-9]//g')
+
+# Default to 1 if version not found (defensive)
+if [ -z "$version" ]; then
+    version="1"
+    echo "Warning: Could not extract version from input, defaulting to 1" >&2
+fi
 
 echo "Conditional reviewer received claim, checking version: $version" >&2
 
