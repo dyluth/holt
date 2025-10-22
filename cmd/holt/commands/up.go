@@ -678,7 +678,7 @@ func checkHealthEndpoint(ctx context.Context, cli *client.Client, containerName 
 // getDockerSocketGroups returns the GID of /var/run/docker.sock for container access.
 // Handles platform differences:
 // - Linux: Returns docker group GID (typically 999, 998, or 121)
-// - macOS: Returns "0" (root group) since Docker Desktop manages permissions via VM
+// - macOS: Returns "0" (root group) since Docker Desktop's socket appears as GID 0 in containers
 // - GitHub Actions: Returns detected GID (varies by runner)
 //
 // Returns empty slice if unable to detect (graceful degradation).
@@ -704,10 +704,15 @@ func getDockerSocketGroups() []string {
 
 	// Platform-specific handling
 	if gid == 0 {
-		// macOS Docker Desktop: Socket owned by root (GID 0)
-		// Docker Desktop handles permissions via its VM, so we add GID 0
-		// The container user will need to be added to GID 0 group
-		printer.Info("Docker socket owned by root (GID 0) - likely macOS Docker Desktop\n")
+		// Socket owned by root (GID 0) - likely Linux without docker group
+		printer.Info("Docker socket owned by root (GID 0)\n")
+		return []string{"0"}
+	}
+
+	// macOS Docker Desktop: Host shows GID 20 (staff), but inside containers it's GID 0
+	// We detect macOS by checking for common macOS GIDs (20=staff, 80=admin)
+	if gid == 20 || gid == 80 {
+		printer.Info("Docker socket GID: %d (macOS detected - using GID 0 for container)\n", gid)
 		return []string{"0"}
 	}
 
