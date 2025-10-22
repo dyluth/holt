@@ -64,8 +64,16 @@ func main() {
 		// Print user/group info to help diagnose permission issues
 		if sysstat, ok := stat.Sys().(*syscall.Stat_t); ok {
 			fmt.Printf("Docker socket ownership: uid=%d, gid=%d\n", sysstat.Uid, sysstat.Gid)
-			fmt.Printf("Current process: uid=%d, gid=%d, groups=%v\n",
-				syscall.Getuid(), syscall.Getgid(), syscall.Getgroups())
+
+			// Get process groups (returns []int and error)
+			groups, err := syscall.Getgroups()
+			if err != nil {
+				fmt.Printf("Current process: uid=%d, gid=%d, groups=<error: %v>\n",
+					syscall.Getuid(), syscall.Getgid(), err)
+			} else {
+				fmt.Printf("Current process: uid=%d, gid=%d, groups=%v\n",
+					syscall.Getuid(), syscall.Getgid(), groups)
+			}
 		}
 	} else {
 		fmt.Fprintf(os.Stderr, "Docker socket not found at /var/run/docker.sock: %v\n", err)
