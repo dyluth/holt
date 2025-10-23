@@ -80,6 +80,22 @@ Holt agents are specialized, tool-equipped containers that execute work in respo
 
 ---
 
+## Claim Types & Workspace Permissions
+
+A core design principle in Holt is the **Principle of Least Privilege**. The type of claim an agent bids for should directly correspond to the workspace permissions it requires. You should configure your agent's `workspace.mode` in `holt.yml` according to the work it performs.
+
+| Bid Type | Claim Phase | Intended Action | `workspace.mode` | Recommended `git` Usage |
+| :--- | :--- | :--- | :--- | :--- |
+| `exclusive` | **Exclusive** | Modify the workspace (e.g., write code, create files). | `rw` (Read-Write) | `git checkout`, `git add`, `git commit` |
+| `review` | **Review** | Inspect or validate an artefact without changing it. | `ro` (Read-Only) | `git show <hash>:<file>` |
+| `claim` | **Parallel** | Perform non-conflicting, concurrent tasks (e.g., linting, analysis). | `ro` (Read-Only) | `git show <hash>:<file>` |
+
+- **Exclusive Agents (`rw`):** An agent that bids `exclusive` gets a lock on the artefact and is expected to produce a new version or a derivative work. It needs write access to create files and commit them.
+
+- **Review & Parallel Agents (`ro`):** These agents act as observers or parallel processors. They should not modify the primary state of the workspace. To inspect file content from a specific commit without needing write access (which `git checkout` requires), use the `git show <commit-hash>:<file-path>` command. This command prints the file's content to stdout, which you can then pipe to other tools for analysis.
+
+---
+
 ## Tool Contract Specification
 
 Your agent tool script must follow a strict stdin/stdout JSON contract.

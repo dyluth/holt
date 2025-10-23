@@ -53,38 +53,62 @@ func TestAgent_Validate_BiddingStrategy(t *testing.T) {
 			},
 			expectError: false,
 		},
+		// M3.6: Test bid_script scenarios
 		{
-			name: "missing bidding_strategy",
+			name: "valid agent with only bid_script",
 			agent: Agent{
-				Role:    "Test",
-				Image:   "test:latest",
-				Command: []string{"/app/run.sh"},
-				// BiddingStrategy omitted
+				Role:      "Test",
+				Image:     "test:latest",
+				Command:   []string{"/app/run.sh"},
+				BidScript: []string{"/app/bid.sh"},
+				// No BiddingStrategy
 			},
-			expectError:   true,
-			errorContains: "bidding_strategy is required",
+			expectError: false,
 		},
 		{
-			name: "invalid bidding_strategy",
+			name: "valid agent with both bid_script and bidding_strategy",
 			agent: Agent{
 				Role:            "Test",
 				Image:           "test:latest",
 				Command:         []string{"/app/run.sh"},
+				BidScript:       []string{"/app/bid.sh"},
+				BiddingStrategy: "claim", // Fallback
+			},
+			expectError: false,
+		},
+		{
+			name: "missing both bidding_strategy and bid_script",
+			agent: Agent{
+				Role:    "Test",
+				Image:   "test:latest",
+				Command: []string{"/app/run.sh"},
+				// BiddingStrategy omitted, no BidScript
+			},
+			expectError:   true,
+			errorContains: "either bidding_strategy or bid_script must be provided",
+		},
+		{
+			name: "invalid bidding_strategy with bid_script",
+			agent: Agent{
+				Role:            "Test",
+				Image:           "test:latest",
+				Command:         []string{"/app/run.sh"},
+				BidScript:       []string{"/app/bid.sh"},
 				BiddingStrategy: "invalid",
 			},
 			expectError:   true,
 			errorContains: "invalid bidding_strategy",
 		},
 		{
-			name: "empty bidding_strategy",
+			name: "empty bidding_strategy (old test - now valid with bid_script)",
 			agent: Agent{
-				Role:            "Test",
-				Image:           "test:latest",
-				Command:         []string{"/app/run.sh"},
-				BiddingStrategy: "",
+				Role:      "Test",
+				Image:     "test:latest",
+				Command:   []string{"/app/run.sh"},
+				BidScript: []string{"/app/bid.sh"},
+				// Empty BiddingStrategy is now OK if bid_script present
 			},
-			expectError:   true,
-			errorContains: "bidding_strategy is required",
+			expectError: false,
 		},
 	}
 

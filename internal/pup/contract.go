@@ -101,13 +101,22 @@ func (o *ToolOutput) Validate() error {
 	return nil
 }
 
-// GetStructuralType returns the structural type to use for the artefact,
-// defaulting to "Standard" if not specified.
+// GetStructuralType returns the structural type to use for the artefact.
+// It defaults to "Standard" but also automatically maps certain domain-specific
+// types (like "Review") to their correct structural type for system coordination.
 func (o *ToolOutput) GetStructuralType() blackboard.StructuralType {
-	if o.StructuralType == "" {
-		return blackboard.StructuralTypeStandard
+	// If agent explicitly sets it, respect their choice.
+	if o.StructuralType != "" {
+		return blackboard.StructuralType(o.StructuralType)
 	}
-	return blackboard.StructuralType(o.StructuralType)
+
+	// Auto-map certain artefact types to their correct structural type.
+	if o.ArtefactType == "Review" {
+		return blackboard.StructuralTypeReview
+	}
+
+	// Default to Standard for all other types.
+	return blackboard.StructuralTypeStandard
 }
 
 // FailureData represents the structured data stored in Failure artefact payloads.

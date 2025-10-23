@@ -504,6 +504,7 @@ func launchAgentContainer(ctx context.Context, cli *client.Client, instanceName,
 	containerName := dockerpkg.AgentContainerName(instanceName, agentName)
 	labels := dockerpkg.BuildLabels(instanceName, runID, workspacePath, "agent")
 	labels[dockerpkg.LabelAgentName] = agentName
+	labels[dockerpkg.LabelAgentRole] = agent.Role // M3.6: Store role for visibility
 
 	// Determine workspace mode (default to ro)
 	workspaceMode := "ro"
@@ -533,6 +534,15 @@ func launchAgentContainer(ctx context.Context, cli *client.Client, instanceName,
 			return fmt.Errorf("failed to marshal agent command to JSON: %w", err)
 		}
 		env = append(env, fmt.Sprintf("HOLT_AGENT_COMMAND=%s", commandJSON))
+	}
+
+	// Add HOLT_AGENT_BID_SCRIPT as JSON array
+	if len(agent.BidScript) > 0 {
+		bidScriptJSON, err := json.Marshal(agent.BidScript)
+		if err != nil {
+			return fmt.Errorf("failed to marshal agent bid script to JSON: %w", err)
+		}
+		env = append(env, fmt.Sprintf("HOLT_AGENT_BID_SCRIPT=%s", bidScriptJSON))
 	}
 
 	// Add custom environment variables from config

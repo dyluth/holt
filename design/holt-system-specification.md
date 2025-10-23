@@ -44,6 +44,14 @@ The architecture separates concerns between three primary components: the **Orch
 
 For detailed orchestration logic, see `design/holt-orchestrator-component.md`.
 
+### **Phased execution**
+
+The Orchestrator manages Claims through a strict three-phase lifecycle. This model implies a permission structure that aligns with the principle of least privilege:
+
+*   **Review Phase (`ro`):** Reviewers should only need read-only access to inspect artefacts.
+*   **Parallel Phase (`ro`):** Parallel agents (like linters or testers) should also operate with read-only access.
+*   **Exclusive Phase (`rw`):** The agent with the exclusive grant is the only one expected to modify the workspace, thus requiring read-write access.
+
 ## **Blackboard data structures**
 
 The blackboard is the primary API of the system and serves as a lightweight ledger for an external, version-controlled system like Git. It stores metadata and pointers, not large data blobs. All components interact via these well-defined data structures stored in Redis. The schemas will be formalised into a Go package (pkg/blackboard/types.go) that will serve as the canonical source of truth.

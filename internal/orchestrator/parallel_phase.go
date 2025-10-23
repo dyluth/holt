@@ -46,6 +46,10 @@ func (e *Engine) GrantParallelPhase(ctx context.Context, claim *blackboard.Claim
 		if err := e.publishGrantNotificationWithType(ctx, agentName, claim.ID, "claim"); err != nil {
 			log.Printf("[Orchestrator] Failed to publish parallel grant notification to %s: %v", agentName, err)
 		}
+		// Publish event for watching
+		if err := e.publishClaimGrantedEvent(ctx, claim, agentName); err != nil {
+			log.Printf("[Orchestrator] Failed to publish workflow event for parallel grant to %s: %v", agentName, err)
+		}
 	}
 
 	// M3.5: Create new phase state for parallel phase and persist

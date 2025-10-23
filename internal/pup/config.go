@@ -3,6 +3,7 @@ package pup
 import (
 	"encoding/json"
 	"fmt"
+	"log"
 	"os"
 
 	"github.com/dyluth/holt/pkg/blackboard"
@@ -30,6 +31,9 @@ type Config struct {
 	// BiddingStrategy is the bid type this agent submits for claims (from HOLT_BIDDING_STRATEGY)
 	// M3.1: Must be one of: review, claim, exclusive, ignore
 	BiddingStrategy blackboard.BidType
+
+	// BidScript is the command array to execute for dynamic bidding (from HOLT_AGENT_BID_SCRIPT)
+	BidScript []string
 }
 
 // LoadConfig reads and validates configuration from environment variables.
@@ -49,6 +53,14 @@ func LoadConfig() (*Config, error) {
 	if commandJSON != "" {
 		if err := json.Unmarshal([]byte(commandJSON), &cfg.Command); err != nil {
 			return nil, fmt.Errorf("failed to parse HOLT_AGENT_COMMAND as JSON array: %w", err)
+		}
+	}
+
+	// Parse bid script array from JSON
+	bidScriptJSON := os.Getenv("HOLT_AGENT_BID_SCRIPT")
+	if bidScriptJSON != "" {
+		if err := json.Unmarshal([]byte(bidScriptJSON), &cfg.BidScript); err != nil {
+			return nil, fmt.Errorf("failed to parse HOLT_AGENT_BID_SCRIPT as JSON array: %w", err)
 		}
 	}
 
@@ -88,14 +100,21 @@ func (c *Config) Validate() error {
 		return fmt.Errorf("HOLT_AGENT_COMMAND environment variable is required (must be a non-empty JSON array)")
 	}
 
-	// M3.1: Validate bidding strategy
-	if c.BiddingStrategy == "" {
-		return fmt.Errorf("HOLT_BIDDING_STRATEGY environment variable is required")
+	// M3.6: Bidding strategy validation - either bid_script or bidding_strategy required
+	hasBidScript := len(c.BidScript) > 0
+	hasStaticStrategy := c.BiddingStrategy != ""
+
+	if !hasBidScript && !hasStaticStrategy {
+		return fmt.Errorf("either HOLT_BIDDING_STRATEGY or HOLT_AGENT_BID_SCRIPT must be provided")
 	}
 
-	// Validate bidding strategy is a valid enum
-	if err := c.BiddingStrategy.Validate(); err != nil {
-		return fmt.Errorf("invalid HOLT_BIDDING_STRATEGY: %w", err)
+	// Validate bidding strategy is a valid enum if provided
+	if hasStaticStrategy {
+		if err := c.BiddingStrategy.Validate(); err != nil {
+			return fmt.Errorf("invalid HOLT_BIDDING_STRATEGY: %w", err)
+		}
+	} else {
+		log.Printf("[WARN] No static bidding_strategy configured for agent %s, relying entirely on bid_script", c.AgentName)
 	}
 
 	return nil

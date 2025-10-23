@@ -46,6 +46,10 @@ func (e *Engine) GrantReviewPhase(ctx context.Context, claim *blackboard.Claim, 
 		if err := e.publishGrantNotificationWithType(ctx, agentName, claim.ID, "review"); err != nil {
 			log.Printf("[Orchestrator] Failed to publish review grant notification to %s: %v", agentName, err)
 		}
+		// Publish event for watching
+		if err := e.publishClaimGrantedEvent(ctx, claim, agentName); err != nil {
+			log.Printf("[Orchestrator] Failed to publish workflow event for review grant to %s: %v", agentName, err)
+		}
 	}
 
 	return nil

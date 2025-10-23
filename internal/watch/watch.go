@@ -185,8 +185,8 @@ type defaultFormatter struct {
 
 func (f *defaultFormatter) FormatArtefact(artefact *blackboard.Artefact) error {
 	timestamp := time.Now().Format("15:04:05")
-	_, err := fmt.Fprintf(f.writer, "[%s] ✨ Artefact created: type=%s, id=%s\n",
-		timestamp, artefact.Type, artefact.ID)
+	_, err := fmt.Fprintf(f.writer, "[%s] ✨ Artefact created: by=%s, type=%s, id=%s\n",
+		timestamp, artefact.ProducedByRole, artefact.Type, artefact.ID)
 	return err
 }
 

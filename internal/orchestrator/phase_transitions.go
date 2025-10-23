@@ -196,6 +196,10 @@ func (e *Engine) GrantExclusivePhase(ctx context.Context, claim *blackboard.Clai
 				claim.TerminationReason = fmt.Sprintf("Failed to launch worker: %v", err)
 				return e.client.UpdateClaim(ctx, claim)
 			}
+			// Publish event for watching
+			if err := e.publishClaimGrantedEvent(ctx, claim, winner); err != nil {
+				log.Printf("[Orchestrator] Failed to publish workflow event for exclusive grant to %s: %v", winner, err)
+			}
 		} else {
 			log.Printf("[Orchestrator] WARN: Controller %s granted but workerManager is nil, cannot launch worker", winner)
 		}
@@ -234,6 +238,11 @@ func (e *Engine) GrantExclusivePhase(ctx context.Context, claim *blackboard.Clai
 	// Publish grant notification
 	if err := e.publishGrantNotificationWithType(ctx, winner, claim.ID, "exclusive"); err != nil {
 		log.Printf("[Orchestrator] Failed to publish exclusive grant notification to %s: %v", winner, err)
+	}
+
+	// Publish event for watching
+	if err := e.publishClaimGrantedEvent(ctx, claim, winner); err != nil {
+		log.Printf("[Orchestrator] Failed to publish workflow event for exclusive grant to %s: %v", winner, err)
 	}
 
 	// M3.5: Create new phase state for exclusive phase and persist

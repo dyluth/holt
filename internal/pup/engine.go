@@ -3,7 +3,10 @@ package pup
 import (
 	"context"
 	"encoding/json"
+	"fmt"
 	"log"
+	"os/exec"
+	"strings"
 	"sync"
 
 	"github.com/dyluth/holt/pkg/blackboard"
@@ -152,26 +155,21 @@ func (e *Engine) claimWatcher(ctx context.Context, workQueue chan *blackboard.Cl
 }
 
 // handleClaimEvent processes a claim event by submitting a bid or handling pre-assigned work.
-// M3.2: Uses configured bidding strategy with refined loop prevention for review bids.
 // M3.3: Detects pending_assignment claims (feedback claims) and pushes directly to work queue.
+// M3.4: Uses dynamic bidding script if available, otherwise falls back to static strategy.
 func (e *Engine) handleClaimEvent(ctx context.Context, claim *blackboard.Claim, workQueue chan *blackboard.Claim) {
 	log.Printf("[INFO] Received claim event: claim_id=%s artefact_id=%s status=%s",
 		claim.ID, claim.ArtefactID, claim.Status)
 
 	// M3.3: Handle pending_assignment claims (feedback claims)
-	// These bypass bidding and go directly to the assigned agent
 	if claim.Status == blackboard.ClaimStatusPendingAssignment {
-		// Check if this claim is assigned to us
 		if claim.GrantedExclusiveAgent == e.config.AgentName {
 			log.Printf("[INFO] Feedback claim %s is assigned to this agent, pushing to work queue", claim.ID)
-
-			// Push claim to work queue
 			select {
 			case workQueue <- claim:
 				log.Printf("[DEBUG] Feedback claim %s successfully queued for execution", claim.ID)
 			case <-ctx.Done():
 				log.Printf("[DEBUG] Context cancelled while queuing feedback claim %s", claim.ID)
-				return
 			}
 		} else {
 			log.Printf("[DEBUG] Feedback claim %s assigned to %s, ignoring (we are %s)",
@@ -181,40 +179,97 @@ func (e *Engine) handleClaimEvent(ctx context.Context, claim *blackboard.Claim, 
 	}
 
 	// Regular claim - proceed with bidding logic
-	// Fetch the target artefact to check its producer role
 	targetArtefact, err := e.bbClient.GetArtefact(ctx, claim.ArtefactID)
 	if err != nil {
 		log.Printf("[ERROR] Failed to fetch target artefact %s for bid decision: %v", claim.ArtefactID, err)
-		return // Cannot make a bid decision without the artefact
+		return
 	}
 	if targetArtefact == nil {
 		log.Printf("[ERROR] Target artefact %s not found for bid decision", claim.ArtefactID)
 		return
 	}
 
-	// Default to the configured bidding strategy
-	bidType := e.config.BiddingStrategy
-
-	// HEURISTIC: Refined loop prevention for M3.2
-	if targetArtefact.ProducedByRole == e.config.AgentRole {
-		if e.config.BiddingStrategy == blackboard.BidTypeReview {
-			// M3.2: Allow review bids on own outputs (self-review scenario)
-			log.Printf("[INFO] Allowing self-review for claim %s (role: %s)", claim.ID, e.config.AgentRole)
-		} else {
-			// Still block claim/exclusive on own outputs
-			log.Printf("[INFO] Ignoring claim %s for self-produced artefact (role: %s)", claim.ID, e.config.AgentRole)
-			bidType = blackboard.BidTypeIgnore
-		}
+	// Determine bid type dynamically or from static config
+	bidType, err := e.determineBidType(ctx, targetArtefact)
+	if err != nil {
+		log.Printf("[ERROR] Failed to determine bid type for claim %s: %v", claim.ID, err)
+		// Submit an "ignore" bid as a safe default on error
+		bidType = blackboard.BidTypeIgnore
 	}
 
 	err = e.bbClient.SetBid(ctx, claim.ID, e.config.AgentName, bidType)
 	if err != nil {
 		log.Printf("[ERROR] Failed to submit bid for claim_id=%s: %v", claim.ID, err)
-		// Continue watching - don't crash on bid failure
 		return
 	}
 
 	log.Printf("[INFO] Submitted %s bid for claim_id=%s", bidType, claim.ID)
+}
+
+// determineBidType determines the bid type for a claim. If the agent config includes a
+// `bid_script`, it executes the script with the target artefact as JSON on stdin.
+// The script's stdout is read as the bid type. If no script is provided, or if the
+// script fails, it falls back to the static `bidding_strategy` from the config.
+func (e *Engine) determineBidType(ctx context.Context, targetArtefact *blackboard.Artefact) (blackboard.BidType, error) {
+	// Fallback to static bidding strategy if no bid script is defined.
+	if len(e.config.BidScript) == 0 {
+		return e.config.BiddingStrategy, nil
+	}
+
+	// A bid script is defined, execute it dynamically.
+	log.Printf("[DEBUG] Executing bid script: %v", e.config.BidScript)
+
+	// Prepare the command
+	cmd := exec.CommandContext(ctx, e.config.BidScript[0], e.config.BidScript[1:]...)
+	cmd.Dir = "/workspace"
+
+	// Prepare stdin
+	stdin, err := cmd.StdinPipe()
+	if err != nil {
+		return e.handleBidScriptFailure("failed to create stdin pipe for bid script", err)
+	}
+
+	// Write artefact to stdin in a separate goroutine to avoid deadlocks
+	go func() {
+		defer stdin.Close()
+		json.NewEncoder(stdin).Encode(targetArtefact)
+	}()
+
+	// Execute command and capture output
+	output, err := cmd.CombinedOutput()
+	if err != nil {
+		return e.handleBidScriptFailure("bid script execution failed",
+			fmt.Errorf("%w\nOutput:\n%s", err, string(output)))
+	}
+
+	// Read bid type from stdout
+	bidTypeStr := strings.TrimSpace(string(output))
+	bidType := blackboard.BidType(bidTypeStr)
+
+	// Validate the bid type returned by the script
+	if err := bidType.Validate(); err != nil {
+		return e.handleBidScriptFailure(
+			fmt.Sprintf("bid script returned invalid bid type '%s'", bidTypeStr), err)
+	}
+
+	log.Printf("[DEBUG] Bid script returned: %s", bidType)
+	return bidType, nil
+}
+
+// handleBidScriptFailure logs the error and returns fallback bidding strategy.
+// M3.6: Implements graceful degradation when bid scripts fail.
+func (e *Engine) handleBidScriptFailure(msg string, err error) (blackboard.BidType, error) {
+	log.Printf("[ERROR] %s: %v", msg, err)
+
+	// If we have a fallback strategy, use it
+	if e.config.BiddingStrategy != "" {
+		log.Printf("[WARN] Falling back to static bidding_strategy: %s", e.config.BiddingStrategy)
+		return e.config.BiddingStrategy, nil
+	}
+
+	// No fallback available, return ignore as safe default
+	log.Printf("[WARN] No fallback bidding_strategy available, returning 'ignore'")
+	return blackboard.BidTypeIgnore, nil
 }
 
 // GrantNotification represents the JSON structure of grant notifications.

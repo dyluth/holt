@@ -120,22 +120,17 @@ func (e *Engine) Run(ctx context.Context) error {
 }
 
 // processArtefact handles a single artefact event.
-// Creates a claim if appropriate, or skips if Terminal or Failure type.
+// Creates a claim if appropriate, or skips if Terminal, Failure, or Review type.
 func (e *Engine) processArtefact(ctx context.Context, artefact *blackboard.Artefact) error {
-	// Check if this is a Terminal artefact
-	if artefact.StructuralType == blackboard.StructuralTypeTerminal {
-		e.logEvent("terminal_skipped", map[string]interface{}{
-			"artefact_id": artefact.ID,
-			"type":        artefact.Type,
-		})
-		return nil
-	}
-
-	// Check if this is a Failure artefact (terminates workflow)
-	if artefact.StructuralType == blackboard.StructuralTypeFailure {
-		e.logEvent("failure_skipped", map[string]interface{}{
-			"artefact_id": artefact.ID,
-			"type":        artefact.Type,
+	// Do not create claims for artefacts that are the output of a process, like reviews or failures.
+	if artefact.StructuralType == blackboard.StructuralTypeTerminal ||
+		artefact.StructuralType == blackboard.StructuralTypeFailure ||
+		artefact.StructuralType == blackboard.StructuralTypeReview {
+		e.logEvent("claim_creation_skipped", map[string]interface{}{
+			"artefact_id":     artefact.ID,
+			"type":            artefact.Type,
+			"structural_type": artefact.StructuralType,
+			"reason":          "Artefact is not a claimable work type.",
 		})
 		return nil
 	}
@@ -161,8 +156,7 @@ func (e *Engine) processArtefact(ctx context.Context, artefact *blackboard.Artef
 	claim := &blackboard.Claim{
 		ID:         claimID,
 		ArtefactID: artefact.ID,
-		Status:     blackboard.ClaimStatusPendingReview,
-		// Phase 1: No granted agents (bidding in Phase 2)
+		Status:     blackboard.ClaimStatusPendingReview, // Always start in review phase
 		GrantedReviewAgents:   []string{},
 		GrantedParallelAgents: []string{},
 		GrantedExclusiveAgent: "",

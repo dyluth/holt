@@ -1,0 +1,29 @@
+version: "1.0"
+agents:
+  recipe-drafter:
+    role: "Writer"
+    image: "recipe-drafter-agent:latest"
+    command: ["/app/run.sh"]
+    bid_script: ["/app/bid.sh"]
+    workspace:
+      mode: rw
+
+  recipe-validator:
+    role: "Validator"
+    image: "recipe-validator-agent:latest"
+    command: ["/app/run.sh"]
+    bid_script: ["/app/bid.sh"]
+    workspace:
+      mode: ro
+
+  recipe-formatter:
+    role: "Formatter"
+    image: "recipe-formatter-agent:latest"
+    command: ["/app/run.sh"]
+    bid_script: ["/app/bid.sh"]
+    workspace:
+      mode: rw
+
+services:
+  redis:
+    image: redis:7-alpine

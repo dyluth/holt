@@ -26,6 +26,7 @@ type Agent struct {
 	Image           string           `yaml:"image"` // Required: Docker image name for this agent
 	Build           *BuildConfig     `yaml:"build,omitempty"`
 	Command         []string         `yaml:"command"`
+	BidScript       []string         `yaml:"bid_script,omitempty"`
 	Workspace       *WorkspaceConfig `yaml:"workspace,omitempty"`
 	Replicas        *int             `yaml:"replicas,omitempty"`
 	Strategy        string           `yaml:"strategy,omitempty"`
@@ -153,14 +154,19 @@ func (a *Agent) Validate(name string) error {
 		return fmt.Errorf("agent '%s': command is required", name)
 	}
 
-	// Required: bidding_strategy (M3.1)
-	if a.BiddingStrategy == "" {
-		return fmt.Errorf("agent '%s': bidding_strategy is required", name)
+	// M3.6: Bidding strategy validation - either bid_script or bidding_strategy required
+	hasBidScript := len(a.BidScript) > 0
+	hasStaticStrategy := a.BiddingStrategy != ""
+
+	if !hasBidScript && !hasStaticStrategy {
+		return fmt.Errorf("agent '%s': either bidding_strategy or bid_script must be provided", name)
 	}
 
-	// Validate bidding_strategy enum
-	if a.BiddingStrategy != "review" && a.BiddingStrategy != "claim" && a.BiddingStrategy != "exclusive" && a.BiddingStrategy != "ignore" {
-		return fmt.Errorf("agent '%s': invalid bidding_strategy: %s (must be 'review', 'claim', 'exclusive', or 'ignore')", name, a.BiddingStrategy)
+	// Validate bidding_strategy enum if provided
+	if hasStaticStrategy {
+		if a.BiddingStrategy != "review" && a.BiddingStrategy != "claim" && a.BiddingStrategy != "exclusive" && a.BiddingStrategy != "ignore" {
+			return fmt.Errorf("agent '%s': invalid bidding_strategy: %s (must be 'review', 'claim', 'exclusive', or 'ignore')", name, a.BiddingStrategy)
+		}
 	}
 
 	// If build.context specified, verify path exists

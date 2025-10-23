@@ -15,6 +15,7 @@ const (
 	LabelComponent     = "holt.component"
 	LabelRedisPort     = "holt.redis.port"
 	LabelAgentName     = "holt.agent.name" // M2.2: Agent name label
+	LabelAgentRole     = "holt.agent.role" // M3.6: Agent role label
 )
 
 // BuildLabels creates the standard label set for all Holt resources.

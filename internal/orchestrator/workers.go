@@ -2,6 +2,7 @@ package orchestrator
 
 import (
 	"context"
+	"encoding/json"
 	"fmt"
 	"io"
 	"log"
@@ -158,19 +159,20 @@ func (wm *WorkerManager) LaunchWorker(ctx context.Context, claim *blackboard.Cla
 
 	// Add HOLT_AGENT_COMMAND environment variable if configured
 	if len(agent.Worker.Command) > 0 {
-		commandJSON := fmt.Sprintf("[\"%s\"]", agent.Worker.Command[0])
-		if len(agent.Worker.Command) > 1 {
-			// Build proper JSON array
-			commandJSON = "["
-			for i, cmd := range agent.Worker.Command {
-				if i > 0 {
-					commandJSON += ","
-				}
-				commandJSON += fmt.Sprintf("\"%s\"", cmd)
-			}
-			commandJSON += "]"
+		commandJSON, err := json.Marshal(agent.Worker.Command)
+		if err != nil {
+			return fmt.Errorf("failed to marshal worker command to JSON: %w", err)
 		}
 		containerConfig.Env = append(containerConfig.Env, fmt.Sprintf("HOLT_AGENT_COMMAND=%s", commandJSON))
+	}
+
+	// Add HOLT_AGENT_BID_SCRIPT as JSON array
+	if len(agent.BidScript) > 0 {
+		bidScriptJSON, err := json.Marshal(agent.BidScript)
+		if err != nil {
+			return fmt.Errorf("failed to marshal agent bid script to JSON: %w", err)
+		}
+		containerConfig.Env = append(containerConfig.Env, fmt.Sprintf("HOLT_AGENT_BID_SCRIPT=%s", bidScriptJSON))
 	}
 
 	// Build host config
