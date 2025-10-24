@@ -16,10 +16,8 @@ type Config struct {
 	InstanceName string
 
 	// AgentName is the logical name of this agent (from HOLT_AGENT_NAME)
+	// M3.7: This IS the role (agent key from holt.yml)
 	AgentName string
-
-	// AgentRole is the role of this agent (from HOLT_AGENT_ROLE)
-	AgentRole string
 
 	// RedisURL is the Redis connection string (from REDIS_URL)
 	RedisURL string
@@ -43,8 +41,7 @@ type Config struct {
 func LoadConfig() (*Config, error) {
 	cfg := &Config{
 		InstanceName: os.Getenv("HOLT_INSTANCE_NAME"),
-		AgentName:    os.Getenv("HOLT_AGENT_NAME"),
-		AgentRole:    os.Getenv("HOLT_AGENT_ROLE"),
+		AgentName:    os.Getenv("HOLT_AGENT_NAME"), // M3.7: This IS the role
 		RedisURL:     os.Getenv("REDIS_URL"),
 	}
 
@@ -88,9 +85,7 @@ func (c *Config) Validate() error {
 		return fmt.Errorf("HOLT_AGENT_NAME environment variable is required")
 	}
 
-	if c.AgentRole == "" {
-		return fmt.Errorf("HOLT_AGENT_ROLE environment variable is required")
-	}
+	// M3.7: No AgentRole field - AgentName IS the role
 
 	if c.RedisURL == "" {
 		return fmt.Errorf("REDIS_URL environment variable is required")

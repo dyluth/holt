@@ -79,9 +79,8 @@ func TestListArtefacts(t *testing.T) {
 			Version:         1,
 			StructuralType:  blackboard.StructuralTypeStandard,
 			Type:            "GoalDefined",
+			ProducedByRole:  "user", // M3.7: GoalDefined created by user via CLI
 			Payload:         "test-goal.txt",
-			SourceArtefacts: []string{},
-			ProducedByRole:  "user",
 		}
 		err = bbClient.CreateArtefact(ctx, artefact)
 		require.NoError(t, err)
@@ -120,9 +119,9 @@ func TestListArtefacts(t *testing.T) {
 				Version:         1,
 				StructuralType:  blackboard.StructuralTypeStandard,
 				Type:            "GoalDefined",
+				ProducedByRole:  "test-agent",
 				Payload:         "test-goal.txt",
 				SourceArtefacts: []string{},
-				ProducedByRole:  "user",
 			},
 			{
 				ID:              "550e8400-e29b-41d4-a716-446655440002",
@@ -130,9 +129,9 @@ func TestListArtefacts(t *testing.T) {
 				Version:         1,
 				StructuralType:  blackboard.StructuralTypeStandard,
 				Type:            "CodeCommit",
+				ProducedByRole:  "test-agent",
 				Payload:         "a3f5b8c91d2e4f7a9b1c3d5e6f8a9b0c1d2e3f4a5b6c7d8e9f0a",
 				SourceArtefacts: []string{"550e8400-e29b-41d4-a716-446655440001"},
-				ProducedByRole:  "git-agent",
 			},
 		}
 
@@ -172,9 +171,9 @@ func TestListArtefacts(t *testing.T) {
 				Version:         1,
 				StructuralType:  blackboard.StructuralTypeStandard,
 				Type:            "GoalDefined",
+				ProducedByRole:  "test-agent",
 				Payload:         "test-goal.txt",
 				SourceArtefacts: []string{},
-				ProducedByRole:  "user",
 			},
 			{
 				ID:              "550e8400-e29b-41d4-a716-446655440002",
@@ -182,9 +181,9 @@ func TestListArtefacts(t *testing.T) {
 				Version:         1,
 				StructuralType:  blackboard.StructuralTypeStandard,
 				Type:            "CodeCommit",
+				ProducedByRole:  "test-agent",
 				Payload:         "commit-hash",
 				SourceArtefacts: []string{"550e8400-e29b-41d4-a716-446655440001"},
-				ProducedByRole:  "git-agent",
 			},
 		}
 
@@ -231,9 +230,9 @@ func TestListArtefacts(t *testing.T) {
 				Version:         1,
 				StructuralType:  blackboard.StructuralTypeStandard,
 				Type:            "Third",
+				ProducedByRole:  "test-agent",
 				Payload:         "c",
 				SourceArtefacts: []string{},
-				ProducedByRole:  "user",
 			},
 			{
 				ID:              "aaaaa400-e29b-41d4-a716-446655440000",
@@ -241,9 +240,9 @@ func TestListArtefacts(t *testing.T) {
 				Version:         1,
 				StructuralType:  blackboard.StructuralTypeStandard,
 				Type:            "First",
+				ProducedByRole:  "test-agent",
 				Payload:         "a",
 				SourceArtefacts: []string{},
-				ProducedByRole:  "user",
 			},
 			{
 				ID:              "bbbbb400-e29b-41d4-a716-446655440000",
@@ -251,9 +250,9 @@ func TestListArtefacts(t *testing.T) {
 				Version:         1,
 				StructuralType:  blackboard.StructuralTypeStandard,
 				Type:            "Second",
+				ProducedByRole:  "test-agent",
 				Payload:         "b",
 				SourceArtefacts: []string{},
-				ProducedByRole:  "user",
 			},
 		}
 
@@ -318,9 +317,9 @@ func TestListArtefacts(t *testing.T) {
 			Version:         1,
 			StructuralType:  blackboard.StructuralTypeStandard,
 			Type:            "ValidType",
+			ProducedByRole:  "test-agent",
 			Payload:         "valid",
 			SourceArtefacts: []string{},
-			ProducedByRole:  "user",
 		}
 		err = bbClient.CreateArtefact(ctx, validArtefact)
 		require.NoError(t, err)
@@ -328,7 +327,6 @@ func TestListArtefacts(t *testing.T) {
 		// Manually create a malformed artefact in Redis (missing required fields)
 		malformedKey := "holt:test-instance:artefact:malformed-id"
 		bbClient.RedisClient().HSet(ctx, malformedKey, "id", "malformed-id")
-		// Missing other required fields like version, which will cause deserialization to fail
 
 		// List artefacts - should skip malformed one
 		var buf bytes.Buffer
@@ -363,9 +361,9 @@ func TestListArtefacts(t *testing.T) {
 			Version:         1,
 			StructuralType:  blackboard.StructuralTypeStandard,
 			Type:            "LongPayload",
+			ProducedByRole:  "test-agent",
 			Payload:         longPayload,
 			SourceArtefacts: []string{},
-			ProducedByRole:  "user",
 		}
 		err = bbClient.CreateArtefact(ctx, artefact)
 		require.NoError(t, err)

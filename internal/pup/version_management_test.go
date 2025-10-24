@@ -13,6 +13,7 @@ import (
 )
 
 // setupTestPup creates a pup engine with test configuration for unit tests
+// M3.7: agentName IS the role, agentRole parameter kept for compatibility but should match agentName
 func setupTestPup(t *testing.T, agentName, agentRole string) (*Engine, *blackboard.Client) {
 	// Use miniredis for embedded Redis
 	mr := miniredis.NewMiniRedis()
@@ -27,8 +28,7 @@ func setupTestPup(t *testing.T, agentName, agentRole string) (*Engine, *blackboa
 
 	cfg := &Config{
 		InstanceName:    instanceName,
-		AgentName:       agentName,
-		AgentRole:       agentRole,
+		AgentName:       agentName, // M3.7: This IS the role
 		Command:         []string{"test"},
 		BiddingStrategy: blackboard.BidTypeExclusive,
 	}
@@ -40,7 +40,7 @@ func setupTestPup(t *testing.T, agentName, agentRole string) (*Engine, *blackboa
 
 func TestCreateReworkArtefact_VersionIncrement(t *testing.T) {
 	ctx := context.Background()
-	engine, bbClient := setupTestPup(t, "test-agent", "Coder")
+	engine, bbClient := setupTestPup(t, "Coder", "Coder") // M3.7: Agent name IS the role
 
 	// Create target artefact (v1)
 	targetArtefact := &blackboard.Artefact{
@@ -49,9 +49,9 @@ func TestCreateReworkArtefact_VersionIncrement(t *testing.T) {
 		Version:         1,
 		StructuralType:  blackboard.StructuralTypeStandard,
 		Type:            "CodeCommit",
+			ProducedByRole:  "test-agent",
 		Payload:         "v1-hash",
 		SourceArtefacts: []string{},
-		ProducedByRole:  "Coder",
 	}
 	err := bbClient.CreateArtefact(ctx, targetArtefact)
 	require.NoError(t, err)
@@ -63,9 +63,9 @@ func TestCreateReworkArtefact_VersionIncrement(t *testing.T) {
 		Version:         1,
 		StructuralType:  blackboard.StructuralTypeReview,
 		Type:            "Review",
+			ProducedByRole:  "test-agent",
 		Payload:         `{"issue": "needs tests"}`,
 		SourceArtefacts: []string{targetArtefact.ID},
-		ProducedByRole:  "Reviewer",
 	}
 	err = bbClient.CreateArtefact(ctx, reviewArtefact)
 	require.NoError(t, err)
@@ -120,7 +120,7 @@ func TestCreateReworkArtefact_VersionIncrement(t *testing.T) {
 
 func TestCreateReworkArtefact_MultipleReviews(t *testing.T) {
 	ctx := context.Background()
-	engine, bbClient := setupTestPup(t, "test-agent", "Coder")
+	engine, bbClient := setupTestPup(t, "Coder", "Coder") // M3.7: Agent name IS the role
 
 	// Create target artefact (v2)
 	targetArtefact := &blackboard.Artefact{
@@ -129,9 +129,9 @@ func TestCreateReworkArtefact_MultipleReviews(t *testing.T) {
 		Version:         2,
 		StructuralType:  blackboard.StructuralTypeStandard,
 		Type:            "CodeCommit",
+			ProducedByRole:  "test-agent",
 		Payload:         "v2-hash",
 		SourceArtefacts: []string{},
-		ProducedByRole:  "Coder",
 	}
 	err := bbClient.CreateArtefact(ctx, targetArtefact)
 	require.NoError(t, err)
@@ -143,9 +143,9 @@ func TestCreateReworkArtefact_MultipleReviews(t *testing.T) {
 		Version:         1,
 		StructuralType:  blackboard.StructuralTypeReview,
 		Type:            "Review",
+			ProducedByRole:  "test-agent",
 		Payload:         `{"issue": "needs tests"}`,
 		SourceArtefacts: []string{targetArtefact.ID},
-		ProducedByRole:  "Reviewer",
 	}
 	err = bbClient.CreateArtefact(ctx, review1)
 	require.NoError(t, err)
@@ -156,9 +156,9 @@ func TestCreateReworkArtefact_MultipleReviews(t *testing.T) {
 		Version:         1,
 		StructuralType:  blackboard.StructuralTypeReview,
 		Type:            "Review",
+			ProducedByRole:  "test-agent",
 		Payload:         `{"issue": "add docs"}`,
 		SourceArtefacts: []string{targetArtefact.ID},
-		ProducedByRole:  "Reviewer2",
 	}
 	err = bbClient.CreateArtefact(ctx, review2)
 	require.NoError(t, err)
@@ -199,7 +199,7 @@ func TestCreateReworkArtefact_MultipleReviews(t *testing.T) {
 
 func TestAssembleContext_WithAdditionalContextIDs(t *testing.T) {
 	ctx := context.Background()
-	engine, bbClient := setupTestPup(t, "test-agent", "Coder")
+	engine, bbClient := setupTestPup(t, "Coder", "Coder") // M3.7: Agent name IS the role
 
 	// Create source artefact (GoalDefined)
 	goalArtefact := &blackboard.Artefact{
@@ -208,9 +208,9 @@ func TestAssembleContext_WithAdditionalContextIDs(t *testing.T) {
 		Version:         1,
 		StructuralType:  blackboard.StructuralTypeStandard,
 		Type:            "GoalDefined",
+			ProducedByRole:  "test-agent",
 		Payload:         "feature.txt",
 		SourceArtefacts: []string{},
-		ProducedByRole:  "user",
 	}
 	err := bbClient.CreateArtefact(ctx, goalArtefact)
 	require.NoError(t, err)
@@ -222,9 +222,9 @@ func TestAssembleContext_WithAdditionalContextIDs(t *testing.T) {
 		Version:         1,
 		StructuralType:  blackboard.StructuralTypeStandard,
 		Type:            "CodeCommit",
+			ProducedByRole:  "test-agent",
 		Payload:         "v1-hash",
 		SourceArtefacts: []string{goalArtefact.ID},
-		ProducedByRole:  "Coder",
 	}
 	err = bbClient.CreateArtefact(ctx, targetArtefact)
 	require.NoError(t, err)
@@ -236,9 +236,9 @@ func TestAssembleContext_WithAdditionalContextIDs(t *testing.T) {
 		Version:         1,
 		StructuralType:  blackboard.StructuralTypeReview,
 		Type:            "Review",
+			ProducedByRole:  "test-agent",
 		Payload:         `{"issue": "needs tests"}`,
 		SourceArtefacts: []string{targetArtefact.ID},
-		ProducedByRole:  "Reviewer",
 	}
 	err = bbClient.CreateArtefact(ctx, reviewArtefact)
 	require.NoError(t, err)
@@ -286,7 +286,7 @@ func TestAssembleContext_WithAdditionalContextIDs(t *testing.T) {
 
 func TestAssembleContext_RegularClaim_NoAdditionalContext(t *testing.T) {
 	ctx := context.Background()
-	engine, bbClient := setupTestPup(t, "test-agent", "Coder")
+	engine, bbClient := setupTestPup(t, "Coder", "Coder") // M3.7: Agent name IS the role
 
 	// Create source artefact
 	goalArtefact := &blackboard.Artefact{
@@ -295,9 +295,9 @@ func TestAssembleContext_RegularClaim_NoAdditionalContext(t *testing.T) {
 		Version:         1,
 		StructuralType:  blackboard.StructuralTypeStandard,
 		Type:            "GoalDefined",
+			ProducedByRole:  "test-agent",
 		Payload:         "feature.txt",
 		SourceArtefacts: []string{},
-		ProducedByRole:  "user",
 	}
 	err := bbClient.CreateArtefact(ctx, goalArtefact)
 	require.NoError(t, err)
@@ -309,9 +309,9 @@ func TestAssembleContext_RegularClaim_NoAdditionalContext(t *testing.T) {
 		Version:         1,
 		StructuralType:  blackboard.StructuralTypeStandard,
 		Type:            "CodeCommit",
+			ProducedByRole:  "test-agent",
 		Payload:         "commit-hash",
 		SourceArtefacts: []string{goalArtefact.ID},
-		ProducedByRole:  "Coder",
 	}
 	err = bbClient.CreateArtefact(ctx, targetArtefact)
 	require.NoError(t, err)
@@ -338,7 +338,7 @@ func TestAssembleContext_RegularClaim_NoAdditionalContext(t *testing.T) {
 
 func TestCreateResultArtefact_DetectsFeedbackClaim(t *testing.T) {
 	ctx := context.Background()
-	engine, bbClient := setupTestPup(t, "test-agent", "Coder")
+	engine, bbClient := setupTestPup(t, "Coder", "Coder") // M3.7: Agent name IS the role
 
 	// Create target artefact
 	targetArtefact := &blackboard.Artefact{
@@ -347,9 +347,9 @@ func TestCreateResultArtefact_DetectsFeedbackClaim(t *testing.T) {
 		Version:         1,
 		StructuralType:  blackboard.StructuralTypeStandard,
 		Type:            "CodeCommit",
+			ProducedByRole:  "test-agent",
 		Payload:         "v1-hash",
 		SourceArtefacts: []string{},
-		ProducedByRole:  "Coder",
 	}
 	err := bbClient.CreateArtefact(ctx, targetArtefact)
 	require.NoError(t, err)
@@ -361,9 +361,9 @@ func TestCreateResultArtefact_DetectsFeedbackClaim(t *testing.T) {
 		Version:         1,
 		StructuralType:  blackboard.StructuralTypeReview,
 		Type:            "Review",
+			ProducedByRole:  "test-agent",
 		Payload:         `{"issue": "needs fixes"}`,
 		SourceArtefacts: []string{targetArtefact.ID},
-		ProducedByRole:  "Reviewer",
 	}
 	err = bbClient.CreateArtefact(ctx, reviewArtefact)
 	require.NoError(t, err)
@@ -400,7 +400,7 @@ func TestCreateResultArtefact_DetectsFeedbackClaim(t *testing.T) {
 
 func TestCreateResultArtefact_RegularClaim_NewThread(t *testing.T) {
 	ctx := context.Background()
-	engine, bbClient := setupTestPup(t, "test-agent", "Coder")
+	engine, bbClient := setupTestPup(t, "Coder", "Coder") // M3.7: Agent name IS the role
 
 	// Create target artefact
 	targetArtefact := &blackboard.Artefact{
@@ -409,9 +409,9 @@ func TestCreateResultArtefact_RegularClaim_NewThread(t *testing.T) {
 		Version:         1,
 		StructuralType:  blackboard.StructuralTypeStandard,
 		Type:            "GoalDefined",
+			ProducedByRole:  "test-agent",
 		Payload:         "goal.txt",
 		SourceArtefacts: []string{},
-		ProducedByRole:  "user",
 	}
 	err := bbClient.CreateArtefact(ctx, targetArtefact)
 	require.NoError(t, err)

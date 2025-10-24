@@ -103,7 +103,7 @@ func TestPerformance_ClaimToExecution(t *testing.T) {
 	require.NoError(t, err)
 
 	env.WaitForContainer("orchestrator")
-	env.WaitForContainer("agent-echo-agent")
+	env.WaitForContainer("agent-EchoAgent")
 	env.InitializeBlackboardClient()
 
 	t.Log("✓ Instance ready, submitting goal...")
@@ -186,11 +186,11 @@ func TestPerformance_ContextAssembly(t *testing.T) {
 			ID:              uuid.NewString(),
 			LogicalID:       uuid.NewString(),
 			Version:         1,
-			StructuralType:  "Standard",
+			StructuralType:  blackboard.StructuralTypeStandard,
 			Type:            fmt.Sprintf("Level%d", i),
 			Payload:         fmt.Sprintf("content-level-%d", i),
-			ProducedByRole:  "test",
 			SourceArtefacts: []string{},
+			ProducedByRole:  "test-agent", // M3.7: Required field
 		}
 
 		if i > 0 {
@@ -289,7 +289,7 @@ func TestPerformance_GitCommit(t *testing.T) {
 	require.NoError(t, err)
 
 	env.WaitForContainer("orchestrator")
-	env.WaitForContainer("agent-git-agent")
+	env.WaitForContainer("agent-GitAgent")
 	env.InitializeBlackboardClient()
 
 	t.Log("✓ Instance ready with git agent")
@@ -372,7 +372,7 @@ func TestPerformance_FullWorkflowE2E(t *testing.T) {
 	require.NoError(t, err)
 
 	env.WaitForContainer("orchestrator")
-	env.WaitForContainer("agent-git-agent")
+	env.WaitForContainer("agent-GitAgent")
 	env.InitializeBlackboardClient()
 
 	// forage

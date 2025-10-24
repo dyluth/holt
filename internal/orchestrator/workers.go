@@ -126,16 +126,16 @@ func (wm *WorkerManager) CleanupOrphanedWorkers(ctx context.Context) error {
 
 // LaunchWorker creates and starts an ephemeral worker container
 // M3.4: Workers are launched when a controller wins a grant
-func (wm *WorkerManager) LaunchWorker(ctx context.Context, claim *blackboard.Claim, agentName string, agent config.Agent, bbClient *blackboard.Client) error {
-	// Generate worker container name
-	shortClaimID := claim.ID[:8] // First 8 chars of UUID
-	containerName := fmt.Sprintf("holt-%s-%s-worker-%s", wm.instanceName, agentName, shortClaimID)
+// M3.7: agentRole parameter is the agent key from holt.yml (which IS the role)
+func (wm *WorkerManager) LaunchWorker(ctx context.Context, claim *blackboard.Claim, agentRole string, agent config.Agent, bbClient *blackboard.Client) error {
+	// M3.7: Use centralized WorkerContainerName function
+	containerName := dockerpkg.WorkerContainerName(wm.instanceName, agentRole, claim.ID)
 
 	wm.logEvent("worker_launching", map[string]interface{}{
 		"container_name": containerName,
 		"claim_id":       claim.ID,
-		"role":           agent.Role,
-		"agent_name":     agentName,
+		"role":           agentRole,
+		"agent_name":     agentRole, // M3.7: Agent name = role
 	})
 
 	// Build Docker container config
@@ -146,10 +146,10 @@ func (wm *WorkerManager) LaunchWorker(ctx context.Context, claim *blackboard.Cla
 		// M3.4: Worker is launched with --execute-claim flag
 		// Note: Image has ENTRYPOINT ["/app/pup"], so Cmd only contains arguments
 		Cmd: []string{"--execute-claim", claim.ID},
+		// M3.7: ONLY HOLT_AGENT_NAME is set (to the role), HOLT_AGENT_ROLE removed
 		Env: []string{
 			fmt.Sprintf("HOLT_INSTANCE_NAME=%s", wm.instanceName),
-			fmt.Sprintf("HOLT_AGENT_NAME=%s", agentName),
-			fmt.Sprintf("HOLT_AGENT_ROLE=%s", agent.Role),
+			fmt.Sprintf("HOLT_AGENT_NAME=%s", agentRole),
 			fmt.Sprintf("REDIS_URL=%s", redisURL),
 			fmt.Sprintf("HOLT_BIDDING_STRATEGY=%s", agent.BiddingStrategy),
 			// NOTE: No HOLT_MODE for workers - the --execute-claim flag is sufficient
@@ -206,25 +206,26 @@ func (wm *WorkerManager) LaunchWorker(ctx context.Context, claim *blackboard.Cla
 	}
 
 	// Track worker state
+	// M3.7: agentRole = agentName (both are the role)
 	wm.workerLock.Lock()
 	workerState := &WorkerState{
 		ContainerID:   resp.ID,
 		ContainerName: containerName,
 		ClaimID:       claim.ID,
-		Role:          agent.Role,
-		AgentName:     agentName,
+		Role:          agentRole,
+		AgentName:     agentRole,
 		LaunchedAt:    time.Now(),
 		Status:        "running",
 	}
 	wm.activeWorkers[resp.ID] = workerState
-	wm.workersByRole[agent.Role]++
+	wm.workersByRole[agentRole]++
 	wm.workerLock.Unlock()
 
 	wm.logEvent("worker_launched", map[string]interface{}{
 		"container_id":   resp.ID,
 		"container_name": containerName,
 		"claim_id":       claim.ID,
-		"role":           agent.Role,
+		"role":           agentRole,
 	})
 
 	// Start monitoring worker in background

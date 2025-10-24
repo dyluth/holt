@@ -344,10 +344,10 @@ func printUpSuccess(instanceName, workspacePath string, cfg *config.HoltConfig) 
 	printer.Info("  • %s (running)\n", dockerpkg.RedisContainerName(instanceName))
 	printer.Info("  • %s (running)\n", dockerpkg.OrchestratorContainerName(instanceName))
 
-	// List agent containers
-	for agentName, agent := range cfg.Agents {
+	// List agent containers (M3.7: agent key IS the role)
+	for agentRole, agent := range cfg.Agents {
 		printer.Info("  • %s (running, healthy, bidding_strategy=%s)\n",
-			dockerpkg.AgentContainerName(instanceName, agentName),
+			dockerpkg.AgentContainerName(instanceName, agentRole),
 			agent.BiddingStrategy)
 	}
 
@@ -418,11 +418,11 @@ func validateAgentImages(ctx context.Context, cli *client.Client, cfg *config.Ho
 		}
 	}
 
-	// Validate each agent image exists
+	// Validate each agent image exists (M3.7: agent key IS the role)
 	var missingImages []string
-	for agentName, agent := range cfg.Agents {
+	for agentRole, agent := range cfg.Agents {
 		if !availableImages[agent.Image] {
-			missingImages = append(missingImages, fmt.Sprintf("%s (for agent '%s')", agent.Image, agentName))
+			missingImages = append(missingImages, fmt.Sprintf("%s (for agent '%s')", agent.Image, agentRole))
 		}
 	}
 
@@ -465,15 +465,15 @@ func launchAgentContainers(ctx context.Context, cli *client.Client, cfg *config.
 	}
 	resultChan := make(chan launchResult, len(cfg.Agents))
 
-	// Launch all agents in parallel
+	// Launch all agents in parallel (M3.7: agent key IS the role)
 	agentCount := 0
-	for agentName, agent := range cfg.Agents {
+	for agentRole, agent := range cfg.Agents {
 		agentCount++
 		// Launch each agent in a goroutine
-		go func(name string, agentCfg config.Agent) {
-			err := launchAgentContainer(launchCtx, cli, instanceName, runID, workspacePath, networkName, redisName, name, agentCfg)
-			resultChan <- launchResult{agentName: name, err: err}
-		}(agentName, agent)
+		go func(role string, agentCfg config.Agent) {
+			err := launchAgentContainer(launchCtx, cli, instanceName, runID, workspacePath, networkName, redisName, role, agentCfg)
+			resultChan <- launchResult{agentName: role, err: err}
+		}(agentRole, agent)
 	}
 
 	// Collect results - fail fast on first error
@@ -500,11 +500,12 @@ func launchAgentContainers(ctx context.Context, cli *client.Client, cfg *config.
 	return nil
 }
 
-func launchAgentContainer(ctx context.Context, cli *client.Client, instanceName, runID, workspacePath, networkName, redisName, agentName string, agent config.Agent) error {
-	containerName := dockerpkg.AgentContainerName(instanceName, agentName)
+// M3.7: agentRole parameter is the agent key from holt.yml (which IS the role)
+func launchAgentContainer(ctx context.Context, cli *client.Client, instanceName, runID, workspacePath, networkName, redisName, agentRole string, agent config.Agent) error {
+	containerName := dockerpkg.AgentContainerName(instanceName, agentRole)
 	labels := dockerpkg.BuildLabels(instanceName, runID, workspacePath, "agent")
-	labels[dockerpkg.LabelAgentName] = agentName
-	labels[dockerpkg.LabelAgentRole] = agent.Role // M3.6: Store role for visibility
+	labels[dockerpkg.LabelAgentName] = agentRole // M3.7: Agent name = role
+	labels[dockerpkg.LabelAgentRole] = agentRole // M3.7: Same value (kept for label consistency)
 
 	// Determine workspace mode (default to ro)
 	workspaceMode := "ro"
@@ -513,11 +514,11 @@ func launchAgentContainer(ctx context.Context, cli *client.Client, instanceName,
 	}
 
 	// Build environment variables
+	// M3.7: ONLY HOLT_AGENT_NAME is set (to the role), HOLT_AGENT_ROLE removed
 	redisURL := fmt.Sprintf("redis://%s:6379", redisName)
 	env := []string{
 		fmt.Sprintf("HOLT_INSTANCE_NAME=%s", instanceName),
-		fmt.Sprintf("HOLT_AGENT_NAME=%s", agentName),
-		fmt.Sprintf("HOLT_AGENT_ROLE=%s", agent.Role),
+		fmt.Sprintf("HOLT_AGENT_NAME=%s", agentRole),
 		fmt.Sprintf("REDIS_URL=%s", redisURL),
 		fmt.Sprintf("HOLT_BIDDING_STRATEGY=%s", agent.BiddingStrategy), // M3.1
 	}

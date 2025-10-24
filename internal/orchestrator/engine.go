@@ -30,10 +30,11 @@ type Engine struct {
 // M3.4: workerManager can be nil if Docker socket is not available (workers disabled)
 func NewEngine(client *blackboard.Client, instanceName string, cfg *config.HoltConfig, workerManager *WorkerManager) *Engine {
 	// Build agent registry from config
+	// M3.7: Agent key IS the role - simplified identity mapping
 	agentRegistry := make(map[string]string)
 	if cfg != nil {
-		for agentName, agent := range cfg.Agents {
-			agentRegistry[agentName] = agent.Role
+		for agentRole := range cfg.Agents {
+			agentRegistry[agentRole] = agentRole
 		}
 	}
 

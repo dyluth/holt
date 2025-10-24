@@ -60,15 +60,13 @@ func TestE2E_M3_3_SingleIterationFeedbackLoop(t *testing.T) {
 orchestrator:
   max_review_iterations: 3
 agents:
-  reviewer:
-    role: "Reviewer"
+  Reviewer:
     image: "conditional-reviewer-agent:latest"
     command: ["/app/run.sh"]
     bidding_strategy: "review"
     workspace:
       mode: ro
-  coder:
-    role: "Coder"
+  Coder:
     image: "example-git-agent:latest"
     command: ["/app/run.sh"]
     bidding_strategy: "exclusive"
@@ -101,8 +99,8 @@ services:
 
 	// Wait for containers to be ready
 	env.WaitForContainer("orchestrator")
-	env.WaitForContainer("agent-reviewer")
-	env.WaitForContainer("agent-coder")
+	env.WaitForContainer("agent-Reviewer")
+	env.WaitForContainer("agent-Coder")
 
 	// Step 3: Initialize blackboard client
 	env.InitializeBlackboardClient()
@@ -198,15 +196,13 @@ func TestE2E_M3_3_MaxIterationsReached(t *testing.T) {
 orchestrator:
   max_review_iterations: 2
 agents:
-  reviewer:
-    role: "Reviewer"
+  Reviewer:
     image: "always-reject-reviewer-agent:latest"
     command: ["/app/run.sh"]
     bidding_strategy: "review"
     workspace:
       mode: ro
-  coder:
-    role: "Coder"
+  Coder:
     image: "example-git-agent:latest"
     command: ["/app/run.sh"]
     bidding_strategy: "exclusive"
@@ -239,8 +235,8 @@ services:
 
 	// Wait for containers to be ready
 	env.WaitForContainer("orchestrator")
-	env.WaitForContainer("agent-reviewer")
-	env.WaitForContainer("agent-coder")
+	env.WaitForContainer("agent-Reviewer")
+	env.WaitForContainer("agent-Coder")
 
 	// Step 3: Initialize blackboard client
 	env.InitializeBlackboardClient()

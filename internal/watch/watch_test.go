@@ -37,9 +37,9 @@ func TestPollForClaim(t *testing.T) {
 			Version:         1,
 			StructuralType:  blackboard.StructuralTypeStandard,
 			Type:            "TestType",
+			ProducedByRole:  "test-agent",
 			Payload:         "test",
 			SourceArtefacts: []string{},
-			ProducedByRole:  "user",
 		}
 		err := client.CreateArtefact(ctx, artefact)
 		require.NoError(t, err)
@@ -74,9 +74,9 @@ func TestPollForClaim(t *testing.T) {
 			Version:         1,
 			StructuralType:  blackboard.StructuralTypeStandard,
 			Type:            "TestType",
+			ProducedByRole:  "test-agent",
 			Payload:         "test",
 			SourceArtefacts: []string{},
-			ProducedByRole:  "user",
 		}
 		err := client.CreateArtefact(ctx, artefact)
 		require.NoError(t, err)
@@ -117,9 +117,9 @@ func TestPollForClaim(t *testing.T) {
 			Version:         1,
 			StructuralType:  blackboard.StructuralTypeStandard,
 			Type:            "TestType",
+			ProducedByRole:  "test-agent",
 			Payload:         "test",
 			SourceArtefacts: []string{},
-			ProducedByRole:  "user",
 		}
 		err := client.CreateArtefact(ctx, artefact)
 		require.NoError(t, err)
@@ -144,9 +144,9 @@ func TestPollForClaim(t *testing.T) {
 			Version:         1,
 			StructuralType:  blackboard.StructuralTypeStandard,
 			Type:            "TestType",
+			ProducedByRole:  "test-agent",
 			Payload:         "test",
 			SourceArtefacts: []string{},
-			ProducedByRole:  "user",
 		}
 		err := client.CreateArtefact(ctx, artefact)
 		require.NoError(t, err)
@@ -173,9 +173,9 @@ func TestPollForClaim(t *testing.T) {
 			Version:         1,
 			StructuralType:  blackboard.StructuralTypeStandard,
 			Type:            "TestType",
+			ProducedByRole:  "test-agent",
 			Payload:         "test",
 			SourceArtefacts: []string{},
-			ProducedByRole:  "user",
 		}
 		err := client.CreateArtefact(ctx, artefact)
 		require.NoError(t, err)
@@ -213,6 +213,7 @@ func TestFormatters(t *testing.T) {
 		artefact := &blackboard.Artefact{
 			ID:   "abc-123",
 			Type: "GoalDefined",
+			ProducedByRole:  "test-agent",
 		}
 
 		err := formatter.FormatArtefact(artefact)
@@ -301,6 +302,7 @@ func TestFormatters(t *testing.T) {
 		artefact := &blackboard.Artefact{
 			ID:   "abc-123",
 			Type: "GoalDefined",
+			ProducedByRole:  "test-agent",
 		}
 
 		err := formatter.FormatArtefact(artefact)

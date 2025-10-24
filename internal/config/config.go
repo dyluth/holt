@@ -2,6 +2,7 @@ package config
 
 import (
 	"fmt"
+	"log"
 	"os"
 
 	"gopkg.in/yaml.v3"
@@ -21,8 +22,8 @@ type HoltConfig struct {
 }
 
 // Agent represents a single agent configuration
+// M3.7: Agent key in holt.yml IS the role - no separate role field
 type Agent struct {
-	Role            string           `yaml:"role"`
 	Image           string           `yaml:"image"` // Required: Docker image name for this agent
 	Build           *BuildConfig     `yaml:"build,omitempty"`
 	Command         []string         `yaml:"command"`
@@ -100,22 +101,17 @@ func (c *HoltConfig) Validate() error {
 		return fmt.Errorf("no agents defined")
 	}
 
-	// Validate each agent
-	for name, agent := range c.Agents {
-		if err := agent.Validate(name); err != nil {
+	// M3.7: Validate agent keys (which are now roles)
+	for agentRole, agent := range c.Agents {
+		if err := validateRoleName(agentRole); err != nil {
+			return fmt.Errorf("invalid agent role '%s': %w", agentRole, err)
+		}
+		if err := agent.Validate(agentRole); err != nil {
 			return err
 		}
 	}
 
-	// M3.2: Enforce unique agent roles
-	rolesSeen := make(map[string]string) // role → agentName
-	for agentName, agent := range c.Agents {
-		if existingAgent, exists := rolesSeen[agent.Role]; exists {
-			return fmt.Errorf("duplicate agent role '%s' found (agents '%s' and '%s'): all agents must have unique roles in Phase 3",
-				agent.Role, existingAgent, agentName)
-		}
-		rolesSeen[agent.Role] = agentName
-	}
+	// M3.7: Role uniqueness is guaranteed by map keys (no duplicate check needed)
 
 	// M3.3: Apply default orchestrator config if missing
 	if c.Orchestrator == nil {
@@ -137,12 +133,35 @@ func (c *HoltConfig) Validate() error {
 	return nil
 }
 
+// validateRoleName ensures role names follow conventions (M3.7)
+// Rules: PascalCase recommended, alphanumeric + hyphens, 1-64 chars
+func validateRoleName(role string) error {
+	if role == "" {
+		return fmt.Errorf("role cannot be empty")
+	}
+	if len(role) > 64 {
+		return fmt.Errorf("role name too long (max 64 chars)")
+	}
+
+	// Check alphanumeric (allowing hyphens for compound roles like "Code-Reviewer")
+	for _, ch := range role {
+		if !((ch >= 'A' && ch <= 'Z') || (ch >= 'a' && ch <= 'z') ||
+			(ch >= '0' && ch <= '9') || ch == '-') {
+			return fmt.Errorf("role must be alphanumeric with optional hyphens")
+		}
+	}
+
+	// Warn if not PascalCase (not an error - allow flexibility)
+	if role[0] < 'A' || role[0] > 'Z' {
+		log.Printf("[Config] Warning: Role '%s' should start with uppercase letter (PascalCase convention)", role)
+	}
+
+	return nil
+}
+
 // Validate performs validation on a single agent configuration
 func (a *Agent) Validate(name string) error {
-	// Required: role
-	if a.Role == "" {
-		return fmt.Errorf("agent '%s': role is required", name)
-	}
+	// M3.7: No role field validation - agent key IS the role
 
 	// Required: image
 	if a.Image == "" {

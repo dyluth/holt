@@ -46,8 +46,7 @@ func TestE2E_M3_4_BasicControllerWorkerFlow(t *testing.T) {
 	// Step 1: Setup environment with controller-worker configuration
 	holtYML := `version: "1.0"
 agents:
-  coder-controller:
-    role: "Coder"
+  CoderController:
     mode: "controller"
     image: "example-git-agent:latest"
     command: ["/app/pup"]
@@ -89,12 +88,12 @@ services:
 	// Step 3: Verify controller container is running
 	t.Log("Step 3: Verifying controller container...")
 	verifyControllerCmd := exec.Command("docker", "ps",
-		"--filter", fmt.Sprintf("name=holt-agent-%s-coder-controller", env.InstanceName),
+		"--filter", fmt.Sprintf("name=holt-%s-CoderController", env.InstanceName),
 		"--format", "{{.Names}}")
 	verifyControllerCmd.Dir = env.TmpDir
 	output, err = verifyControllerCmd.CombinedOutput()
 	require.NoError(t, err, "Failed to list controller container")
-	require.Contains(t, string(output), "coder-controller", "Controller container not found")
+	require.Contains(t, string(output), "CoderController", "Controller container not found")
 	t.Log("✓ Controller container running")
 
 	// Step 4: Check orchestrator logs to verify Docker client initialization
@@ -134,7 +133,7 @@ services:
 		if !workerFound {
 			// Worker naming: holt-{instance}-{agent}-worker-{claim-short-id}
 			checkWorkerCmd := exec.Command("docker", "ps", "-a",
-				"--filter", fmt.Sprintf("name=%s-coder-controller-worker-", env.InstanceName),
+				"--filter", fmt.Sprintf("name=%s-CoderController-worker-", env.InstanceName),
 				"--format", "{{.Names}}")
 			checkWorkerCmd.Dir = env.TmpDir
 			output, err = checkWorkerCmd.CombinedOutput()
@@ -147,7 +146,7 @@ services:
 		// Check if worker has completed (exited)
 		if workerFound && !workerCompleted {
 			checkExitedCmd := exec.Command("docker", "ps", "-a",
-				"--filter", fmt.Sprintf("name=%s-coder-controller-worker-", env.InstanceName),
+				"--filter", fmt.Sprintf("name=%s-CoderController-worker-", env.InstanceName),
 				"--filter", "status=exited",
 				"--format", "{{.Names}}")
 			checkExitedCmd.Dir = env.TmpDir
@@ -173,7 +172,7 @@ services:
 	if workerFound && !workerCompleted {
 		// Debug: Show worker logs if it was launched but didn't complete
 		workerListCmd := exec.Command("docker", "ps", "-a",
-			"--filter", fmt.Sprintf("name=%s-coder-controller-worker-", env.InstanceName),
+			"--filter", fmt.Sprintf("name=%s-CoderController-worker-", env.InstanceName),
 			"--format", "{{.Names}}")
 		workerListCmd.Dir = env.TmpDir
 		workerNameOutput, _ := workerListCmd.CombinedOutput()
@@ -199,13 +198,13 @@ services:
 	// Step 7: Verify controller is still running (persistent)
 	t.Log("Step 7: Verifying controller is still running...")
 	verifyControllerCmd = exec.Command("docker", "ps",
-		"--filter", fmt.Sprintf("name=holt-agent-%s-coder-controller", env.InstanceName),
+		"--filter", fmt.Sprintf("name=holt-%s-CoderController", env.InstanceName),
 		"--filter", "status=running",
 		"--format", "{{.Names}}")
 	verifyControllerCmd.Dir = env.TmpDir
 	output, err = verifyControllerCmd.CombinedOutput()
 	require.NoError(t, err, "Failed to verify controller status")
-	require.Contains(t, string(output), "coder-controller", "Controller should still be running")
+	require.Contains(t, string(output), "CoderController", "Controller should still be running")
 	t.Log("✓ Controller still running (persistent)")
 
 	// Step 8: Verify artefact was created by worker
@@ -249,8 +248,7 @@ func TestE2E_M3_4_MaxConcurrentLimit(t *testing.T) {
 	// Step 1: Setup with max_concurrent: 1
 	holtYML := `version: "1.0"
 agents:
-  coder-controller:
-    role: "Coder"
+  CoderController:
     mode: "controller"
     image: "example-git-agent:latest"
     command: ["/app/pup"]
@@ -298,7 +296,7 @@ services:
 	// Step 4: Check that only 1 worker is running
 	t.Log("Step 4: Verifying only 1 worker running...")
 	checkWorkersCmd := exec.Command("docker", "ps",
-		"--filter", fmt.Sprintf("name=%s-coder-controller-worker-", env.InstanceName),
+		"--filter", fmt.Sprintf("name=%s-CoderController-worker-", env.InstanceName),
 		"--filter", "status=running",
 		"--format", "{{.Names}}")
 	checkWorkersCmd.Dir = env.TmpDir
@@ -348,15 +346,13 @@ func TestE2E_M3_4_BackwardCompatibility(t *testing.T) {
 	// Step 1: Setup with both controller and traditional agent
 	holtYML := `version: "1.0"
 agents:
-  traditional-coder:
-    role: "TraditionalCoder"
+  TraditionalCoder:
     image: "example-git-agent:latest"
     command: ["/app/run.sh"]
     bidding_strategy: "exclusive"
     workspace:
       mode: rw
-  controller-coder:
-    role: "ControllerCoder"
+  ControllerCoder:
     mode: "controller"
     image: "example-git-agent:latest"
     command: ["/app/pup"]
@@ -395,22 +391,22 @@ services:
 
 	// Check traditional agent
 	checkTraditionalCmd := exec.Command("docker", "ps",
-		"--filter", fmt.Sprintf("name=holt-agent-%s-traditional-coder", env.InstanceName),
+		"--filter", fmt.Sprintf("name=holt-%s-TraditionalCoder", env.InstanceName),
 		"--format", "{{.Names}}")
 	checkTraditionalCmd.Dir = env.TmpDir
 	output, err = checkTraditionalCmd.CombinedOutput()
 	require.NoError(t, err, "Failed to check traditional agent")
-	require.Contains(t, string(output), "traditional-coder", "Traditional agent not running")
+	require.Contains(t, string(output), "TraditionalCoder", "Traditional agent not running")
 	t.Log("✓ Traditional agent running")
 
 	// Check controller
 	checkControllerCmd := exec.Command("docker", "ps",
-		"--filter", fmt.Sprintf("name=holt-agent-%s-controller-coder", env.InstanceName),
+		"--filter", fmt.Sprintf("name=holt-%s-ControllerCoder", env.InstanceName),
 		"--format", "{{.Names}}")
 	checkControllerCmd.Dir = env.TmpDir
 	output, err = checkControllerCmd.CombinedOutput()
 	require.NoError(t, err, "Failed to check controller")
-	require.Contains(t, string(output), "controller-coder", "Controller not running")
+	require.Contains(t, string(output), "ControllerCoder", "Controller not running")
 	t.Log("✓ Controller running")
 
 	// Step 4: Submit goal and verify workflow works

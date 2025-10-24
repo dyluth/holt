@@ -309,7 +309,7 @@ func (e *Engine) createResultArtefact(ctx context.Context, claim *blackboard.Cla
 		Type:            output.ArtefactType,
 		Payload:         output.ArtefactPayload,
 		SourceArtefacts: []string{claim.ArtefactID}, // Derivative from target artefact
-		ProducedByRole:  e.config.AgentRole,
+		ProducedByRole:  e.config.AgentName,         // M3.7: AgentName IS the role
 	}
 
 	// Create artefact in Redis (also publishes event)
@@ -359,7 +359,7 @@ func (e *Engine) createFailureArtefact(ctx context.Context, claim *blackboard.Cl
 		Type:            "ToolExecutionFailure",
 		Payload:         payload,
 		SourceArtefacts: []string{claim.ArtefactID},
-		ProducedByRole:  e.config.AgentRole,
+		ProducedByRole:  e.config.AgentName, // M3.7: AgentName IS the role
 	}
 
 	// Create artefact
@@ -448,8 +448,8 @@ func (e *Engine) createReworkArtefact(ctx context.Context, claim *blackboard.Cla
 		StructuralType:  output.GetStructuralType(),
 		Type:            targetArtefact.Type, // Same type (rework)
 		Payload:         output.ArtefactPayload,
-		SourceArtefacts: sourceArtefacts, // Target + Reviews
-		ProducedByRole:  e.config.AgentRole,
+		SourceArtefacts: sourceArtefacts,     // Target + Reviews
+		ProducedByRole:  e.config.AgentName, // M3.7: AgentName IS the role
 	}
 
 	// Create artefact in Redis (also publishes event)

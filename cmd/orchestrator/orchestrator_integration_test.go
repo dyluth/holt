@@ -96,7 +96,7 @@ func TestOrchestrator_CreatesClaimForGoalDefined(t *testing.T) {
 		Type:            "GoalDefined",
 		Payload:         "hello world",
 		SourceArtefacts: []string{},
-		ProducedByRole:  "user",
+		ProducedByRole:  "user", // M3.7: GoalDefined created by user
 	}
 
 	if err := client.CreateArtefact(ctx, artefact); err != nil {
@@ -183,7 +183,7 @@ func TestOrchestrator_SkipsTerminalArtefacts(t *testing.T) {
 		Type:            "FinalReport",
 		Payload:         "workflow complete",
 		SourceArtefacts: []string{},
-		ProducedByRole:  "agent",
+		ProducedByRole:  "test-agent", // M3.7: Terminal artefact by agent
 	}
 
 	if err := client.CreateArtefact(ctx, artefact); err != nil {
@@ -246,7 +246,7 @@ func TestOrchestrator_IdempotentClaimCreation(t *testing.T) {
 		Type:            "GoalDefined",
 		Payload:         "test goal",
 		SourceArtefacts: []string{},
-		ProducedByRole:  "user",
+		ProducedByRole:  "user", // M3.7: GoalDefined created by user
 	}
 
 	if err := client.CreateArtefact(ctx, artefact); err != nil {

@@ -39,7 +39,6 @@ func TestPupLifecycle(t *testing.T) {
 	env := []string{
 		"HOLT_INSTANCE_NAME=test-instance",
 		"HOLT_AGENT_NAME=test-agent",
-		"HOLT_AGENT_ROLE=test-role",
 		`HOLT_AGENT_COMMAND=["/bin/sh", "-c", "echo test"]`,
 		"HOLT_BIDDING_STRATEGY=exclusive", // M3.1: Required
 		"REDIS_URL=redis://" + mr.Addr(),
@@ -244,7 +243,6 @@ func TestPupSIGINT(t *testing.T) {
 	env := []string{
 		"HOLT_INSTANCE_NAME=test-instance",
 		"HOLT_AGENT_NAME=test-agent",
-		"HOLT_AGENT_ROLE=test-role",
 		`HOLT_AGENT_COMMAND=["/bin/sh", "-c", "echo test"]`,
 		"HOLT_BIDDING_STRATEGY=exclusive", // M3.1: Required
 		"REDIS_URL=redis://" + mr.Addr(),

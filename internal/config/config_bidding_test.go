@@ -16,7 +16,6 @@ func TestAgent_Validate_BiddingStrategy(t *testing.T) {
 		{
 			name: "valid exclusive strategy",
 			agent: Agent{
-				Role:            "Test",
 				Image:           "test:latest",
 				Command:         []string{"/app/run.sh"},
 				BiddingStrategy: "exclusive",
@@ -26,7 +25,6 @@ func TestAgent_Validate_BiddingStrategy(t *testing.T) {
 		{
 			name: "valid review strategy",
 			agent: Agent{
-				Role:            "Test",
 				Image:           "test:latest",
 				Command:         []string{"/app/run.sh"},
 				BiddingStrategy: "review",
@@ -36,7 +34,6 @@ func TestAgent_Validate_BiddingStrategy(t *testing.T) {
 		{
 			name: "valid claim strategy",
 			agent: Agent{
-				Role:            "Test",
 				Image:           "test:latest",
 				Command:         []string{"/app/run.sh"},
 				BiddingStrategy: "claim",
@@ -46,7 +43,6 @@ func TestAgent_Validate_BiddingStrategy(t *testing.T) {
 		{
 			name: "valid ignore strategy",
 			agent: Agent{
-				Role:            "Test",
 				Image:           "test:latest",
 				Command:         []string{"/app/run.sh"},
 				BiddingStrategy: "ignore",
@@ -57,7 +53,6 @@ func TestAgent_Validate_BiddingStrategy(t *testing.T) {
 		{
 			name: "valid agent with only bid_script",
 			agent: Agent{
-				Role:      "Test",
 				Image:     "test:latest",
 				Command:   []string{"/app/run.sh"},
 				BidScript: []string{"/app/bid.sh"},
@@ -68,7 +63,6 @@ func TestAgent_Validate_BiddingStrategy(t *testing.T) {
 		{
 			name: "valid agent with both bid_script and bidding_strategy",
 			agent: Agent{
-				Role:            "Test",
 				Image:           "test:latest",
 				Command:         []string{"/app/run.sh"},
 				BidScript:       []string{"/app/bid.sh"},
@@ -79,7 +73,6 @@ func TestAgent_Validate_BiddingStrategy(t *testing.T) {
 		{
 			name: "missing both bidding_strategy and bid_script",
 			agent: Agent{
-				Role:    "Test",
 				Image:   "test:latest",
 				Command: []string{"/app/run.sh"},
 				// BiddingStrategy omitted, no BidScript
@@ -90,7 +83,6 @@ func TestAgent_Validate_BiddingStrategy(t *testing.T) {
 		{
 			name: "invalid bidding_strategy with bid_script",
 			agent: Agent{
-				Role:            "Test",
 				Image:           "test:latest",
 				Command:         []string{"/app/run.sh"},
 				BidScript:       []string{"/app/bid.sh"},
@@ -102,7 +94,6 @@ func TestAgent_Validate_BiddingStrategy(t *testing.T) {
 		{
 			name: "empty bidding_strategy (old test - now valid with bid_script)",
 			agent: Agent{
-				Role:      "Test",
 				Image:     "test:latest",
 				Command:   []string{"/app/run.sh"},
 				BidScript: []string{"/app/bid.sh"},

@@ -66,8 +66,7 @@ func TestE2E_AgentScriptFailure(t *testing.T) {
 	// Create temporary failing agent Dockerfile
 	failingAgentYML := `version: "1.0"
 agents:
-  failing-agent:
-    role: "Failing Agent"
+  FailingAgent:
     image: "example-agent:latest"
     command: ["/bin/sh", "-c", "echo 'Failing intentionally' >&2 && exit 1"]
     bidding_strategy: "exclusive"
@@ -123,7 +122,7 @@ services:
 	}
 
 	env.WaitForContainer("orchestrator")
-	env.WaitForContainer("agent-failing-agent")
+	env.WaitForContainer("agent-FailingAgent")
 	env.InitializeBlackboardClient()
 	t.Log("✓ Instance started with failing agent")
 
@@ -227,8 +226,7 @@ func TestE2E_InvalidToolOutput(t *testing.T) {
 	// Create agent that outputs invalid JSON
 	invalidJSONAgentYML := `version: "1.0"
 agents:
-  invalid-agent:
-    role: "Invalid JSON Agent"
+  InvalidAgent:
     image: "example-agent:latest"
     command: ["/bin/sh", "-c", "echo 'This is not valid JSON' && exit 0"]
     bidding_strategy: "exclusive"
@@ -267,7 +265,7 @@ services:
 	require.NoError(t, err)
 
 	env.WaitForContainer("orchestrator")
-	env.WaitForContainer("agent-invalid-agent")
+	env.WaitForContainer("agent-InvalidAgent")
 	env.InitializeBlackboardClient()
 	t.Log("✓ Instance started")
 

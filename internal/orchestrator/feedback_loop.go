@@ -77,13 +77,12 @@ func (e *Engine) CreateFeedbackClaim(ctx context.Context, originalClaim *blackbo
 	return nil
 }
 
-// findAgentByRole performs reverse-lookup in agent registry to find agent name by role.
-// Returns error if no agent has the specified role.
+// findAgentByRole checks if an agent with the specified role exists.
+// M3.7: Simplified - agent key IS the role, so just check if it exists in registry.
+// Returns the role (which is also the agent name) if found.
 func (e *Engine) findAgentByRole(role string) (string, error) {
-	for agentName, agentRole := range e.agentRegistry {
-		if agentRole == role {
-			return agentName, nil
-		}
+	if _, exists := e.agentRegistry[role]; exists {
+		return role, nil // Agent name = role
 	}
 	return "", fmt.Errorf("no agent found with role '%s'", role)
 }

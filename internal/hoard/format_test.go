@@ -113,8 +113,8 @@ func TestFormatTable(t *testing.T) {
 			{
 				ID:             "abc-123",
 				Type:           "GoalDefined",
+				ProducedByRole: "test-agent",
 				Payload:        "hello.txt",
-				ProducedByRole: "user",
 			},
 		}
 
@@ -125,7 +125,7 @@ func TestFormatTable(t *testing.T) {
 		assert.Contains(t, output, "Artefacts for instance 'test-instance'")
 		assert.Contains(t, output, "abc-123")
 		assert.Contains(t, output, "GoalDefined")
-		assert.Contains(t, output, "user")
+		assert.Contains(t, output, "test-agent")
 		assert.Contains(t, output, "hello.txt")
 		assert.Contains(t, output, "1 artefact found")
 		assert.Equal(t, 1, count)
@@ -136,14 +136,14 @@ func TestFormatTable(t *testing.T) {
 			{
 				ID:             "abc-123",
 				Type:           "GoalDefined",
+			ProducedByRole:  "test-agent",
 				Payload:        "hello.txt",
-				ProducedByRole: "user",
 			},
 			{
 				ID:             "def-456",
 				Type:           "CodeCommit",
+			ProducedByRole:  "test-agent",
 				Payload:        "a3f5b8c91d2e4f7a9b1c3d5e6f8a9b0c1d2e3f4a5b6c7d8e9f0a",
-				ProducedByRole: "git-agent",
 			},
 		}
 
@@ -162,8 +162,8 @@ func TestFormatTable(t *testing.T) {
 			{
 				ID:             "abc-123",
 				Type:           "Unknown",
+			ProducedByRole:  "test-agent",
 				Payload:        "",
-				ProducedByRole: "",
 			},
 		}
 
@@ -180,8 +180,8 @@ func TestFormatTable(t *testing.T) {
 			{
 				ID:             "abc-123",
 				Type:           "CodeCommit",
+			ProducedByRole:  "test-agent",
 				Payload:        strings.Repeat("x", 100),
-				ProducedByRole: "agent",
 			},
 		}
 
@@ -218,9 +218,9 @@ func TestFormatJSONArray(t *testing.T) {
 				Version:         1,
 				StructuralType:  blackboard.StructuralTypeStandard,
 				Type:            "GoalDefined",
+			ProducedByRole:  "test-agent",
 				Payload:         "hello.txt",
 				SourceArtefacts: []string{},
-				ProducedByRole:  "user",
 			},
 		}
 
@@ -247,9 +247,9 @@ func TestFormatJSONArray(t *testing.T) {
 				Version:         1,
 				StructuralType:  blackboard.StructuralTypeStandard,
 				Type:            "GoalDefined",
+			ProducedByRole:  "test-agent",
 				Payload:         "hello.txt",
 				SourceArtefacts: []string{},
-				ProducedByRole:  "user",
 			},
 			{
 				ID:              "def-456",
@@ -257,9 +257,9 @@ func TestFormatJSONArray(t *testing.T) {
 				Version:         1,
 				StructuralType:  blackboard.StructuralTypeStandard,
 				Type:            "CodeCommit",
+			ProducedByRole:  "test-agent",
 				Payload:         "a3f5b8c91d2e4f7a9b1c3d5e6f8a9b0c1d2e3f4a5b6c7d8e9f0a",
 				SourceArtefacts: []string{"abc-123"},
-				ProducedByRole:  "git-agent",
 			},
 		}
 
@@ -292,9 +292,9 @@ func TestFormatJSONArray(t *testing.T) {
 				Version:         1,
 				StructuralType:  blackboard.StructuralTypeStandard,
 				Type:            "Config",
+			ProducedByRole:  "test-agent",
 				Payload:         "line1\nline2\nline3",
 				SourceArtefacts: []string{},
-				ProducedByRole:  "user",
 			},
 		}
 
@@ -320,9 +320,9 @@ func TestFormatSingleJSON(t *testing.T) {
 			Version:         1,
 			StructuralType:  blackboard.StructuralTypeStandard,
 			Type:            "GoalDefined",
+			ProducedByRole:  "test-agent",
 			Payload:         "hello.txt",
 			SourceArtefacts: []string{},
-			ProducedByRole:  "user",
 		}
 
 		var buf bytes.Buffer
@@ -345,9 +345,9 @@ func TestFormatSingleJSON(t *testing.T) {
 			Version:         2,
 			StructuralType:  blackboard.StructuralTypeReview,
 			Type:            "ReviewFeedback",
+			ProducedByRole:  "test-agent",
 			Payload:         "Some feedback\nwith multiple lines",
 			SourceArtefacts: []string{"abc-123", "xyz-789"},
-			ProducedByRole:  "reviewer-agent",
 		}
 
 		var buf bytes.Buffer
@@ -366,7 +366,7 @@ func TestFormatSingleJSON(t *testing.T) {
 		assert.Equal(t, "ReviewFeedback", result.Type)
 		assert.Equal(t, "Some feedback\nwith multiple lines", result.Payload)
 		assert.Equal(t, []string{"abc-123", "xyz-789"}, result.SourceArtefacts)
-		assert.Equal(t, "reviewer-agent", result.ProducedByRole)
+		assert.Equal(t, "test-agent", result.ProducedByRole)
 	})
 
 	t.Run("pretty printed with indentation", func(t *testing.T) {
@@ -376,9 +376,9 @@ func TestFormatSingleJSON(t *testing.T) {
 			Version:         1,
 			StructuralType:  blackboard.StructuralTypeStandard,
 			Type:            "Test",
+			ProducedByRole:  "test-agent",
 			Payload:         "test",
 			SourceArtefacts: []string{},
-			ProducedByRole:  "user",
 		}
 
 		var buf bytes.Buffer

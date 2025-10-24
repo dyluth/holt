@@ -19,7 +19,7 @@ func TestPrepareToolInput(t *testing.T) {
 		config: &Config{
 			InstanceName: "test-instance",
 			AgentName:    "example-agent",
-			AgentRole:    "example",
+			// M3.7: AgentRole removed - AgentName IS the role
 		},
 		bbClient: nil, // Not needed for root artefact (empty source_artefacts)
 	}
@@ -38,7 +38,6 @@ func TestPrepareToolInput(t *testing.T) {
 		StructuralType:  blackboard.StructuralTypeStandard,
 		Type:            "GoalDefined",
 		Payload:         "Implement user login",
-		ProducedByRole:  "user",
 		SourceArtefacts: []string{}, // No sources = root artefact
 	}
 
@@ -154,7 +153,7 @@ func TestCreateResultArtefact_Provenance(t *testing.T) {
 
 	engine := &Engine{
 		config: &Config{
-			AgentRole: "example",
+			// M3.7: AgentRole removed - AgentName IS the role
 		},
 	}
 

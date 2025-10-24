@@ -145,22 +145,23 @@ func (e *Engine) GrantExclusivePhase(ctx context.Context, claim *blackboard.Clai
 	winner := SelectExclusiveWinner(exclusiveBidders)
 
 	// M3.4: Check if winner is a controller
+	// M3.7: winner IS the role (agent key from holt.yml)
 	agent, agentExists := e.config.Agents[winner]
 	if agentExists && agent.Mode == "controller" {
 		// Controller-worker pattern: check max_concurrent limit
-		if e.workerManager != nil && e.workerManager.IsAtWorkerLimit(agent.Role, agent.Worker.MaxConcurrent) {
+		if e.workerManager != nil && e.workerManager.IsAtWorkerLimit(winner, agent.Worker.MaxConcurrent) {
 			// M3.5: At max_concurrent limit - pause granting using persistent queue
 			e.logEvent("worker_limit_reached", map[string]interface{}{
-				"role":           agent.Role,
+				"role":           winner,
 				"max_concurrent": agent.Worker.MaxConcurrent,
 				"claim_id":       claim.ID,
 			})
 
 			log.Printf("[Orchestrator] Role '%s' at max_concurrent worker limit (%d), pausing claim %s in grant queue",
-				agent.Role, agent.Worker.MaxConcurrent, claim.ID)
+				winner, agent.Worker.MaxConcurrent, claim.ID)
 
-			// M3.5: Add to persistent grant queue
-			if err := e.pauseGrantForQueue(ctx, claim, winner, agent.Role); err != nil {
+			// M3.5: Add to persistent grant queue (role = winner)
+			if err := e.pauseGrantForQueue(ctx, claim, winner, winner); err != nil {
 				log.Printf("[Orchestrator] Failed to pause claim in grant queue: %v", err)
 				return fmt.Errorf("failed to pause claim in grant queue: %w", err)
 			}

@@ -16,7 +16,7 @@ structural_type: Standard|Review|Question|Answer|Failure|Terminal
 type: user-defined string (e.g., "CodeCommit", "DesignSpec")
 payload: string (git hash, JSON, text)
 source_artefacts: JSON array of UUIDs
-produced_by_role: string (agent's 'role' from holt.yml or 'user')
+produced_by_role: string (agent key from holt.yml, which IS the role, or 'user')
 ```
 
 ### **Claim (Redis Hash)**
@@ -118,7 +118,7 @@ pending_review → pending_parallel → pending_exclusive → complete
 ### **Agent Pup**
 ```
 HOLT_INSTANCE_NAME     # Holt instance identifier
-HOLT_AGENT_NAME        # Agent logical name from holt.yml  
+HOLT_AGENT_NAME        # Agent key from holt.yml (which IS the role) - M3.7
 REDIS_URL              # Blackboard connection
 HOLT_PROMPT_CLAIM      # Claim evaluation prompt
 HOLT_PROMPT_EXECUTION  # Execution prompt

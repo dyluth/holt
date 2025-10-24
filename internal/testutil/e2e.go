@@ -248,17 +248,17 @@ func (env *E2EEnvironment) InitializeBlackboardClient() {
 // WaitForContainer waits for a container to be running (up to 30 seconds)
 // containerNameSuffix: "orchestrator", "redis", or "agent-{agent-name}"
 func (env *E2EEnvironment) WaitForContainer(containerNameSuffix string) {
-	// Container naming patterns:
+	// Container naming patterns (M3.7):
 	// - orchestrator/redis: holt-{component}-{instance-name}
-	// - agents: holt-agent-{instance-name}-{agent-name}
+	// - agents: holt-{instance-name}-{role} (role IS agent key from holt.yml)
 	var fullName string
 	if containerNameSuffix == "orchestrator" || containerNameSuffix == "redis" {
 		fullName = fmt.Sprintf("holt-%s-%s", containerNameSuffix, env.InstanceName)
 	} else {
 		// Agent pattern: containerNameSuffix is "agent-{agent-name}"
-		// Result: holt-agent-{instance-name}-{agent-name}
-		agentName := containerNameSuffix[6:] // Remove "agent-" prefix
-		fullName = fmt.Sprintf("holt-agent-%s-%s", env.InstanceName, agentName)
+		// Result: holt-{instance-name}-{role} (M3.7: dropped "agent" prefix)
+		agentName := containerNameSuffix[6:] // Remove "agent-" prefix to get role
+		fullName = fmt.Sprintf("holt-%s-%s", env.InstanceName, agentName)
 	}
 
 	var lastState string
@@ -399,7 +399,8 @@ func (env *E2EEnvironment) WaitForArtefactByType(artefactType string) *blackboar
 		if containerSuffix == "orchestrator" {
 			fullName = fmt.Sprintf("holt-orchestrator-%s", env.InstanceName)
 		} else {
-			fullName = fmt.Sprintf("holt-agent-%s-git-agent", env.InstanceName)
+			// M3.7: Agent container naming changed from holt-agent-{instance}-{role} to holt-{instance}-{role}
+			fullName = fmt.Sprintf("holt-%s-git-agent", env.InstanceName)
 		}
 
 		logs, logErr := env.DockerClient.ContainerLogs(env.Ctx, fullName, container.LogsOptions{
@@ -475,8 +476,7 @@ services:
 func GitAgentHoltYML() string {
 	return `version: "1.0"
 agents:
-  git-agent:
-    role: "Git Agent"
+  GitAgent:
     image: "example-git-agent:latest"
     command: ["/app/run.sh"]
     bidding_strategy: "exclusive"
@@ -492,8 +492,7 @@ services:
 func EchoAgentHoltYML() string {
 	return `version: "1.0"
 agents:
-  echo-agent:
-    role: "Echo Agent"
+  EchoAgent:
     image: "example-agent:latest"
     command: ["/app/run.sh"]
     bidding_strategy: "exclusive"
@@ -509,22 +508,19 @@ services:
 func ThreePhaseHoltYML() string {
 	return `version: "1.0"
 agents:
-  reviewer:
-    role: "Reviewer"
+  Reviewer:
     image: "example-reviewer-agent:latest"
     command: ["/app/run.sh"]
     bidding_strategy: "review"
     workspace:
       mode: ro
-  parallel-worker:
-    role: "ParallelWorker"
+  ParallelWorker:
     image: "example-parallel-agent:latest"
     command: ["/app/run.sh"]
     bidding_strategy: "claim"
     workspace:
       mode: ro
-  coder:
-    role: "Coder"
+  Coder:
     image: "example-git-agent:latest"
     command: ["/app/run.sh"]
     bidding_strategy: "exclusive"

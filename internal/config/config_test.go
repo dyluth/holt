@@ -32,7 +32,7 @@ agents:
 	assert.NotNil(t, config)
 	assert.Equal(t, "1.0", config.Version)
 	assert.Len(t, config.Agents, 1)
-	assert.Equal(t, "Example Agent", config.Agents["example-agent"].Role)
+	// M3.7: Role field removed - agent key IS the role
 	assert.Equal(t, []string{"./run.sh"}, config.Agents["example-agent"].Command)
 }
 
@@ -67,7 +67,6 @@ func TestValidate_UnsupportedVersion(t *testing.T) {
 		Version: "2.0",
 		Agents: map[string]Agent{
 			"test": {
-				Role:            "Test",
 				Image:           "test:latest",
 				Command:         []string{"test"},
 				BiddingStrategy: "exclusive",
@@ -99,12 +98,11 @@ func TestAgentValidate_MissingRole(t *testing.T) {
 
 	err := agent.Validate("test-agent")
 	assert.Error(t, err)
-	assert.Contains(t, err.Error(), "role is required")
+	// M3.7: No role field validation needed - role check removed
 }
 
 func TestAgentValidate_MissingImage(t *testing.T) {
 	agent := Agent{
-		Role:    "Test Agent",
 		Command: []string{"./run.sh"},
 	}
 
@@ -115,7 +113,6 @@ func TestAgentValidate_MissingImage(t *testing.T) {
 
 func TestAgentValidate_MissingCommand(t *testing.T) {
 	agent := Agent{
-		Role:    "Test Agent",
 		Image:   "test-agent:latest",
 		Command: []string{},
 	}
@@ -127,7 +124,6 @@ func TestAgentValidate_MissingCommand(t *testing.T) {
 
 func TestAgentValidate_InvalidBuildContext(t *testing.T) {
 	agent := Agent{
-		Role:            "Test Agent",
 		Image:           "test-agent:latest",
 		Command:         []string{"./run.sh"},
 		BiddingStrategy: "exclusive",
@@ -145,7 +141,6 @@ func TestAgentValidate_ValidBuildContext(t *testing.T) {
 	tmpDir := t.TempDir()
 
 	agent := Agent{
-		Role:            "Test Agent",
 		Image:           "test-agent:latest",
 		Command:         []string{"./run.sh"},
 		BiddingStrategy: "exclusive",
@@ -160,7 +155,6 @@ func TestAgentValidate_ValidBuildContext(t *testing.T) {
 
 func TestAgentValidate_InvalidWorkspaceMode(t *testing.T) {
 	agent := Agent{
-		Role:            "Test Agent",
 		Image:           "test-agent:latest",
 		Command:         []string{"./run.sh"},
 		BiddingStrategy: "exclusive",
@@ -178,7 +172,6 @@ func TestAgentValidate_ValidWorkspaceModes(t *testing.T) {
 	modes := []string{"ro", "rw"}
 	for _, mode := range modes {
 		agent := Agent{
-			Role:            "Test Agent",
 			Image:           "test-agent:latest",
 			Command:         []string{"./run.sh"},
 			BiddingStrategy: "exclusive",
@@ -194,7 +187,6 @@ func TestAgentValidate_ValidWorkspaceModes(t *testing.T) {
 
 func TestAgentValidate_InvalidStrategy(t *testing.T) {
 	agent := Agent{
-		Role:            "Test Agent",
 		Image:           "test-agent:latest",
 		Command:         []string{"./run.sh"},
 		BiddingStrategy: "exclusive",
@@ -210,7 +202,6 @@ func TestAgentValidate_ValidStrategies(t *testing.T) {
 	strategies := []string{"reuse", "fresh_per_call"}
 	for _, strategy := range strategies {
 		agent := Agent{
-			Role:            "Test Agent",
 			Image:           "test-agent:latest",
 			Command:         []string{"./run.sh"},
 			BiddingStrategy: "exclusive",
@@ -280,7 +271,7 @@ services:
 	assert.Len(t, config.Agents, 2)
 
 	designer := config.Agents["designer"]
-	assert.Equal(t, "Design Agent", designer.Role)
+	// M3.7: Role field removed - agent key IS the role
 	assert.Equal(t, []string{"python", "design.py"}, designer.Command)
 	assert.NotNil(t, designer.Build)
 	assert.Equal(t, buildContext, designer.Build.Context)
@@ -298,7 +289,7 @@ services:
 	assert.Equal(t, "Evaluate this design task", designer.Prompts.Claim)
 
 	coder := config.Agents["coder"]
-	assert.Equal(t, "Code Agent", coder.Role)
+	// M3.7: Role field removed - agent key IS the role
 	assert.Equal(t, []string{"./code.sh"}, coder.Command)
 
 	// Verify services
@@ -310,94 +301,106 @@ services:
 }
 
 // M3.2: Test unique role validation
-func TestValidate_DuplicateRoles(t *testing.T) {
-	config := &HoltConfig{
-		Version: "1.0",
-		Agents: map[string]Agent{
-			"agent-1": {
-				Role:            "Coder",
-				Image:           "agent1:latest",
-				Command:         []string{"./run.sh"},
-				BiddingStrategy: "exclusive",
-			},
-			"agent-2": {
-				Role:            "Coder",
-				Image:           "agent2:latest",
-				Command:         []string{"./run.sh"},
-				BiddingStrategy: "exclusive",
-			},
-		},
-	}
+// M3.7: Removed - map keys guarantee uniqueness - func TestValidate_DuplicateRoles(t *testing.T) {
+// M3.7: Removed - map keys guarantee uniqueness - 	config := &HoltConfig{
+// M3.7: Removed - map keys guarantee uniqueness - 		Version: "1.0",
+// M3.7: Removed - map keys guarantee uniqueness - 		Agents: map[string]Agent{
+// M3.7: Removed - map keys guarantee uniqueness - 			"agent-1": {
+// M3.7: Removed - map keys guarantee uniqueness - 				Image:           "agent1:latest",
+// M3.7: Removed - map keys guarantee uniqueness - 				Command:         []string{"./run.sh"},
+// M3.7: Removed - map keys guarantee uniqueness - 				BiddingStrategy: "exclusive",
+// M3.7: Removed - map keys guarantee uniqueness - 			},
+// M3.7: Removed - map keys guarantee uniqueness - 			"agent-2": {
+// M3.7: Removed - map keys guarantee uniqueness - 				Image:           "agent2:latest",
+// M3.7: Removed - map keys guarantee uniqueness - 				Command:         []string{"./run.sh"},
+// M3.7: Removed - map keys guarantee uniqueness - 				BiddingStrategy: "exclusive",
+// M3.7: Removed - map keys guarantee uniqueness - 			},
+// M3.7: Removed - map keys guarantee uniqueness - 		},
+// M3.7: Removed - map keys guarantee uniqueness - 	}
+// M3.7: Removed - map keys guarantee uniqueness - 
+// M3.7: Removed - map keys guarantee uniqueness - 	err := config.Validate()
+// M3.7: Removed - map keys guarantee uniqueness - 	assert.Error(t, err)
+// M3.7: Removed - map keys guarantee uniqueness - 	assert.Contains(t, err.Error(), "duplicate agent role 'Coder' found")
+// M3.7: Removed - map keys guarantee uniqueness - 	assert.Contains(t, err.Error(), "agent-1")
+// M3.7: Removed - map keys guarantee uniqueness - 	assert.Contains(t, err.Error(), "agent-2")
+// M3.7: Removed - map keys guarantee uniqueness - 	assert.Contains(t, err.Error(), "all agents must have unique roles in Phase 3")
+// M3.7: Removed - map keys guarantee uniqueness - }
+// M3.7: Removed - map keys guarantee uniqueness - 
+// M3.7: Removed - map keys guarantee uniqueness - func TestValidate_UniqueRoles(t *testing.T) {
+// M3.7: Removed - map keys guarantee uniqueness - 	config := &HoltConfig{
+// M3.7: Removed - map keys guarantee uniqueness - 		Version: "1.0",
+// M3.7: Removed - map keys guarantee uniqueness - 		Agents: map[string]Agent{
+// M3.7: Removed - map keys guarantee uniqueness - 			"reviewer": {
+// M3.7: Removed - map keys guarantee uniqueness - 				Image:           "reviewer:latest",
+// M3.7: Removed - map keys guarantee uniqueness - 				Command:         []string{"./review.sh"},
+// M3.7: Removed - map keys guarantee uniqueness - 				BiddingStrategy: "review",
+// M3.7: Removed - map keys guarantee uniqueness - 			},
+// M3.7: Removed - map keys guarantee uniqueness - 			"tester": {
+// M3.7: Removed - map keys guarantee uniqueness - 				Image:           "tester:latest",
+// M3.7: Removed - map keys guarantee uniqueness - 				Command:         []string{"./test.sh"},
+// M3.7: Removed - map keys guarantee uniqueness - 				BiddingStrategy: "claim",
+// M3.7: Removed - map keys guarantee uniqueness - 			},
+// M3.7: Removed - map keys guarantee uniqueness - 			"coder": {
+// M3.7: Removed - map keys guarantee uniqueness - 				Image:           "coder:latest",
+// M3.7: Removed - map keys guarantee uniqueness - 				Command:         []string{"./code.sh"},
+// M3.7: Removed - map keys guarantee uniqueness - 				BiddingStrategy: "exclusive",
+// M3.7: Removed - map keys guarantee uniqueness - 			},
+// M3.7: Removed - map keys guarantee uniqueness - 		},
+// M3.7: Removed - map keys guarantee uniqueness - 	}
+// M3.7: Removed - map keys guarantee uniqueness - 
+// M3.7: Removed - map keys guarantee uniqueness - 	err := config.Validate()
+// M3.7: Removed - map keys guarantee uniqueness - 	assert.NoError(t, err)
+// M3.7: Removed - map keys guarantee uniqueness - }
 
-	err := config.Validate()
-	assert.Error(t, err)
-	assert.Contains(t, err.Error(), "duplicate agent role 'Coder' found")
-	assert.Contains(t, err.Error(), "agent-1")
-	assert.Contains(t, err.Error(), "agent-2")
-	assert.Contains(t, err.Error(), "all agents must have unique roles in Phase 3")
-}
-
-func TestValidate_UniqueRoles(t *testing.T) {
-	config := &HoltConfig{
-		Version: "1.0",
-		Agents: map[string]Agent{
-			"reviewer": {
-				Role:            "Reviewer",
-				Image:           "reviewer:latest",
-				Command:         []string{"./review.sh"},
-				BiddingStrategy: "review",
-			},
-			"tester": {
-				Role:            "Tester",
-				Image:           "tester:latest",
-				Command:         []string{"./test.sh"},
-				BiddingStrategy: "claim",
-			},
-			"coder": {
-				Role:            "Coder",
-				Image:           "coder:latest",
-				Command:         []string{"./code.sh"},
-				BiddingStrategy: "exclusive",
-			},
-		},
-	}
-
-	err := config.Validate()
-	assert.NoError(t, err)
-}
-
-func TestValidate_MultipleDuplicateRoles(t *testing.T) {
-	config := &HoltConfig{
-		Version: "1.0",
-		Agents: map[string]Agent{
-			"agent-1": {
-				Role:            "Coder",
-				Image:           "agent1:latest",
-				Command:         []string{"./run.sh"},
-				BiddingStrategy: "exclusive",
-			},
-			"agent-2": {
-				Role:            "Coder",
-				Image:           "agent2:latest",
-				Command:         []string{"./run.sh"},
-				BiddingStrategy: "exclusive",
-			},
-			"agent-3": {
-				Role:            "Reviewer",
-				Image:           "agent3:latest",
-				Command:         []string{"./run.sh"},
-				BiddingStrategy: "review",
-			},
-		},
-	}
-
-	// Should catch the first duplicate it encounters
-	err := config.Validate()
-	assert.Error(t, err)
-	assert.Contains(t, err.Error(), "duplicate agent role")
-}
-
-// M3.3: Orchestrator config validation tests
+// M3.7: Removed - map keys guarantee uniqueness - func TestValidate_MultipleDuplicateRoles(t *testing.T) {
+// M3.7: Removed - map keys guarantee uniqueness - 	config := &HoltConfig{
+// M3.7: Removed - map keys guarantee uniqueness - 		Version: "1.0",
+// M3.7: Removed - map keys guarantee uniqueness - 		Agents: map[string]Agent{
+// M3.7: Removed - map keys guarantee uniqueness - 			"agent-1": {
+// M3.7: Removed - map keys guarantee uniqueness - 				Image:           "agent1:latest",
+// M3.7: Removed - map keys guarantee uniqueness - 				Command:         []string{"./run.sh"},
+// M3.7: Removed - map keys guarantee uniqueness - 				BiddingStrategy: "exclusive",
+// M3.7: Removed - map keys guarantee uniqueness - 			},
+// M3.7: Removed - map keys guarantee uniqueness - 			"agent-2": {
+// M3.7: Removed - map keys guarantee uniqueness - 				Image:           "agent2:latest",
+// M3.7: Removed - map keys guarantee uniqueness - 				Command:         []string{"./run.sh"},
+// M3.7: Removed - map keys guarantee uniqueness - 				BiddingStrategy: "exclusive",
+// M3.7: Removed - map keys guarantee uniqueness - 			},
+// M3.7: Removed - map keys guarantee uniqueness - 			"agent-3": {
+// M3.7: Removed - map keys guarantee uniqueness - 				Image:           "agent3:latest",
+// M3.7: Removed - map keys guarantee uniqueness - 				Command:         []string{"./run.sh"},
+// M3.7: Removed - map keys guarantee uniqueness - 				BiddingStrategy: "review",
+// M3.7: Removed - map keys guarantee uniqueness - 			},
+// M3.7: Removed - map keys guarantee uniqueness - 		},
+// M3.7: Removed - map keys guarantee uniqueness - 	}
+// M3.7: Removed - map keys guarantee uniqueness - 
+// M3.7: Removed - map keys guarantee uniqueness - 	// Should catch the first duplicate it encounters
+// M3.7: Removed - map keys guarantee uniqueness - 	err := config.Validate()
+// M3.7: Removed - map keys guarantee uniqueness - 	assert.Error(t, err)
+// M3.7: Removed - map keys guarantee uniqueness - 	assert.Contains(t, err.Error(), "duplicate agent role")
+// M3.7: Removed - map keys guarantee uniqueness - }
+// M3.7: Removed - map keys guarantee uniqueness - 
+// M3.7: Removed - map keys guarantee uniqueness - // M3.3: Orchestrator config validation tests
+// M3.7: Removed - map keys guarantee uniqueness - 
+// M3.7: Removed - map keys guarantee uniqueness - func TestValidate_OrchestratorConfig_DefaultValue(t *testing.T) {
+// M3.7: Removed - map keys guarantee uniqueness - 	config := &HoltConfig{
+// M3.7: Removed - map keys guarantee uniqueness - 		Version: "1.0",
+// M3.7: Removed - map keys guarantee uniqueness - 		// Orchestrator section omitted - should default to 3
+// M3.7: Removed - map keys guarantee uniqueness - 		Agents: map[string]Agent{
+// M3.7: Removed - map keys guarantee uniqueness - 			"test": {
+// M3.7: Removed - map keys guarantee uniqueness - 				Image:           "test:latest",
+// M3.7: Removed - map keys guarantee uniqueness - 				Command:         []string{"test"},
+// M3.7: Removed - map keys guarantee uniqueness - 				BiddingStrategy: "exclusive",
+// M3.7: Removed - map keys guarantee uniqueness - 			},
+// M3.7: Removed - map keys guarantee uniqueness - 		},
+// M3.7: Removed - map keys guarantee uniqueness - 	}
+// M3.7: Removed - map keys guarantee uniqueness -
+// M3.7: Removed - map keys guarantee uniqueness - 	err := config.Validate()
+// M3.7: Removed - map keys guarantee uniqueness - 	assert.NoError(t, err)
+// M3.7: Removed - map keys guarantee uniqueness - 	assert.NotNil(t, config.Orchestrator, "Orchestrator config should be initialized with defaults")
+// M3.7: Removed - map keys guarantee uniqueness - 	assert.NotNil(t, config.Orchestrator.MaxReviewIterations, "MaxReviewIterations should not be nil")
+// M3.7: Removed - map keys guarantee uniqueness - 	assert.Equal(t, 3, *config.Orchestrator.MaxReviewIterations, "Default max_review_iterations should be 3")
+// M3.7: Removed - map keys guarantee uniqueness - }
 
 func TestValidate_OrchestratorConfig_DefaultValue(t *testing.T) {
 	config := &HoltConfig{
@@ -405,7 +408,6 @@ func TestValidate_OrchestratorConfig_DefaultValue(t *testing.T) {
 		// Orchestrator section omitted - should default to 3
 		Agents: map[string]Agent{
 			"test": {
-				Role:            "Test",
 				Image:           "test:latest",
 				Command:         []string{"test"},
 				BiddingStrategy: "exclusive",
@@ -428,7 +430,6 @@ func TestValidate_OrchestratorConfig_DefaultWhenSectionExists(t *testing.T) {
 		},
 		Agents: map[string]Agent{
 			"test": {
-				Role:            "Test",
 				Image:           "test:latest",
 				Command:         []string{"test"},
 				BiddingStrategy: "exclusive",
@@ -464,7 +465,6 @@ func TestValidate_OrchestratorConfig_ValidValues(t *testing.T) {
 				},
 				Agents: map[string]Agent{
 					"test": {
-						Role:            "Test",
 						Image:           "test:latest",
 						Command:         []string{"test"},
 						BiddingStrategy: "exclusive",
@@ -488,7 +488,6 @@ func TestValidate_OrchestratorConfig_NegativeValue(t *testing.T) {
 		},
 		Agents: map[string]Agent{
 			"test": {
-				Role:            "Test",
 				Image:           "test:latest",
 				Command:         []string{"test"},
 				BiddingStrategy: "exclusive",
@@ -533,7 +532,6 @@ agents:
 
 func TestAgentValidate_ControllerWithValidWorker(t *testing.T) {
 	agent := Agent{
-		Role:            "Coder",
 		Image:           "coder-controller:latest",
 		Command:         []string{"./controller.sh"},
 		BiddingStrategy: "exclusive",
@@ -554,7 +552,6 @@ func TestAgentValidate_ControllerWithValidWorker(t *testing.T) {
 
 func TestAgentValidate_ControllerMissingWorkerConfig(t *testing.T) {
 	agent := Agent{
-		Role:            "Coder",
 		Image:           "coder:latest",
 		Command:         []string{"./run.sh"},
 		BiddingStrategy: "exclusive",
@@ -569,7 +566,6 @@ func TestAgentValidate_ControllerMissingWorkerConfig(t *testing.T) {
 
 func TestAgentValidate_ControllerWorkerMissingImage(t *testing.T) {
 	agent := Agent{
-		Role:            "Coder",
 		Image:           "coder:latest",
 		Command:         []string{"./run.sh"},
 		BiddingStrategy: "exclusive",
@@ -587,7 +583,6 @@ func TestAgentValidate_ControllerWorkerMissingImage(t *testing.T) {
 
 func TestAgentValidate_ControllerWorkerMissingCommand(t *testing.T) {
 	agent := Agent{
-		Role:            "Coder",
 		Image:           "coder:latest",
 		Command:         []string{"./run.sh"},
 		BiddingStrategy: "exclusive",
@@ -605,7 +600,6 @@ func TestAgentValidate_ControllerWorkerMissingCommand(t *testing.T) {
 
 func TestAgentValidate_ControllerWorkerDefaultMaxConcurrent(t *testing.T) {
 	agent := Agent{
-		Role:            "Coder",
 		Image:           "coder:latest",
 		Command:         []string{"./run.sh"},
 		BiddingStrategy: "exclusive",
@@ -624,7 +618,6 @@ func TestAgentValidate_ControllerWorkerDefaultMaxConcurrent(t *testing.T) {
 
 func TestAgentValidate_ControllerWorkerNegativeMaxConcurrent(t *testing.T) {
 	agent := Agent{
-		Role:            "Coder",
 		Image:           "coder:latest",
 		Command:         []string{"./run.sh"},
 		BiddingStrategy: "exclusive",
@@ -654,7 +647,6 @@ func TestAgentValidate_ControllerWorkerValidMaxConcurrent(t *testing.T) {
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			agent := Agent{
-				Role:            "Coder",
 				Image:           "coder:latest",
 				Command:         []string{"./run.sh"},
 				BiddingStrategy: "exclusive",
@@ -675,7 +667,6 @@ func TestAgentValidate_ControllerWorkerValidMaxConcurrent(t *testing.T) {
 
 func TestAgentValidate_ControllerWorkerInvalidWorkspaceMode(t *testing.T) {
 	agent := Agent{
-		Role:            "Coder",
 		Image:           "coder:latest",
 		Command:         []string{"./run.sh"},
 		BiddingStrategy: "exclusive",
@@ -707,7 +698,6 @@ func TestAgentValidate_ControllerWorkerValidWorkspaceModes(t *testing.T) {
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			agent := Agent{
-				Role:            "Coder",
 				Image:           "coder:latest",
 				Command:         []string{"./run.sh"},
 				BiddingStrategy: "exclusive",
@@ -729,7 +719,6 @@ func TestAgentValidate_ControllerWorkerValidWorkspaceModes(t *testing.T) {
 
 func TestAgentValidate_UnknownMode(t *testing.T) {
 	agent := Agent{
-		Role:            "Coder",
 		Image:           "coder:latest",
 		Command:         []string{"./run.sh"},
 		BiddingStrategy: "exclusive",
@@ -744,7 +733,6 @@ func TestAgentValidate_UnknownMode(t *testing.T) {
 
 func TestAgentValidate_TraditionalAgentNoMode(t *testing.T) {
 	agent := Agent{
-		Role:            "Coder",
 		Image:           "coder:latest",
 		Command:         []string{"./run.sh"},
 		BiddingStrategy: "exclusive",
@@ -785,7 +773,7 @@ agents:
 
 	// Verify controller configuration
 	controller := config.Agents["coder-controller"]
-	assert.Equal(t, "Coder", controller.Role)
+	// M3.7: Role field removed - agent key IS the role
 	assert.Equal(t, "controller", controller.Mode)
 	assert.Equal(t, "coder:latest", controller.Image)
 

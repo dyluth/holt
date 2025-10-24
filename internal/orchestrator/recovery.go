@@ -212,10 +212,11 @@ func (e *Engine) recoverGrantQueues(ctx context.Context) error {
 	log.Printf("[Orchestrator] Recovering grant queues...")
 
 	// Build set of unique roles from config
+	// M3.7: Agent key IS the role
 	roles := make(map[string]bool)
-	for _, agent := range e.config.Agents {
+	for role, agent := range e.config.Agents {
 		if agent.Mode == "controller" {
-			roles[agent.Role] = true
+			roles[role] = true
 		}
 	}
 

@@ -59,6 +59,18 @@ func OrchestratorContainerName(instanceName string) string {
 }
 
 // AgentContainerName returns the agent container name for an instance and agent
-func AgentContainerName(instanceName, agentName string) string {
-	return fmt.Sprintf("holt-agent-%s-%s", instanceName, agentName)
+// M3.7: Now uses role-based naming (agentRole = agent key from holt.yml)
+func AgentContainerName(instanceName, agentRole string) string {
+	return fmt.Sprintf("holt-%s-%s", instanceName, agentRole)
+}
+
+// WorkerContainerName returns the worker container name for controller-worker pattern
+// M3.7: Role-based naming for ephemeral workers
+func WorkerContainerName(instanceName, agentRole, claimID string) string {
+	// Use first 8 chars of claim ID for readability
+	shortClaimID := claimID
+	if len(claimID) > 8 {
+		shortClaimID = claimID[:8]
+	}
+	return fmt.Sprintf("holt-%s-%s-worker-%s", instanceName, agentRole, shortClaimID)
 }

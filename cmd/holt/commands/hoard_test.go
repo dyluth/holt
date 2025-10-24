@@ -57,9 +57,9 @@ func TestHoardCommand_Integration(t *testing.T) {
 				Version:         1,
 				StructuralType:  blackboard.StructuralTypeStandard,
 				Type:            "GoalDefined",
+				ProducedByRole:  "test-agent",
 				Payload:         "hello-from-holt.txt",
 				SourceArtefacts: []string{},
-				ProducedByRole:  "user",
 			},
 			{
 				ID:              "550e8400-e29b-41d4-a716-446655440002",
@@ -67,9 +67,9 @@ func TestHoardCommand_Integration(t *testing.T) {
 				Version:         1,
 				StructuralType:  blackboard.StructuralTypeStandard,
 				Type:            "CodeCommit",
+				ProducedByRole:  "test-agent",
 				Payload:         "a3f5b8c91d2e4f7a9b1c3d5e6f8a9b0c1d2e3f4a5b6c7d8e9f0a1b2c3d4e5f6",
 				SourceArtefacts: []string{"550e8400-e29b-41d4-a716-446655440001"},
-				ProducedByRole:  "git-agent",
 			},
 		}
 
@@ -103,9 +103,9 @@ func TestHoardCommand_Integration(t *testing.T) {
 			Version:         1,
 			StructuralType:  blackboard.StructuralTypeStandard,
 			Type:            "GoalDefined",
+				ProducedByRole:  "test-agent",
 			Payload:         "hello-from-holt.txt",
 			SourceArtefacts: []string{},
-			ProducedByRole:  "user",
 		}
 
 		err = bbClient.CreateArtefact(ctx, artefact)
@@ -157,9 +157,9 @@ func TestHoardCommand_Integration(t *testing.T) {
 				Version:         1,
 				StructuralType:  blackboard.StructuralTypeStandard,
 				Type:            "GoalDefined",
+				ProducedByRole:  "test-agent",
 				Payload:         "test.txt",
 				SourceArtefacts: []string{},
-				ProducedByRole:  "user",
 			},
 			{
 				ID:              "550e8400-e29b-41d4-a716-446655440002",
@@ -167,9 +167,9 @@ func TestHoardCommand_Integration(t *testing.T) {
 				Version:         1,
 				StructuralType:  blackboard.StructuralTypeStandard,
 				Type:            "CodeCommit",
+				ProducedByRole:  "test-agent",
 				Payload:         "abc123",
 				SourceArtefacts: []string{"550e8400-e29b-41d4-a716-446655440001"},
-				ProducedByRole:  "git-agent",
 			},
 		}
 
@@ -215,9 +215,9 @@ func TestHoardCommand_Integration(t *testing.T) {
 			Version:         1,
 			StructuralType:  blackboard.StructuralTypeStandard,
 			Type:            "Valid",
+				ProducedByRole:  "test-agent",
 			Payload:         "valid",
 			SourceArtefacts: []string{},
-			ProducedByRole:  "user",
 		}
 		err = bbClient.CreateArtefact(ctx, validArtefact)
 		require.NoError(t, err)
@@ -271,9 +271,9 @@ func TestHoardCommand_OutputValidation(t *testing.T) {
 			Version:         1,
 			StructuralType:  blackboard.StructuralTypeStandard,
 			Type:            "Test",
+				ProducedByRole:  "test-agent",
 			Payload:         "test",
 			SourceArtefacts: []string{},
-			ProducedByRole:  "user",
 		}
 		err = bbClient.CreateArtefact(ctx, artefact)
 		require.NoError(t, err)
@@ -364,9 +364,9 @@ func TestHoardCommand_SortingBehavior(t *testing.T) {
 				Version:         1,
 				StructuralType:  blackboard.StructuralTypeStandard,
 				Type:            "Test",
+				ProducedByRole:  "test-agent",
 				Payload:         "test",
 				SourceArtefacts: []string{},
-				ProducedByRole:  "user",
 			}
 			err = bbClient.CreateArtefact(ctx, artefact)
 			require.NoError(t, err)

@@ -99,9 +99,9 @@ func TestE2E_Phase3_ThreePhaseWorkflow(t *testing.T) {
 
 	// Wait for all containers to be ready
 	env.WaitForContainer("orchestrator")
-	env.WaitForContainer("agent-reviewer")
-	env.WaitForContainer("agent-parallel-worker")
-	env.WaitForContainer("agent-coder")
+	env.WaitForContainer("agent-Reviewer")
+	env.WaitForContainer("agent-ParallelWorker")
+	env.WaitForContainer("agent-Coder")
 
 	// Initialize blackboard client
 	env.InitializeBlackboardClient()
@@ -143,9 +143,9 @@ func TestE2E_Phase3_ThreePhaseWorkflow(t *testing.T) {
 	bids, err := env.BBClient.GetAllBids(ctx, claim.ID)
 	require.NoError(t, err, "Failed to get bids")
 	require.Len(t, bids, 3, "Expected 3 bids (one per agent)")
-	require.Equal(t, blackboard.BidTypeReview, bids["reviewer"], "Reviewer should bid 'review'")
-	require.Equal(t, blackboard.BidTypeParallel, bids["parallel-worker"], "Parallel worker should bid 'claim'")
-	require.Equal(t, blackboard.BidTypeExclusive, bids["coder"], "Coder should bid 'exclusive'")
+	require.Equal(t, blackboard.BidTypeReview, bids["Reviewer"], "Reviewer should bid 'review'")
+	require.Equal(t, blackboard.BidTypeParallel, bids["ParallelWorker"], "Parallel worker should bid 'claim'")
+	require.Equal(t, blackboard.BidTypeExclusive, bids["Coder"], "Coder should bid 'exclusive'")
 	t.Logf("✓ All agents bid correctly: %v", bids)
 
 	// Step 6: Verify review phase execution
@@ -322,7 +322,7 @@ func TestE2E_Phase3_PhaseSkipping(t *testing.T) {
 	require.NoError(t, err, "holt up failed")
 
 	env.WaitForContainer("orchestrator")
-	env.WaitForContainer("agent-git-agent")
+	env.WaitForContainer("agent-GitAgent")
 	env.InitializeBlackboardClient()
 
 	// Submit goal

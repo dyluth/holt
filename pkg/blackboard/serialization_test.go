@@ -17,9 +17,9 @@ func TestArtefactRoundTrip(t *testing.T) {
 		Version:         1,
 		StructuralType:  StructuralTypeStandard,
 		Type:            "CodeCommit",
+			ProducedByRole:  "test-agent",
 		Payload:         "abc123def",
 		SourceArtefacts: []string{uuid.New().String(), uuid.New().String()},
-		ProducedByRole:  "go-coder",
 	}
 
 	// Convert to hash
@@ -54,9 +54,9 @@ func TestArtefactRoundTrip_EmptySourceArtefacts(t *testing.T) {
 		Version:         1,
 		StructuralType:  StructuralTypeStandard,
 		Type:            "GoalDefined",
+			ProducedByRole:  "test-agent",
 		Payload:         "Create a REST API",
 		SourceArtefacts: []string{}, // Empty array
-		ProducedByRole:  "user",
 	}
 
 	hash, err := ArtefactToHash(original)
@@ -92,9 +92,9 @@ func TestArtefactRoundTrip_NilSourceArtefacts(t *testing.T) {
 		Version:         1,
 		StructuralType:  StructuralTypeStandard,
 		Type:            "GoalDefined",
+			ProducedByRole:  "test-agent",
 		Payload:         "Create a REST API",
 		SourceArtefacts: nil, // Nil slice
-		ProducedByRole:  "user",
 	}
 
 	hash, err := ArtefactToHash(original)
@@ -277,9 +277,9 @@ func TestArtefactToHash_AllStructuralTypes(t *testing.T) {
 				Version:         1,
 				StructuralType:  st,
 				Type:            "Test",
+			ProducedByRole:  "test-agent",
 				Payload:         "test payload",
 				SourceArtefacts: []string{},
-				ProducedByRole:  "tester",
 			}
 
 			hash, err := ArtefactToHash(artefact)

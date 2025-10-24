@@ -74,9 +74,9 @@ func TestCreateArtefact(t *testing.T) {
 			Version:         1,
 			StructuralType:  StructuralTypeStandard,
 			Type:            "TestType",
+			ProducedByRole:  "test-agent",
 			Payload:         "test payload",
 			SourceArtefacts: []string{},
-			ProducedByRole:  "test-agent",
 		}
 
 		err := client.CreateArtefact(ctx, artefact)
@@ -115,9 +115,9 @@ func TestCreateArtefact(t *testing.T) {
 			Version:         1,
 			StructuralType:  StructuralTypeStandard,
 			Type:            "EventTest",
+			ProducedByRole:  "test-agent",
 			Payload:         "event payload",
 			SourceArtefacts: []string{},
-			ProducedByRole:  "test-agent",
 		}
 
 		err = client.CreateArtefact(ctx, artefact)
@@ -146,9 +146,9 @@ func TestGetArtefact(t *testing.T) {
 			Version:         1,
 			StructuralType:  StructuralTypeStandard,
 			Type:            "TestType",
+			ProducedByRole:  "test-agent",
 			Payload:         "test payload",
 			SourceArtefacts: []string{uuid.New().String()},
-			ProducedByRole:  "test-agent",
 		}
 
 		err := client.CreateArtefact(ctx, artefact)
@@ -181,9 +181,9 @@ func TestGetArtefact(t *testing.T) {
 			Version:         1,
 			StructuralType:  StructuralTypeStandard,
 			Type:            "TestType",
+			ProducedByRole:  "test-agent",
 			Payload:         "test",
 			SourceArtefacts: []string{},
-			ProducedByRole:  "test-agent",
 		}
 
 		err := client.CreateArtefact(ctx, artefact)
@@ -207,9 +207,9 @@ func TestArtefactExists(t *testing.T) {
 			Version:         1,
 			StructuralType:  StructuralTypeStandard,
 			Type:            "TestType",
+			ProducedByRole:  "test-agent",
 			Payload:         "test",
 			SourceArtefacts: []string{},
-			ProducedByRole:  "test-agent",
 		}
 
 		err := client.CreateArtefact(ctx, artefact)
@@ -573,9 +573,9 @@ func TestSubscribeArtefactEvents(t *testing.T) {
 			Version:         1,
 			StructuralType:  StructuralTypeStandard,
 			Type:            "TestType",
+			ProducedByRole:  "test-agent",
 			Payload:         "test",
 			SourceArtefacts: []string{},
-			ProducedByRole:  "test-agent",
 		}
 
 		err = client.CreateArtefact(ctx, artefact)
@@ -607,9 +607,9 @@ func TestSubscribeArtefactEvents(t *testing.T) {
 			Version:         1,
 			StructuralType:  StructuralTypeStandard,
 			Type:            "MultiSubTest",
+			ProducedByRole:  "test-agent",
 			Payload:         "test",
 			SourceArtefacts: []string{},
-			ProducedByRole:  "test-agent",
 		}
 
 		err = client.CreateArtefact(ctx, artefact)
@@ -719,9 +719,9 @@ func TestInstanceNamespacing(t *testing.T) {
 			Version:         1,
 			StructuralType:  StructuralTypeStandard,
 			Type:            "TestType",
+			ProducedByRole:  "test-agent",
 			Payload:         "test",
 			SourceArtefacts: []string{},
-			ProducedByRole:  "test-agent",
 		}
 
 		// Create in instance-1
@@ -757,9 +757,9 @@ func TestInstanceNamespacing(t *testing.T) {
 			Version:         1,
 			StructuralType:  StructuralTypeStandard,
 			Type:            "IsolationTest",
+			ProducedByRole:  "test-agent",
 			Payload:         "test",
 			SourceArtefacts: []string{},
-			ProducedByRole:  "test-agent",
 		}
 
 		err = client1.CreateArtefact(ctx, artefact)

@@ -5,6 +5,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"log"
+	"os"
 	"os/exec"
 	"strings"
 	"sync"
@@ -221,7 +222,10 @@ func (e *Engine) determineBidType(ctx context.Context, targetArtefact *blackboar
 
 	// Prepare the command
 	cmd := exec.CommandContext(ctx, e.config.BidScript[0], e.config.BidScript[1:]...)
-	cmd.Dir = "/workspace"
+	// Set working directory to /workspace if it exists (production), otherwise use current directory (tests)
+	if _, err := os.Stat("/workspace"); err == nil {
+		cmd.Dir = "/workspace"
+	}
 
 	// Prepare stdin
 	stdin, err := cmd.StdinPipe()

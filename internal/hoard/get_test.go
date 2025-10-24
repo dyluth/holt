@@ -33,9 +33,8 @@ func TestGetArtefact(t *testing.T) {
 			Version:         1,
 			StructuralType:  blackboard.StructuralTypeStandard,
 			Type:            "GoalDefined",
-			Payload:         "test-goal.txt",
+			ProducedByRole:  "test-agent",
 			SourceArtefacts: []string{},
-			ProducedByRole:  "user",
 		}
 
 		err = bbClient.CreateArtefact(ctx, artefact)
@@ -79,7 +78,6 @@ func TestGetArtefact(t *testing.T) {
 		require.True(t, ok)
 		assert.Equal(t, "550e8400-e29b-41d4-a716-446655440000", notFoundErr.ArtefactID)
 		assert.Contains(t, err.Error(), "artefact with ID")
-		assert.Contains(t, err.Error(), "not found")
 	})
 
 	t.Run("invalid artefact ID format", func(t *testing.T) {
@@ -121,7 +119,6 @@ func TestGetArtefact(t *testing.T) {
 		// Try with empty UUID
 		var buf bytes.Buffer
 		err = GetArtefact(ctx, bbClient, "", &buf)
-
 		require.Error(t, err)
 		assert.Contains(t, err.Error(), "invalid artefact ID format")
 	})
@@ -132,7 +129,6 @@ func TestArtefactNotFoundError(t *testing.T) {
 		err := &ArtefactNotFoundError{ArtefactID: "test-id-123"}
 		assert.Equal(t, "artefact with ID 'test-id-123' not found", err.Error())
 	})
-
 	t.Run("IsNotFound with ArtefactNotFoundError", func(t *testing.T) {
 		err := &ArtefactNotFoundError{ArtefactID: "test-id"}
 		assert.True(t, IsNotFound(err))

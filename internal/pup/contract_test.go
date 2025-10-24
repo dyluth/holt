@@ -16,7 +16,6 @@ func TestToolInput_JSONMarshaling(t *testing.T) {
 		StructuralType: blackboard.StructuralTypeStandard,
 		Type:           "GoalDefined",
 		Payload:        "Implement user login",
-		ProducedByRole: "user",
 	}
 
 	input := &ToolInput{

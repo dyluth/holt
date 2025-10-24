@@ -71,7 +71,7 @@ func TestE2E_Phase2_HappyPath(t *testing.T) {
 
 	// Wait for orchestrator and agent to be ready
 	env.WaitForContainer("orchestrator")
-	env.WaitForContainer("agent-git-agent")
+	env.WaitForContainer("agent-GitAgent")
 
 	// Initialize blackboard client
 	env.InitializeBlackboardClient()
@@ -188,7 +188,7 @@ func TestE2E_Phase2_MultipleWorkflows(t *testing.T) {
 	require.NoError(t, err)
 
 	env.WaitForContainer("orchestrator")
-	env.WaitForContainer("agent-git-agent")
+	env.WaitForContainer("agent-GitAgent")
 	env.InitializeBlackboardClient()
 
 	// Execute first workflow

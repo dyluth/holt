@@ -11,7 +11,8 @@ import (
 // M3.4: Controllers eliminate race conditions by being the single bidder per role.
 // When a controller wins a grant, the orchestrator launches ephemeral workers to execute.
 func RunControllerMode(ctx context.Context, config *Config, bbClient *blackboard.Client) error {
-	log.Printf("[Controller] Controller %s (role: %s) ready - bidder-only mode", config.AgentName, config.AgentRole)
+	// M3.7: AgentName IS the role
+	log.Printf("[Controller] Controller %s ready - bidder-only mode", config.AgentName)
 
 	// Subscribe to claim events
 	subscription, err := bbClient.SubscribeClaimEvents(ctx)

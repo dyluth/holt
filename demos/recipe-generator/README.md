@@ -1,6 +1,7 @@
 # Recipe Generator Demo
 
-This demo showcases **Phase 3.6** features of Holt:
+This demo showcases **Phase 3.7** features of Holt:
+- **Simplified agent identity** (M3.7: agent key IS the role)
 - **Dynamic bidding** with `bid_script` (agents decide bid types based on artefact properties)
 - **M3.3 feedback workflow** (automatic review → rejection → rework → approval cycle)
 - **Multi-agent coordination** (3 agents collaborate with different roles)
@@ -10,22 +11,22 @@ This demo showcases **Phase 3.6** features of Holt:
 ### Scenario
 
 1.  A user provides a goal to create a recipe
-2.  **Drafter agent** (Writer role):
+2.  **Writer agent**:
     - Bids `exclusive` on `GoalDefined` artefact
     - Creates draft `recipe.yaml` with deliberately vague instruction ("Cook.")
     - Commits as version 1
-3.  **Validator agent** (Validator role):
+3.  **Validator agent**:
     - Bids `review` on `RecipeYAML` artefact
     - Finds vague instruction, rejects with feedback
 4.  **Orchestrator** creates feedback claim:
-    - Assigns back to Writer role (no bidding)
+    - Assigns back to Writer (no bidding)
     - Includes Review artefact as context
-5.  **Drafter agent** receives feedback:
+5.  **Writer agent** receives feedback:
     - Reworks recipe with better instruction
     - Commits as version 2
 6.  **Validator agent** reviews version 2:
     - Finds detailed instruction, approves (empty Review payload)
-7.  **Formatter agent** (Formatter role):
+7.  **Formatter agent**:
     - Bids `claim` on approved `RecipeYAML`
     - Converts YAML to `RECIPE.md`
     - Creates Terminal artefact

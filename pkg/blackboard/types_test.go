@@ -14,9 +14,9 @@ func TestArtefactValidate_Valid(t *testing.T) {
 		Version:         1,
 		StructuralType:  StructuralTypeStandard,
 		Type:            "CodeCommit",
+			ProducedByRole:  "test-agent",
 		Payload:         "abc123",
 		SourceArtefacts: []string{uuid.New().String(), uuid.New().String()},
-		ProducedByRole:  "go-coder",
 	}
 
 	if err := artefact.Validate(); err != nil {
@@ -32,9 +32,9 @@ func TestArtefactValidate_EmptySourceArtefacts(t *testing.T) {
 		Version:         1,
 		StructuralType:  StructuralTypeStandard,
 		Type:            "GoalDefined",
+			ProducedByRole:  "test-agent",
 		Payload:         "Create a REST API",
 		SourceArtefacts: []string{}, // Empty is valid for root artefacts
-		ProducedByRole:  "user",
 	}
 
 	if err := artefact.Validate(); err != nil {
@@ -50,8 +50,8 @@ func TestArtefactValidate_InvalidID(t *testing.T) {
 		Version:        1,
 		StructuralType: StructuralTypeStandard,
 		Type:           "CodeCommit",
+			ProducedByRole:  "test-agent",
 		Payload:        "abc123",
-		ProducedByRole: "go-coder",
 	}
 
 	if err := artefact.Validate(); err == nil {
@@ -67,8 +67,8 @@ func TestArtefactValidate_InvalidLogicalID(t *testing.T) {
 		Version:        1,
 		StructuralType: StructuralTypeStandard,
 		Type:           "CodeCommit",
+			ProducedByRole:  "test-agent",
 		Payload:        "abc123",
-		ProducedByRole: "go-coder",
 	}
 
 	if err := artefact.Validate(); err == nil {
@@ -90,12 +90,11 @@ func TestArtefactValidate_InvalidVersion(t *testing.T) {
 		t.Run(tc.name, func(t *testing.T) {
 			artefact := &Artefact{
 				ID:             uuid.New().String(),
-				LogicalID:      uuid.New().String(),
 				Version:        tc.version,
 				StructuralType: StructuralTypeStandard,
 				Type:           "CodeCommit",
+			ProducedByRole:  "test-agent",
 				Payload:        "abc123",
-				ProducedByRole: "go-coder",
 			}
 
 			if err := artefact.Validate(); err == nil {
@@ -113,8 +112,8 @@ func TestArtefactValidate_InvalidStructuralType(t *testing.T) {
 		Version:        1,
 		StructuralType: "InvalidType",
 		Type:           "CodeCommit",
+		ProducedByRole: "test-agent",
 		Payload:        "abc123",
-		ProducedByRole: "go-coder",
 	}
 
 	if err := artefact.Validate(); err == nil {
@@ -125,13 +124,12 @@ func TestArtefactValidate_InvalidStructuralType(t *testing.T) {
 // TestArtefactValidate_EmptyType tests that empty type fails validation
 func TestArtefactValidate_EmptyType(t *testing.T) {
 	artefact := &Artefact{
-		ID:             uuid.New().String(),
 		LogicalID:      uuid.New().String(),
 		Version:        1,
 		StructuralType: StructuralTypeStandard,
 		Type:           "",
+			ProducedByRole:  "test-agent",
 		Payload:        "abc123",
-		ProducedByRole: "go-coder",
 	}
 
 	if err := artefact.Validate(); err == nil {
@@ -142,13 +140,12 @@ func TestArtefactValidate_EmptyType(t *testing.T) {
 // TestArtefactValidate_EmptyProducedByRole tests that empty produced_by_role fails validation
 func TestArtefactValidate_EmptyProducedByRole(t *testing.T) {
 	artefact := &Artefact{
-		ID:             uuid.New().String(),
 		LogicalID:      uuid.New().String(),
 		Version:        1,
 		StructuralType: StructuralTypeStandard,
 		Type:           "CodeCommit",
+			ProducedByRole:  "test-agent",
 		Payload:        "abc123",
-		ProducedByRole: "",
 	}
 
 	if err := artefact.Validate(); err == nil {
@@ -164,9 +161,9 @@ func TestArtefactValidate_InvalidSourceArtefact(t *testing.T) {
 		Version:         1,
 		StructuralType:  StructuralTypeStandard,
 		Type:            "CodeCommit",
+			ProducedByRole:  "test-agent",
 		Payload:         "abc123",
 		SourceArtefacts: []string{uuid.New().String(), "not-a-uuid", uuid.New().String()},
-		ProducedByRole:  "go-coder",
 	}
 
 	if err := artefact.Validate(); err == nil {

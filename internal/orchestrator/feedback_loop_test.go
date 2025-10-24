@@ -32,14 +32,12 @@ func setupTestEngineWithMaxIterations(t *testing.T, maxIterations int) (*Engine,
 			MaxReviewIterations: &maxIterations,
 		},
 		Agents: map[string]config.Agent{
-			"coder-agent": {
-				Role:            "Coder",
+			"Coder": {
 				Image:           "test:latest",
 				Command:         []string{"test"},
 				BiddingStrategy: "exclusive",
 			},
-			"reviewer-agent": {
-				Role:            "Reviewer",
+			"Reviewer": {
 				Image:           "test:latest",
 				Command:         []string{"test"},
 				BiddingStrategy: "review",
@@ -64,13 +62,13 @@ func TestFindAgentByRole(t *testing.T) {
 		{
 			name:        "finds coder agent",
 			role:        "Coder",
-			expectAgent: "coder-agent",
+			expectAgent: "Coder",
 			expectError: false,
 		},
 		{
 			name:        "finds reviewer agent",
 			role:        "Reviewer",
-			expectAgent: "reviewer-agent",
+			expectAgent: "Reviewer",
 			expectError: false,
 		},
 		{
@@ -135,7 +133,7 @@ func TestCreateFeedbackClaim_IterationLimitCheck(t *testing.T) {
 		ID:                    uuid.New().String(),
 		ArtefactID:            targetArtefact.ID,
 		Status:                blackboard.ClaimStatusPendingReview,
-		GrantedReviewAgents:   []string{"reviewer-agent"},
+		GrantedReviewAgents:   []string{"Reviewer"},
 		GrantedParallelAgents: []string{},
 		GrantedExclusiveAgent: "",
 	}
@@ -197,7 +195,7 @@ func TestCreateFeedbackClaim_Success(t *testing.T) {
 		ID:                    uuid.New().String(),
 		ArtefactID:            targetArtefact.ID,
 		Status:                blackboard.ClaimStatusPendingReview,
-		GrantedReviewAgents:   []string{"reviewer-agent"},
+		GrantedReviewAgents:   []string{"Reviewer"},
 		GrantedParallelAgents: []string{},
 		GrantedExclusiveAgent: "",
 	}
@@ -251,7 +249,7 @@ func TestCreateFeedbackClaim_Success(t *testing.T) {
 	feedbackClaim, err := bbClient.GetClaim(ctx, feedbackClaimID)
 	require.NoError(t, err)
 	assert.Equal(t, blackboard.ClaimStatusPendingAssignment, feedbackClaim.Status)
-	assert.Equal(t, "coder-agent", feedbackClaim.GrantedExclusiveAgent)
+	assert.Equal(t, "Coder", feedbackClaim.GrantedExclusiveAgent)
 	assert.Equal(t, targetArtefact.ID, feedbackClaim.ArtefactID)
 	assert.Len(t, feedbackClaim.AdditionalContextIDs, 2)
 	assert.Contains(t, feedbackClaim.AdditionalContextIDs, review1.ID)
@@ -272,7 +270,7 @@ func TestCreateFeedbackClaim_MissingAgent(t *testing.T) {
 		Type:            "CodeCommit",
 		Payload:         "test-commit-hash",
 		SourceArtefacts: []string{},
-		ProducedByRole:  "NonExistentRole", // No agent has this role
+		ProducedByRole:  "NonExistentRole",
 	}
 	err := bbClient.CreateArtefact(ctx, targetArtefact)
 	require.NoError(t, err)
@@ -282,7 +280,7 @@ func TestCreateFeedbackClaim_MissingAgent(t *testing.T) {
 		ID:                    uuid.New().String(),
 		ArtefactID:            targetArtefact.ID,
 		Status:                blackboard.ClaimStatusPendingReview,
-		GrantedReviewAgents:   []string{"reviewer-agent"},
+		GrantedReviewAgents:   []string{"Reviewer"},
 		GrantedParallelAgents: []string{},
 		GrantedExclusiveAgent: "",
 	}
@@ -355,7 +353,7 @@ func TestCheckPendingAssignmentClaims(t *testing.T) {
 		ID:                    uuid.New().String(),
 		ArtefactID:            targetArtefact.ID,
 		Status:                blackboard.ClaimStatusPendingAssignment,
-		GrantedExclusiveAgent: "coder-agent",
+		GrantedExclusiveAgent: "Coder",
 		AdditionalContextIDs:  []string{reviewArtefact.ID},
 		GrantedReviewAgents:   []string{},
 		GrantedParallelAgents: []string{},
@@ -375,7 +373,7 @@ func TestCheckPendingAssignmentClaims(t *testing.T) {
 		Type:            "CodeCommit",
 		Payload:         "v2-hash",
 		SourceArtefacts: []string{targetArtefact.ID, reviewArtefact.ID},
-		ProducedByRole:  "Coder", // Produced by granted agent
+		ProducedByRole:  "Coder",
 	}
 	err = bbClient.CreateArtefact(ctx, v2Artefact)
 	require.NoError(t, err)

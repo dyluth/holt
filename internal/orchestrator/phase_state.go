@@ -6,7 +6,6 @@ import (
 	"log"
 	"time"
 
-	"github.com/dyluth/holt/internal/config"
 	"github.com/dyluth/holt/pkg/blackboard"
 )
 
@@ -212,25 +211,13 @@ func (e *Engine) handleWorkerSlotAvailable(ctx context.Context, role string) {
 	}
 
 	// Grant to agent stored in GrantQueue.AgentName (before we cleared it)
-	// We need to fetch the agent info from config
-	var agentName string
-	var agent config.Agent
-	var found bool
-
-	// Find the agent by role
-	for name, a := range e.config.Agents {
-		if a.Role == role {
-			agentName = name
-			agent = a
-			found = true
-			break
-		}
-	}
-
+	// M3.7: Agent key IS the role - direct lookup
+	agent, found := e.config.Agents[role]
 	if !found {
 		log.Printf("[Orchestrator] No agent found for role '%s', cannot resume claim %s", role, claim.ID)
 		return
 	}
+	agentName := role // M3.7: Agent name = role
 
 	// Grant exclusive phase (launch worker)
 	log.Printf("[Orchestrator] Resuming grant for claim %s to agent %s (role: %s)", claim.ID, agentName, role)

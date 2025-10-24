@@ -1,24 +1,22 @@
 version: "1.0"
+# M3.7: Agent keys ARE the roles - no separate role field
 agents:
-  recipe-drafter:
-    role: "Writer"
-    image: "recipe-drafter-agent:latest"
+  Writer:
+    image: "holt-writer-recipe-demo:latest"
     command: ["/app/run.sh"]
     bid_script: ["/app/bid.sh"]
     workspace:
       mode: rw
 
-  recipe-validator:
-    role: "Validator"
-    image: "recipe-validator-agent:latest"
+  Validator:
+    image: "holt-validator-recipe-demo:latest"
     command: ["/app/run.sh"]
     bid_script: ["/app/bid.sh"]
     workspace:
       mode: ro
 
-  recipe-formatter:
-    role: "Formatter"
-    image: "recipe-formatter-agent:latest"
+  Formatter:
+    image: "holt-formatter-recipe-demo:latest"
     command: ["/app/run.sh"]
     bid_script: ["/app/bid.sh"]
     workspace:

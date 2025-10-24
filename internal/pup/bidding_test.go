@@ -18,8 +18,8 @@ func TestDynamicBidding(t *testing.T) {
 	bidScriptPath := filepath.Join(td, "bid.sh")
 	bidScriptContent := `#!/bin/sh
 input=$(cat)
-# Use grep and cut to avoid jq dependency in tests
-artefact_type=$(echo "$input" | grep '"type"' | cut -d'"' -f4)
+# Use grep and sed to extract the type field value (avoiding jq dependency)
+artefact_type=$(echo "$input" | sed -n 's/.*"type":"\([^"]*\)".*/\1/p')
 if [ "$artefact_type" = "RecipeYAML" ]; then
   echo "review"
 else
@@ -97,7 +97,7 @@ exit 1
 			config: &Config{
 				AgentName:       "test-agent",
 				BidScript:       []string{failingScriptPath},
-				BiddingStrategy: blackboard.BidTypeClaim, // Fallback
+				BiddingStrategy: blackboard.BidTypeParallel, // Fallback
 			},
 		}
 
@@ -105,7 +105,7 @@ exit 1
 		bidType, err := engineWithFallback.determineBidType(ctx, artefact)
 
 		require.NoError(t, err)
-		require.Equal(t, blackboard.BidTypeClaim, bidType, "Should fall back to static strategy on script failure")
+		require.Equal(t, blackboard.BidTypeParallel, bidType, "Should fall back to static strategy on script failure")
 	})
 
 	t.Run("should return ignore when script fails and no fallback", func(t *testing.T) {
@@ -177,6 +177,6 @@ echo "  claim  "
 		bidType, err := engineWhitespace.determineBidType(ctx, artefact)
 
 		require.NoError(t, err)
-		require.Equal(t, blackboard.BidTypeClaim, bidType, "Should trim whitespace from script output")
+		require.Equal(t, blackboard.BidTypeParallel, bidType, "Should trim whitespace from script output")
 	})
 }
