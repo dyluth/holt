@@ -109,23 +109,11 @@ func SelectExclusiveWinner(bidders []string) string {
 }
 
 // publishClaimGrantedEvent publishes a claim_granted event to the workflow_events channel.
-// Detects grant type from claim fields (exclusive, review, or parallel).
-func (e *Engine) publishClaimGrantedEvent(ctx context.Context, claim *blackboard.Claim, agentName string) error {
-	// Detect grant type from claim fields
-	var grantType string
-	if claim.GrantedExclusiveAgent != "" {
-		grantType = "exclusive"
-	} else if len(claim.GrantedReviewAgents) > 0 {
-		grantType = "review"
-	} else if len(claim.GrantedParallelAgents) > 0 {
-		grantType = "parallel"
-	} else {
-		// Should not happen, but handle gracefully
-		return fmt.Errorf("claim has no granted agents")
-	}
-
+// The grant type is explicitly provided by the caller to avoid ambiguity when
+// multiple grant arrays are populated (e.g., during phase transitions).
+func (e *Engine) publishClaimGrantedEvent(ctx context.Context, claimID string, agentName string, grantType string) error {
 	eventData := map[string]interface{}{
-		"claim_id":   claim.ID,
+		"claim_id":   claimID,
 		"agent_name": agentName,
 		"grant_type": grantType,
 	}
@@ -135,7 +123,7 @@ func (e *Engine) publishClaimGrantedEvent(ctx context.Context, claim *blackboard
 	}
 
 	log.Printf("[Orchestrator] Published claim_granted event: claim_id=%s, agent=%s, type=%s",
-		claim.ID, agentName, grantType)
+		claimID, agentName, grantType)
 
 	return nil
 }

@@ -47,7 +47,7 @@ func (e *Engine) GrantReviewPhase(ctx context.Context, claim *blackboard.Claim, 
 			log.Printf("[Orchestrator] Failed to publish review grant notification to %s: %v", agentName, err)
 		}
 		// Publish event for watching
-		if err := e.publishClaimGrantedEvent(ctx, claim, agentName); err != nil {
+		if err := e.publishClaimGrantedEvent(ctx, claim.ID, agentName, "review"); err != nil {
 			log.Printf("[Orchestrator] Failed to publish workflow event for review grant to %s: %v", agentName, err)
 		}
 	}
@@ -88,12 +88,22 @@ func (e *Engine) CheckReviewPhaseCompletion(ctx context.Context, claim *blackboa
 				"reviewer":    agentRole,
 				"artefact_id": artefact.ID,
 			})
+
+			// Publish review_rejected workflow event
+			if err := e.publishReviewRejectedEvent(ctx, claim.ArtefactID, agentRole, artefact.Payload); err != nil {
+				log.Printf("[Orchestrator] Failed to publish review_rejected event: %v", err)
+			}
 		} else {
 			e.logEvent("review_approved", map[string]interface{}{
 				"claim_id":    claim.ID,
 				"reviewer":    agentRole,
 				"artefact_id": artefact.ID,
 			})
+
+			// Publish review_approved workflow event
+			if err := e.publishReviewApprovedEvent(ctx, claim.ArtefactID, agentRole); err != nil {
+				log.Printf("[Orchestrator] Failed to publish review_approved event: %v", err)
+			}
 		}
 	}
 
@@ -211,4 +221,47 @@ func extractIDs(artefacts []*blackboard.Artefact) []string {
 		ids[i] = art.ID
 	}
 	return ids
+}
+
+// publishReviewApprovedEvent publishes a review_approved workflow event.
+// Called when a Review artefact with empty payload (approval) is processed.
+func (e *Engine) publishReviewApprovedEvent(ctx context.Context, originalArtefactID, reviewerRole string) error {
+	eventData := map[string]interface{}{
+		"original_artefact_id": originalArtefactID,
+		"reviewer_role":        reviewerRole,
+	}
+
+	if err := e.client.PublishWorkflowEvent(ctx, "review_approved", eventData); err != nil {
+		return fmt.Errorf("failed to publish review_approved event: %w", err)
+	}
+
+	log.Printf("[Orchestrator] Published review_approved event: artefact=%s, reviewer=%s",
+		originalArtefactID, reviewerRole)
+
+	return nil
+}
+
+// publishReviewRejectedEvent publishes a review_rejected workflow event.
+// Called when a Review artefact with non-empty payload (feedback) is processed.
+func (e *Engine) publishReviewRejectedEvent(ctx context.Context, originalArtefactID, reviewerRole, feedback string) error {
+	// Truncate feedback for event payload
+	feedbackSummary := feedback
+	if len(feedbackSummary) > 200 {
+		feedbackSummary = feedbackSummary[:200] + "..."
+	}
+
+	eventData := map[string]interface{}{
+		"original_artefact_id": originalArtefactID,
+		"reviewer_role":        reviewerRole,
+		"feedback":             feedbackSummary,
+	}
+
+	if err := e.client.PublishWorkflowEvent(ctx, "review_rejected", eventData); err != nil {
+		return fmt.Errorf("failed to publish review_rejected event: %w", err)
+	}
+
+	log.Printf("[Orchestrator] Published review_rejected event: artefact=%s, reviewer=%s",
+		originalArtefactID, reviewerRole)
+
+	return nil
 }

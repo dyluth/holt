@@ -464,8 +464,35 @@ func (e *Engine) createReworkArtefact(ctx context.Context, claim *blackboard.Cla
 			artefact.LogicalID, err)
 	}
 
+	// Publish artefact_reworked workflow event
+	if err := e.publishArtefactReworkedEvent(ctx, artefact, targetArtefact.ID); err != nil {
+		log.Printf("[WARN] Failed to publish artefact_reworked event: %v", err)
+	}
+
 	log.Printf("[INFO] Rework artefact created: id=%s logical_id=%s version=%d (agent unaware of versioning)",
 		artefact.ID, artefact.LogicalID, artefact.Version)
 
 	return artefact, nil
+}
+
+// publishArtefactReworkedEvent publishes an artefact_reworked workflow event.
+// Called when creating a new version of an existing artefact (feedback claim rework).
+func (e *Engine) publishArtefactReworkedEvent(ctx context.Context, newArtefact *blackboard.Artefact, previousVersionID string) error {
+	eventData := map[string]interface{}{
+		"new_artefact_id":     newArtefact.ID,
+		"logical_id":          newArtefact.LogicalID,
+		"new_version":         newArtefact.Version,
+		"previous_version_id": previousVersionID,
+		"artefact_type":       newArtefact.Type,
+		"produced_by_role":    newArtefact.ProducedByRole,
+	}
+
+	if err := e.bbClient.PublishWorkflowEvent(ctx, "artefact_reworked", eventData); err != nil {
+		return fmt.Errorf("failed to publish artefact_reworked event: %w", err)
+	}
+
+	log.Printf("[INFO] Published artefact_reworked event: new_id=%s logical_id=%s version=%d",
+		newArtefact.ID, newArtefact.LogicalID, newArtefact.Version)
+
+	return nil
 }

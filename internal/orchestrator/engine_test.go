@@ -137,25 +137,18 @@ func TestPublishClaimGrantedEvent(t *testing.T) {
 		// Small delay to ensure subscription is ready
 		time.Sleep(10 * time.Millisecond)
 
-		// Create claim with exclusive grant
-		claim := &blackboard.Claim{
-			ID:                    uuid.New().String(),
-			ArtefactID:            uuid.New().String(),
-			Status:                blackboard.ClaimStatusPendingReview,
-			GrantedReviewAgents:   []string{},
-			GrantedParallelAgents: []string{},
-			GrantedExclusiveAgent: "test-agent",
-		}
+		// Create claim ID for event
+		claimID := uuid.New().String()
 
-		// Publish event
-		err = engine.publishClaimGrantedEvent(ctx, claim, "test-agent")
+		// Publish event with explicit grant type
+		err = engine.publishClaimGrantedEvent(ctx, claimID, "test-agent", "exclusive")
 		require.NoError(t, err)
 
 		// Receive and verify event with longer timeout for CI
 		select {
 		case event := <-sub.Events():
 			assert.Equal(t, "claim_granted", event.Event)
-			assert.Equal(t, claim.ID, event.Data["claim_id"])
+			assert.Equal(t, claimID, event.Data["claim_id"])
 			assert.Equal(t, "test-agent", event.Data["agent_name"])
 			assert.Equal(t, "exclusive", event.Data["grant_type"])
 		case <-time.After(2 * time.Second):
@@ -173,16 +166,9 @@ func TestPublishClaimGrantedEvent(t *testing.T) {
 
 		time.Sleep(10 * time.Millisecond)
 
-		claim := &blackboard.Claim{
-			ID:                    uuid.New().String(),
-			ArtefactID:            uuid.New().String(),
-			Status:                blackboard.ClaimStatusPendingReview,
-			GrantedReviewAgents:   []string{"agent1", "agent2"},
-			GrantedParallelAgents: []string{},
-			GrantedExclusiveAgent: "",
-		}
+		claimID := uuid.New().String()
 
-		err = engine.publishClaimGrantedEvent(ctx, claim, "agent1")
+		err = engine.publishClaimGrantedEvent(ctx, claimID, "agent1", "review")
 		require.NoError(t, err)
 
 		select {
@@ -204,42 +190,44 @@ func TestPublishClaimGrantedEvent(t *testing.T) {
 
 		time.Sleep(10 * time.Millisecond)
 
-		claim := &blackboard.Claim{
-			ID:                    uuid.New().String(),
-			ArtefactID:            uuid.New().String(),
-			Status:                blackboard.ClaimStatusPendingParallel,
-			GrantedReviewAgents:   []string{},
-			GrantedParallelAgents: []string{"agent1", "agent2"},
-			GrantedExclusiveAgent: "",
-		}
+		claimID := uuid.New().String()
 
-		err = engine.publishClaimGrantedEvent(ctx, claim, "agent1")
+		err = engine.publishClaimGrantedEvent(ctx, claimID, "agent1", "claim")
 		require.NoError(t, err)
 
 		select {
 		case event := <-sub.Events():
 			assert.Equal(t, "claim_granted", event.Event)
-			assert.Equal(t, "parallel", event.Data["grant_type"])
+			assert.Equal(t, "claim", event.Data["grant_type"])
 		case <-time.After(2 * time.Second):
 			t.Fatal("timeout waiting for event")
 		}
 	})
 
-	t.Run("returns error when no grants present", func(t *testing.T) {
+	t.Run("publishes event with explicit grant type", func(t *testing.T) {
 		ctx := context.Background()
-		engine, _, _ := setupTestEngine(t)
+		engine, client, _ := setupTestEngine(t)
 
-		claim := &blackboard.Claim{
-			ID:                    uuid.New().String(),
-			ArtefactID:            uuid.New().String(),
-			Status:                blackboard.ClaimStatusPendingReview,
-			GrantedReviewAgents:   []string{},
-			GrantedParallelAgents: []string{},
-			GrantedExclusiveAgent: "",
+		sub, err := client.SubscribeWorkflowEvents(ctx)
+		require.NoError(t, err)
+		defer sub.Close()
+
+		time.Sleep(10 * time.Millisecond)
+
+		claimID := uuid.New().String()
+
+		// Test that explicit grant types are used as-is
+		err = engine.publishClaimGrantedEvent(ctx, claimID, "test-agent", "exclusive")
+		require.NoError(t, err)
+
+		select {
+		case event := <-sub.Events():
+			assert.Equal(t, "claim_granted", event.Event)
+			assert.Equal(t, claimID, event.Data["claim_id"])
+			assert.Equal(t, "test-agent", event.Data["agent_name"])
+			assert.Equal(t, "exclusive", event.Data["grant_type"])
+		case <-time.After(2 * time.Second):
+			t.Fatal("timeout waiting for event")
 		}
-
-		err := engine.publishClaimGrantedEvent(ctx, claim, "test-agent")
-		assert.Error(t, err)
-		assert.Contains(t, err.Error(), "no granted agents")
 	})
 }

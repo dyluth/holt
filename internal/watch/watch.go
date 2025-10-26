@@ -184,6 +184,16 @@ type defaultFormatter struct {
 }
 
 func (f *defaultFormatter) FormatArtefact(artefact *blackboard.Artefact) error {
+	// Filter out Review artefacts - they're shown via review_approved/review_rejected events
+	if artefact.StructuralType == blackboard.StructuralTypeReview {
+		return nil
+	}
+
+	// Filter out reworked artefacts (version > 1) - they're shown via artefact_reworked events
+	if artefact.Version > 1 {
+		return nil
+	}
+
 	timestamp := time.Now().Format("15:04:05")
 	_, err := fmt.Fprintf(f.writer, "[%s] ✨ Artefact created: by=%s, type=%s, id=%s\n",
 		timestamp, artefact.ProducedByRole, artefact.Type, artefact.ID)
@@ -215,6 +225,51 @@ func (f *defaultFormatter) FormatWorkflow(event *blackboard.WorkflowEvent) error
 		grantType, _ := event.Data["grant_type"].(string)
 		_, err := fmt.Fprintf(f.writer, "[%s] 🏆 Claim granted: agent=%s, claim=%s, type=%s\n",
 			timestamp, agentName, claimID, grantType)
+		return err
+
+	case "review_approved":
+		reviewerRole, _ := event.Data["reviewer_role"].(string)
+		originalArtefactID, _ := event.Data["original_artefact_id"].(string)
+
+		_, err := fmt.Fprintf(f.writer, "[%s] ✅ Review Approved: by=%s for artefact %s\n",
+			timestamp, reviewerRole, originalArtefactID)
+		return err
+
+	case "review_rejected":
+		reviewerRole, _ := event.Data["reviewer_role"].(string)
+		originalArtefactID, _ := event.Data["original_artefact_id"].(string)
+
+		_, err := fmt.Fprintf(f.writer, "[%s] ❌ Review Rejected: by=%s for artefact %s\n",
+			timestamp, reviewerRole, originalArtefactID)
+		return err
+
+	case "feedback_claim_created":
+		targetAgentRole, _ := event.Data["target_agent_role"].(string)
+		feedbackClaimID, _ := event.Data["feedback_claim_id"].(string)
+		iteration := 1 // default
+		if iter, ok := event.Data["iteration"].(int); ok {
+			iteration = iter
+		} else if iterFloat, ok := event.Data["iteration"].(float64); ok {
+			iteration = int(iterFloat)
+		}
+
+		_, err := fmt.Fprintf(f.writer, "[%s] 🔄 Rework Assigned: to=%s for claim %s (iteration %d)\n",
+			timestamp, targetAgentRole, feedbackClaimID, iteration)
+		return err
+
+	case "artefact_reworked":
+		producedByRole, _ := event.Data["produced_by_role"].(string)
+		artefactType, _ := event.Data["artefact_type"].(string)
+		newArtefactID, _ := event.Data["new_artefact_id"].(string)
+		newVersion := 1 // default
+		if ver, ok := event.Data["new_version"].(int); ok {
+			newVersion = ver
+		} else if verFloat, ok := event.Data["new_version"].(float64); ok {
+			newVersion = int(verFloat)
+		}
+
+		_, err := fmt.Fprintf(f.writer, "[%s] 🔄 Artefact Reworked (v%d): by=%s, type=%s, id=%s\n",
+			timestamp, newVersion, producedByRole, artefactType, newArtefactID)
 		return err
 
 	default:

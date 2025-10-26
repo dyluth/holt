@@ -198,7 +198,7 @@ func (e *Engine) GrantExclusivePhase(ctx context.Context, claim *blackboard.Clai
 				return e.client.UpdateClaim(ctx, claim)
 			}
 			// Publish event for watching
-			if err := e.publishClaimGrantedEvent(ctx, claim, winner); err != nil {
+			if err := e.publishClaimGrantedEvent(ctx, claim.ID, winner, "exclusive"); err != nil {
 				log.Printf("[Orchestrator] Failed to publish workflow event for exclusive grant to %s: %v", winner, err)
 			}
 		} else {
@@ -242,7 +242,7 @@ func (e *Engine) GrantExclusivePhase(ctx context.Context, claim *blackboard.Clai
 	}
 
 	// Publish event for watching
-	if err := e.publishClaimGrantedEvent(ctx, claim, winner); err != nil {
+	if err := e.publishClaimGrantedEvent(ctx, claim.ID, winner, "exclusive"); err != nil {
 		log.Printf("[Orchestrator] Failed to publish workflow event for exclusive grant to %s: %v", winner, err)
 	}
 

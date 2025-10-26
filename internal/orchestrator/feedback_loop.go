@@ -66,6 +66,11 @@ func (e *Engine) CreateFeedbackClaim(ctx context.Context, originalClaim *blackbo
 		"iteration":         iterationCount + 1,
 	})
 
+	// Publish feedback_claim_created workflow event
+	if err := e.publishFeedbackClaimCreatedEvent(ctx, feedbackClaim.ID, originalClaim.ID, producerAgent, iterationCount+1); err != nil {
+		log.Printf("[Orchestrator] Failed to publish feedback_claim_created event: %v", err)
+	}
+
 	log.Printf("[Orchestrator] Created feedback claim %s for agent %s (iteration %d)",
 		feedbackClaim.ID, producerAgent, iterationCount+1)
 
@@ -169,4 +174,24 @@ func formatReviewRejectionReason(feedbackArtefacts []*blackboard.Artefact) strin
 		ids[i] = art.ID
 	}
 	return fmt.Sprintf("Terminated due to negative review feedback. See artefacts: %v", ids)
+}
+
+// publishFeedbackClaimCreatedEvent publishes a feedback_claim_created workflow event.
+// Called when creating a pending_assignment claim for rework after review rejection.
+func (e *Engine) publishFeedbackClaimCreatedEvent(ctx context.Context, feedbackClaimID, originalClaimID, targetAgentRole string, iteration int) error {
+	eventData := map[string]interface{}{
+		"feedback_claim_id": feedbackClaimID,
+		"original_claim_id": originalClaimID,
+		"target_agent_role": targetAgentRole,
+		"iteration":         iteration,
+	}
+
+	if err := e.client.PublishWorkflowEvent(ctx, "feedback_claim_created", eventData); err != nil {
+		return fmt.Errorf("failed to publish feedback_claim_created event: %w", err)
+	}
+
+	log.Printf("[Orchestrator] Published feedback_claim_created event: claim_id=%s, agent=%s, iteration=%d",
+		feedbackClaimID, targetAgentRole, iteration)
+
+	return nil
 }
