@@ -1,8 +1,18 @@
 # Holt
 
-**A container-native AI agent orchestrator for automating complex software engineering workflows**
+**The Enterprise-Grade AI Orchestrator for Secure, Auditable, and Compliant Workflows**
 
-Holt manages a clan of specialized, tool-equipped AI agents that collaborate on multi-step development tasks while maintaining complete auditability and human oversight.
+Holt enables organizations to safely automate complex software engineering tasks using AI agents—while maintaining complete control, security, and regulatory compliance.
+
+## Why Holt? The Solution for Regulated AI
+
+- **🔒 Ultimate Security & Data Privacy:** Run all agents in your own environment. Your proprietary code and data **never** leave your control. Works with cloud APIs (OpenAI, Claude) or **air-gapped local models** (Llama 3 on your infrastructure).
+
+- **⚖️ Enterprise-Grade Compliance:** Get a complete, immutable audit trail of every action, decision, and code change, ready for any SOX, HIPAA, or regulatory review.
+
+- **✅ You Are Always in Control:** Enforce human-in-the-loop checkpoints for critical actions, ensuring AI **assists** your team, not replaces it.
+
+- **🚀 No Vendor Lock-in. Total Flexibility:** Holt is built 'BYO-everything.' It works with **any AI model** (from OpenAI to a local Llama 3) and **any tool** (from `curl` to your proprietary CLI) that can run in a container. You are never locked into a single vendor.
 
 ---
 
@@ -43,7 +53,7 @@ Coming in Phase 3+:
 
 ```bash
 # 1. Clone repository
-git clone https://github.com/anthropics/holt.git
+git clone https://github.com/dyluth/holt.git
 cd holt
 
 # 2. Build binaries
@@ -615,13 +625,13 @@ See `DEVELOPMENT_PROCESS.md` for details.
 
 ## License
 
-[License information to be added]
+MIT License - See [LICENSE](./LICENSE) for details.
 
 ---
 
 ## Support
 
-- **Issues**: https://github.com/anthropics/holt/issues
+- **Issues**: https://github.com/dyluth/holt/issues
 - **Documentation**: Start with this README, then see `docs/`
 - **Examples**: See `agents/` directory for reference implementations
 
@@ -629,7 +639,7 @@ See `DEVELOPMENT_PROCESS.md` for details.
 
 ## Acknowledgments
 
-Built by Anthropic as a reference implementation for container-native AI agent orchestration with auditability and human oversight as first-class features.
+Built by Cam McAllister as an enterprise-grade AI orchestration platform with auditability and compliance as first-class features.
 
 ---
 
