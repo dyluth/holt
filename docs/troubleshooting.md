@@ -952,7 +952,7 @@ If you've tried the solutions above and still have issues:
    - Document exact steps
 
 4. **Report issue:**
-   - GitHub: https://github.com/anthropics/holt/issues
+   - GitHub: https://github.com/dyluth/holt/issues
    - Include logs, configuration, and reproduction steps
 
 ---
