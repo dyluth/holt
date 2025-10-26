@@ -14,30 +14,52 @@ Holt enables organizations to safely automate complex software engineering tasks
 
 - **🚀 No Vendor Lock-in. Total Flexibility:** Holt is built 'BYO-everything.' It works with **any AI model** (from OpenAI to a local Llama 3) and **any tool** (from `curl` to your proprietary CLI) that can run in a container. You are never locked into a single vendor.
 
----
+## Use Cases for Regulated Industries
 
-## Project Status
+### Regulated Industries
 
-**Phase 3 (M3.4) Complete** ✅ - Multi-agent coordination with horizontal scaling
+Holt's immutable audit trail and human-in-the-loop design make it uniquely suited for:
 
-Current capabilities:
-- ✅ Event-driven orchestration via Redis blackboard
-- ✅ Container-native agent execution
-- ✅ Git-centric workflow with commit tracking
-- ✅ Complete immutable audit trail
-- ✅ Human-in-the-loop support
-- ✅ Multi-instance workspace safety
-- ✅ Multi-agent coordination (review → parallel → exclusive phases)
-- ✅ Consensus-based bidding system
-- ✅ Automated feedback loops with review-based iteration
-- ✅ Automatic version management for iterative refinement
-- ✅ Controller-worker pattern for horizontal scaling
-- ✅ Ephemeral worker containers with automatic cleanup
-- ✅ Concurrency limits with stateless grant pausing
+- **Financial services**: Auditable AI workflows for risk assessment, compliance reporting
+- **Healthcare**: Traceable AI-assisted processes for clinical documentation, research protocols
+- **Government**: Controllable AI automation with full audit trails for policy analysis
+- **Legal**: Documented AI workflows for contract analysis, due diligence
 
-Coming in Phase 3+:
-- 🚧 Runtime failure detection & timeouts (M3.6+)
-- 🚧 Orchestrator restart resilience (M3.5+)
+### Software Engineering
+
+- **Multi-step code generation**: Design → Implement → Test → Deploy
+- **Refactoring workflows**: Analyze → Refactor → Validate → Commit
+- **Documentation generation**: Read code → Generate docs → Update README
+- **Test automation**: Write tests → Run tests → Fix failures → Verify
+
+### DevOps & Infrastructure
+
+- **Infrastructure as code**: Generate Terraform → Review → Apply → Validate
+- **Deployment automation**: Build → Test → Stage → Deploy with approval gates
+- **Monitoring & alerting**: Detect issue → Diagnose → Propose fix → Human approval → Apply
+
+## What Makes Holt Different: The Pragmatic Choice
+
+### vs. LangChain / LlamaIndex
+
+- **Container-native**: Orchestrates any CLI tool, not just Python functions
+- **Event-driven**: Agents don't poll - they react to Pub/Sub events
+- **Immutable audit trail**: Every decision permanently recorded
+- **Human-in-the-loop**: Designed for oversight, not autonomous operation
+
+### vs. CrewAI / AutoGPT
+
+- **Production-ready**: Built for reliability, not research demos
+- **Git-centric**: Version control integrated from the ground up
+- **Multi-instance**: Multiple Holts can run concurrently with workspace safety
+- **Compliance-focused**: Audit trail and human controls for regulated industries
+
+### vs. Temporal / Airflow
+
+- **AI-native**: Designed for LLM agent orchestration, not general workflows
+- **Blackboard pattern**: Shared state with event-driven coordination
+- **Container-per-agent**: Isolation and security by default
+- **Zero infrastructure**: **Just Docker and Redis - no clusters to manage**
 
 ---
 
@@ -166,6 +188,31 @@ graph TD
     class User,CLI user;
     class Tools data;
 ```
+
+## Project Status
+
+**Phase 3 (M3.4) Complete** ✅ - Multi-agent coordination with horizontal scaling
+
+Current capabilities:
+- ✅ Event-driven orchestration via Redis blackboard
+- ✅ Container-native agent execution
+- ✅ Git-centric workflow with commit tracking
+- ✅ Complete immutable audit trail
+- ✅ Human-in-the-loop support
+- ✅ Multi-instance workspace safety
+- ✅ Multi-agent coordination (review → parallel → exclusive phases)
+- ✅ Consensus-based bidding system
+- ✅ Automated feedback loops with review-based iteration
+- ✅ Automatic version management for iterative refinement
+- ✅ Controller-worker pattern for horizontal scaling
+- ✅ Ephemeral worker containers with automatic cleanup
+- ✅ Concurrency limits with stateless grant pausing
+
+Coming in Phase 3+:
+- 🚧 Runtime failure detection & timeouts (M3.6+)
+- 🚧 Orchestrator restart resilience (M3.5+)
+
+---
 
 ## Core Concepts
 
@@ -503,57 +550,6 @@ Each component (orchestrator, CLI, agent pup) has one job and does it excellentl
 ### Container-Native by Design
 
 Agents can use any tool that can be containerized - not just Python functions. This enables orchestration of compilers, CLIs, infrastructure tools, and more.
-
----
-
-## Use Cases
-
-### Software Engineering
-
-- **Multi-step code generation**: Design → Implement → Test → Deploy
-- **Refactoring workflows**: Analyze → Refactor → Validate → Commit
-- **Documentation generation**: Read code → Generate docs → Update README
-- **Test automation**: Write tests → Run tests → Fix failures → Verify
-
-### Regulated Industries
-
-Holt's immutable audit trail and human-in-the-loop design make it uniquely suited for:
-
-- **Financial services**: Auditable AI workflows for risk assessment, compliance reporting
-- **Healthcare**: Traceable AI-assisted processes for clinical documentation, research protocols
-- **Government**: Controllable AI automation with full audit trails for policy analysis
-- **Legal**: Documented AI workflows for contract analysis, due diligence
-
-### DevOps & Infrastructure
-
-- **Infrastructure as code**: Generate Terraform → Review → Apply → Validate
-- **Deployment automation**: Build → Test → Stage → Deploy with approval gates
-- **Monitoring & alerting**: Detect issue → Diagnose → Propose fix → Human approval → Apply
-
----
-
-## What Makes Holt Different
-
-### vs. LangChain / LlamaIndex
-
-- **Container-native**: Orchestrates any CLI tool, not just Python functions
-- **Event-driven**: Agents don't poll - they react to Pub/Sub events
-- **Immutable audit trail**: Every decision permanently recorded
-- **Human-in-the-loop**: Designed for oversight, not autonomous operation
-
-### vs. CrewAI / AutoGPT
-
-- **Production-ready**: Built for reliability, not research demos
-- **Git-centric**: Version control integrated from the ground up
-- **Multi-instance**: Multiple Holts can run concurrently with workspace safety
-- **Compliance-focused**: Audit trail and human controls for regulated industries
-
-### vs. Temporal / Airflow
-
-- **AI-native**: Designed for LLM agent orchestration, not general workflows
-- **Blackboard pattern**: Shared state with event-driven coordination
-- **Container-per-agent**: Isolation and security by default
-- **Zero infrastructure**: Just Docker and Redis - no clusters to manage
 
 ---
 
