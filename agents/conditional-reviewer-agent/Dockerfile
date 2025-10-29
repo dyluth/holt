@@ -14,6 +14,7 @@ RUN go mod download
 # Copy pup source code
 COPY cmd/pup ./cmd/pup
 COPY internal/pup ./internal/pup
+COPY internal/config ./internal/config
 COPY pkg/blackboard ./pkg/blackboard
 
 # Build the pup binary
