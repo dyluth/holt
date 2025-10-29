@@ -7,6 +7,7 @@ RUN go mod download
 
 COPY cmd/pup ./cmd/pup
 COPY internal/pup ./internal/pup
+COPY internal/config ./internal/config
 COPY pkg/blackboard ./pkg/blackboard
 
 RUN CGO_ENABLED=0 GOOS=linux go build -o pup ./cmd/pup
