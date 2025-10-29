@@ -198,8 +198,9 @@ func (a *Agent) Validate(name string) error {
 		}
 	}
 
-	// If build.context specified, verify path exists
-	if a.Build != nil && a.Build.Context != "" {
+	// If build.context specified AND no pre-built image is listed, verify path exists
+	// If a.Image is set, the build context is optional (pre-built image is used)
+	if a.Image == "" && a.Build != nil && a.Build.Context != "" {
 		if _, err := os.Stat(a.Build.Context); os.IsNotExist(err) {
 			return fmt.Errorf("agent '%s': build context does not exist: %s", name, a.Build.Context)
 		}

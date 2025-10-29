@@ -23,6 +23,14 @@ software engineering tasks.
 Holt provides an event-driven architecture with Redis-based state management,
 enabling transparent, auditable AI workflows.`,
 	Version: version,
+	// Prevent silent success when unknown flags are passed to root command
+	// e.g., "holt --goal test" instead of "holt forage --goal test"
+	RunE: func(cmd *cobra.Command, args []string) error {
+		// If no subcommand is specified, show help
+		return cmd.Help()
+	},
+	// Enable strict flag parsing - unknown flags will cause an error
+	FParseErrWhitelist: cobra.FParseErrWhitelist{},
 }
 
 // Execute adds all child commands to the root command and sets flags appropriately.
