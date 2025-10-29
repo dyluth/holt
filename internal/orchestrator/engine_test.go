@@ -141,7 +141,8 @@ func TestPublishClaimGrantedEvent(t *testing.T) {
 		claimID := uuid.New().String()
 
 		// Publish event with explicit grant type
-		err = engine.publishClaimGrantedEvent(ctx, claimID, "test-agent", "exclusive")
+		// M3.9: Added image ID parameter
+		err = engine.publishClaimGrantedEvent(ctx, claimID, "test-agent", "exclusive", "sha256:abc123")
 		require.NoError(t, err)
 
 		// Receive and verify event with longer timeout for CI
@@ -151,6 +152,7 @@ func TestPublishClaimGrantedEvent(t *testing.T) {
 			assert.Equal(t, claimID, event.Data["claim_id"])
 			assert.Equal(t, "test-agent", event.Data["agent_name"])
 			assert.Equal(t, "exclusive", event.Data["grant_type"])
+			assert.Equal(t, "sha256:abc123", event.Data["agent_image_id"]) // M3.9
 		case <-time.After(2 * time.Second):
 			t.Fatal("timeout waiting for claim_granted event")
 		}
@@ -168,13 +170,15 @@ func TestPublishClaimGrantedEvent(t *testing.T) {
 
 		claimID := uuid.New().String()
 
-		err = engine.publishClaimGrantedEvent(ctx, claimID, "agent1", "review")
+		// M3.9: Added image ID parameter
+		err = engine.publishClaimGrantedEvent(ctx, claimID, "agent1", "review", "sha256:def456")
 		require.NoError(t, err)
 
 		select {
 		case event := <-sub.Events():
 			assert.Equal(t, "claim_granted", event.Event)
 			assert.Equal(t, "review", event.Data["grant_type"])
+			assert.Equal(t, "sha256:def456", event.Data["agent_image_id"]) // M3.9
 		case <-time.After(2 * time.Second):
 			t.Fatal("timeout waiting for event")
 		}
@@ -192,13 +196,15 @@ func TestPublishClaimGrantedEvent(t *testing.T) {
 
 		claimID := uuid.New().String()
 
-		err = engine.publishClaimGrantedEvent(ctx, claimID, "agent1", "claim")
+		// M3.9: Added image ID parameter
+		err = engine.publishClaimGrantedEvent(ctx, claimID, "agent1", "claim", "sha256:ghi789")
 		require.NoError(t, err)
 
 		select {
 		case event := <-sub.Events():
 			assert.Equal(t, "claim_granted", event.Event)
 			assert.Equal(t, "claim", event.Data["grant_type"])
+			assert.Equal(t, "sha256:ghi789", event.Data["agent_image_id"]) // M3.9
 		case <-time.After(2 * time.Second):
 			t.Fatal("timeout waiting for event")
 		}
@@ -217,7 +223,8 @@ func TestPublishClaimGrantedEvent(t *testing.T) {
 		claimID := uuid.New().String()
 
 		// Test that explicit grant types are used as-is
-		err = engine.publishClaimGrantedEvent(ctx, claimID, "test-agent", "exclusive")
+		// M3.9: Added image ID parameter
+		err = engine.publishClaimGrantedEvent(ctx, claimID, "test-agent", "exclusive", "sha256:jkl012")
 		require.NoError(t, err)
 
 		select {
@@ -226,6 +233,7 @@ func TestPublishClaimGrantedEvent(t *testing.T) {
 			assert.Equal(t, claimID, event.Data["claim_id"])
 			assert.Equal(t, "test-agent", event.Data["agent_name"])
 			assert.Equal(t, "exclusive", event.Data["grant_type"])
+			assert.Equal(t, "sha256:jkl012", event.Data["agent_image_id"]) // M3.9
 		case <-time.After(2 * time.Second):
 			t.Fatal("timeout waiting for event")
 		}
