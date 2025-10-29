@@ -289,6 +289,11 @@ func createInstance(ctx context.Context, cli *client.Client, cfg *config.HoltCon
 		return fmt.Errorf("failed to launch agent containers: %w", err)
 	}
 
+	// Step 7: M3.9: Populate agent_images hash for audit trail
+	if err := populateAgentImages(ctx, cli, cfg, instanceName, redisPort); err != nil {
+		return fmt.Errorf("failed to populate agent images: %w", err)
+	}
+
 	return nil
 }
 
@@ -731,6 +736,98 @@ func getDockerSocketGroups() []string {
 	gidStr := strconv.FormatUint(uint64(gid), 10)
 	printer.Info("Docker socket GID: %s (adding to orchestrator container)\n", gidStr)
 	return []string{gidStr}
+}
+
+// populateAgentImages populates the agent_images hash in Redis (M3.9).
+// This hash maps agent roles to their Docker image IDs for audit trail.
+// For traditional/controller agents, resolves image ID from running container.
+// Fails hard if docker inspect fails - audit trail integrity is critical.
+func populateAgentImages(ctx context.Context, cli *client.Client, cfg *config.HoltConfig, instanceName string, redisPort int) error {
+	// Connect to Redis
+	redisClient := redis.NewClient(&redis.Options{
+		Addr: fmt.Sprintf("localhost:%d", redisPort),
+	})
+	defer redisClient.Close()
+
+	// Test connection
+	if err := redisClient.Ping(ctx).Err(); err != nil {
+		return fmt.Errorf("failed to connect to Redis: %w", err)
+	}
+
+	// M3.9: Import blackboard package for schema helper
+	agentImagesKey := fmt.Sprintf("holt:%s:agent_images", instanceName)
+
+	// Iterate through agents
+	for agentRole, agent := range cfg.Agents {
+		// Skip worker-only agents (they're not running yet)
+		if agent.Mode == "controller" || agent.Replicas == nil || *agent.Replicas == 1 {
+			// Get container name
+			containerName := dockerpkg.AgentContainerName(instanceName, agentRole)
+
+			// Get container info
+			containerInfo, err := cli.ContainerInspect(ctx, containerName)
+			if err != nil {
+				return fmt.Errorf("failed to inspect container %s: %w (Cannot start instance without complete audit trail)", containerName, err)
+			}
+
+			// Get image ID from container's image reference
+			imageID, err := getImageDigest(ctx, cli, containerInfo.Image)
+			if err != nil {
+				return fmt.Errorf("failed to resolve image ID for agent '%s': %w (Cannot start instance without complete audit trail)", agentRole, err)
+			}
+
+			// Store in Redis hash
+			if err := redisClient.HSet(ctx, agentImagesKey, agentRole, imageID).Err(); err != nil {
+				return fmt.Errorf("failed to store image ID for agent '%s': %w", agentRole, err)
+			}
+
+			printer.Info("  Registered agent '%s' with image %s\n", agentRole, truncateImageID(imageID))
+		}
+	}
+
+	printer.Success("Registered %d agent image(s) for audit trail\n", len(cfg.Agents))
+	return nil
+}
+
+// getImageDigest resolves a Docker image reference to its content-addressable digest.
+// Returns full sha256:... digest if available, falls back to image ID.
+func getImageDigest(ctx context.Context, cli *client.Client, imageRef string) (string, error) {
+	imageInfo, _, err := cli.ImageInspectWithRaw(ctx, imageRef)
+	if err != nil {
+		return "", fmt.Errorf("failed to inspect image: %w", err)
+	}
+
+	// Prefer RepoDigests (contains registry path + sha256)
+	if len(imageInfo.RepoDigests) > 0 {
+		return imageInfo.RepoDigests[0], nil
+	}
+
+	// Fallback to image ID (local builds without registry)
+	if imageInfo.ID != "" {
+		return imageInfo.ID, nil
+	}
+
+	return "", fmt.Errorf("image has no digest or ID")
+}
+
+// truncateImageID shortens an image ID/digest for display (M3.9).
+// Extracts first 12 characters of sha256 hash.
+func truncateImageID(imageID string) string {
+	// Handle "sha256:..." format
+	if len(imageID) > 7 && imageID[:7] == "sha256:" {
+		hash := imageID[7:]
+		if len(hash) >= 12 {
+			return hash[:12]
+		}
+		return hash
+	}
+
+	// Handle other formats
+	if len(imageID) >= 12 {
+		return imageID[:12]
+	}
+
+	return imageID
 }
 
 // detectAndHandleStaleLock checks for stale orchestrator locks and handles takeover (M3.5).

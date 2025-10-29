@@ -66,3 +66,10 @@ func AgentEventsChannel(instanceName, agentName string) string {
 func WorkflowEventsChannel(instanceName string) string {
 	return fmt.Sprintf("holt:%s:workflow_events", instanceName)
 }
+
+// AgentImagesKey returns the Redis key for the agent images hash (M3.9).
+// This hash stores agent role → Docker image ID mappings for audit trails.
+// Pattern: holt:{instance_name}:agent_images
+func AgentImagesKey(instanceName string) string {
+	return fmt.Sprintf("holt:%s:agent_images", instanceName)
+}

@@ -102,7 +102,7 @@ func (e *Engine) persistPhaseState(ctx context.Context, claim *blackboard.Claim,
 		GrantedAgents: phaseState.GrantedAgents,
 		Received:      phaseState.ReceivedArtefacts,
 		AllBids:       phaseState.AllBids,
-		StartTime:     phaseState.StartTime.Unix(),
+		StartTimeMs:   phaseState.StartTime.UnixMilli(), // M3.9: Millisecond precision
 	}
 
 	// Persist to Redis
@@ -116,11 +116,11 @@ func (e *Engine) persistPhaseState(ctx context.Context, claim *blackboard.Claim,
 // pauseGrantForQueue adds claim to persistent grant queue when max_concurrent reached (M3.5).
 // Uses Redis ZSET for FIFO ordering based on pause timestamp.
 func (e *Engine) pauseGrantForQueue(ctx context.Context, claim *blackboard.Claim, agentName string, role string) error {
-	pausedAt := time.Now().Unix()
+	pausedAt := time.Now().UnixMilli() // M3.9: Millisecond precision
 
 	// Update claim with queue metadata
 	claim.GrantQueue = &blackboard.GrantQueue{
-		PausedAt:  pausedAt,
+		PausedAtMs: pausedAt, // M3.9: Field renamed
 		AgentName: agentName,
 		Position:  0, // Not populated in M3.5 - ZSET score provides ordering
 	}

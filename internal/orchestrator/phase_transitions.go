@@ -197,8 +197,10 @@ func (e *Engine) GrantExclusivePhase(ctx context.Context, claim *blackboard.Clai
 				claim.TerminationReason = fmt.Sprintf("Failed to launch worker: %v", err)
 				return e.client.UpdateClaim(ctx, claim)
 			}
+			// M3.9: Get worker image ID - will be resolved at launch time by WorkerManager
+			// For now, pass empty string as worker image is resolved dynamically
 			// Publish event for watching
-			if err := e.publishClaimGrantedEvent(ctx, claim.ID, winner, "exclusive"); err != nil {
+			if err := e.publishClaimGrantedEvent(ctx, claim.ID, winner, "exclusive", ""); err != nil {
 				log.Printf("[Orchestrator] Failed to publish workflow event for exclusive grant to %s: %v", winner, err)
 			}
 		} else {
@@ -241,8 +243,10 @@ func (e *Engine) GrantExclusivePhase(ctx context.Context, claim *blackboard.Clai
 		log.Printf("[Orchestrator] Failed to publish exclusive grant notification to %s: %v", winner, err)
 	}
 
+	// M3.9: Get agent image ID for audit trail
+	agentImageID := e.getAgentImageID(ctx, winner)
 	// Publish event for watching
-	if err := e.publishClaimGrantedEvent(ctx, claim.ID, winner, "exclusive"); err != nil {
+	if err := e.publishClaimGrantedEvent(ctx, claim.ID, winner, "exclusive", agentImageID); err != nil {
 		log.Printf("[Orchestrator] Failed to publish workflow event for exclusive grant to %s: %v", winner, err)
 	}
 

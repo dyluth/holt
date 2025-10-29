@@ -194,21 +194,21 @@ func (f *defaultFormatter) FormatArtefact(artefact *blackboard.Artefact) error {
 		return nil
 	}
 
-	timestamp := time.Now().Format("15:04:05")
+	timestamp := time.Now().Format("15:04:05.000") // M3.9: Millisecond precision
 	_, err := fmt.Fprintf(f.writer, "[%s] ✨ Artefact created: by=%s, type=%s, id=%s\n",
 		timestamp, artefact.ProducedByRole, artefact.Type, artefact.ID)
 	return err
 }
 
 func (f *defaultFormatter) FormatClaim(claim *blackboard.Claim) error {
-	timestamp := time.Now().Format("15:04:05")
+	timestamp := time.Now().Format("15:04:05.000") // M3.9: Millisecond precision
 	_, err := fmt.Fprintf(f.writer, "[%s] ⏳ Claim created: claim=%s, artefact=%s, status=%s\n",
 		timestamp, claim.ID, claim.ArtefactID, claim.Status)
 	return err
 }
 
 func (f *defaultFormatter) FormatWorkflow(event *blackboard.WorkflowEvent) error {
-	timestamp := time.Now().Format("15:04:05")
+	timestamp := time.Now().Format("15:04:05.000") // M3.9: Millisecond precision
 
 	switch event.Event {
 	case "bid_submitted":
@@ -223,8 +223,16 @@ func (f *defaultFormatter) FormatWorkflow(event *blackboard.WorkflowEvent) error
 		agentName, _ := event.Data["agent_name"].(string)
 		claimID, _ := event.Data["claim_id"].(string)
 		grantType, _ := event.Data["grant_type"].(string)
+		agentImageID, _ := event.Data["agent_image_id"].(string) // M3.9
+
+		// M3.9: Display agent@imageID format
+		agentDisplay := agentName
+		if agentImageID != "" {
+			agentDisplay = fmt.Sprintf("%s@%s", agentName, truncateImageID(agentImageID))
+		}
+
 		_, err := fmt.Fprintf(f.writer, "[%s] 🏆 Claim granted: agent=%s, claim=%s, type=%s\n",
-			timestamp, agentName, claimID, grantType)
+			timestamp, agentDisplay, claimID, grantType)
 		return err
 
 	case "review_approved":
@@ -317,4 +325,24 @@ func (f *jsonFormatter) writeJSON(data interface{}) error {
 	}
 	_, err = fmt.Fprintf(f.writer, "%s\n", string(bytes))
 	return err
+}
+
+// truncateImageID shortens an image ID/digest for display (M3.9).
+// Extracts first 12 characters of sha256 hash.
+func truncateImageID(imageID string) string {
+	// Handle "sha256:..." format
+	if len(imageID) > 7 && imageID[:7] == "sha256:" {
+		hash := imageID[7:]
+		if len(hash) >= 12 {
+			return hash[:12]
+		}
+		return hash
+	}
+
+	// Handle other formats
+	if len(imageID) >= 12 {
+		return imageID[:12]
+	}
+
+	return imageID
 }

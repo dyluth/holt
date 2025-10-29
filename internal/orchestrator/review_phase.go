@@ -46,8 +46,10 @@ func (e *Engine) GrantReviewPhase(ctx context.Context, claim *blackboard.Claim, 
 		if err := e.publishGrantNotificationWithType(ctx, agentName, claim.ID, "review"); err != nil {
 			log.Printf("[Orchestrator] Failed to publish review grant notification to %s: %v", agentName, err)
 		}
+		// M3.9: Get agent image ID for audit trail
+		agentImageID := e.getAgentImageID(ctx, agentName)
 		// Publish event for watching
-		if err := e.publishClaimGrantedEvent(ctx, claim.ID, agentName, "review"); err != nil {
+		if err := e.publishClaimGrantedEvent(ctx, claim.ID, agentName, "review", agentImageID); err != nil {
 			log.Printf("[Orchestrator] Failed to publish workflow event for review grant to %s: %v", agentName, err)
 		}
 	}

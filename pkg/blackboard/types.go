@@ -25,6 +25,7 @@ type Artefact struct {
 	Payload         string         `json:"payload"`          // Main content (git hash, JSON, text)
 	SourceArtefacts []string       `json:"source_artefacts"` // Array of artefact UUIDs this was derived from
 	ProducedByRole  string         `json:"produced_by_role"` // Agent's role from holt.yml or "user"
+	CreatedAtMs     int64          `json:"created_at_ms"`    // M3.9: Unix timestamp in milliseconds when artefact was created
 }
 
 // StructuralType defines the role an artefact plays in the orchestration flow.
@@ -76,6 +77,9 @@ type Claim struct {
 	LastGrantAgent    string `json:"last_grant_agent,omitempty"`    // Last agent granted this claim
 	LastGrantTime     int64  `json:"last_grant_time,omitempty"`     // Unix timestamp of last grant
 	ArtefactExpected  bool   `json:"artefact_expected,omitempty"`   // Whether we're waiting for artefact from granted agent
+
+	// M3.9: Agent version auditing
+	GrantedAgentImageID string `json:"granted_agent_image_id,omitempty"` // Docker image ID of agent that was granted this claim
 }
 
 // ClaimStatus defines the lifecycle state of a claim.
@@ -131,19 +135,19 @@ type Bid struct {
 // PhaseState represents persisted phase execution state for restart resilience (M3.5).
 // Stored as JSON-encoded fields in the Claim Redis hash.
 type PhaseState struct {
-	Current       string            `json:"current"`        // Current phase: "review", "parallel", or "exclusive"
-	GrantedAgents []string          `json:"granted_agents"` // Agents granted in this phase
-	Received      map[string]string `json:"received"`       // agentRole → artefactID (received artefacts)
-	AllBids       map[string]BidType `json:"all_bids"`      // agentName → bidType (all original bids)
-	StartTime     int64             `json:"start_time"`     // Unix timestamp when phase started
+	Current       string             `json:"current"`         // Current phase: "review", "parallel", or "exclusive"
+	GrantedAgents []string           `json:"granted_agents"`  // Agents granted in this phase
+	Received      map[string]string  `json:"received"`        // agentRole → artefactID (received artefacts)
+	AllBids       map[string]BidType `json:"all_bids"`        // agentName → bidType (all original bids)
+	StartTimeMs   int64              `json:"start_time_ms"`   // M3.9: Unix timestamp in milliseconds when phase started
 }
 
 // GrantQueue represents grant queue metadata for paused claims (M3.5).
 // Used when controller-worker agents hit max_concurrent limit.
 type GrantQueue struct {
-	PausedAt  int64  `json:"paused_at"`  // Unix timestamp when claim was paused
-	AgentName string `json:"agent_name"` // Agent name that would be granted
-	Position  int    `json:"position"`   // Reserved for future display/debugging (not populated in M3.5)
+	PausedAtMs int64  `json:"paused_at_ms"` // M3.9: Unix timestamp in milliseconds when claim was paused
+	AgentName  string `json:"agent_name"`   // Agent name that would be granted
+	Position   int    `json:"position"`     // Reserved for future display/debugging (not populated in M3.5)
 }
 
 // Validate checks if the Artefact has valid field values.

@@ -310,6 +310,7 @@ func (e *Engine) createResultArtefact(ctx context.Context, claim *blackboard.Cla
 		Payload:         output.ArtefactPayload,
 		SourceArtefacts: []string{claim.ArtefactID}, // Derivative from target artefact
 		ProducedByRole:  e.config.AgentName,         // M3.7: AgentName IS the role
+		CreatedAtMs:     time.Now().UnixMilli(),     // M3.9: Millisecond precision timestamp
 	}
 
 	// Create artefact in Redis (also publishes event)
@@ -360,6 +361,7 @@ func (e *Engine) createFailureArtefact(ctx context.Context, claim *blackboard.Cl
 		Payload:         payload,
 		SourceArtefacts: []string{claim.ArtefactID},
 		ProducedByRole:  e.config.AgentName, // M3.7: AgentName IS the role
+		CreatedAtMs:     time.Now().UnixMilli(), // M3.9: Millisecond precision timestamp
 	}
 
 	// Create artefact
@@ -448,8 +450,9 @@ func (e *Engine) createReworkArtefact(ctx context.Context, claim *blackboard.Cla
 		StructuralType:  output.GetStructuralType(),
 		Type:            targetArtefact.Type, // Same type (rework)
 		Payload:         output.ArtefactPayload,
-		SourceArtefacts: sourceArtefacts,     // Target + Reviews
-		ProducedByRole:  e.config.AgentName, // M3.7: AgentName IS the role
+		SourceArtefacts: sourceArtefacts,        // Target + Reviews
+		ProducedByRole:  e.config.AgentName,    // M3.7: AgentName IS the role
+		CreatedAtMs:     time.Now().UnixMilli(), // M3.9: Millisecond precision timestamp
 	}
 
 	// Create artefact in Redis (also publishes event)

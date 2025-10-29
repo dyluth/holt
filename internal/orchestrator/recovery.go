@@ -117,7 +117,7 @@ func (e *Engine) reconstructPhaseState(ctx context.Context, claim *blackboard.Cl
 		GrantedAgents:     grantedAgents,
 		ReceivedArtefacts: receivedArtefacts,
 		AllBids:           allBids,
-		StartTime:         time.Unix(claim.PhaseState.StartTime, 0),
+		StartTime:         time.UnixMilli(claim.PhaseState.StartTimeMs), // M3.9: Millisecond precision
 	}
 
 	// Store in-memory

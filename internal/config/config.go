@@ -39,6 +39,9 @@ type Agent struct {
 	// M3.4: Controller-worker pattern
 	Mode   string        `yaml:"mode,omitempty"`   // "controller" or empty (traditional)
 	Worker *WorkerConfig `yaml:"worker,omitempty"` // Required if mode="controller"
+
+	// M3.9: Configurable health checks
+	HealthCheck *HealthCheckConfig `yaml:"health_check,omitempty"` // Optional: custom health check
 }
 
 // BuildConfig specifies how to build an agent's container image
@@ -75,6 +78,13 @@ type ResourceLimits struct {
 type PromptsConfig struct {
 	Claim     string `yaml:"claim,omitempty"`
 	Execution string `yaml:"execution,omitempty"`
+}
+
+// HealthCheckConfig specifies custom health check configuration (M3.9)
+type HealthCheckConfig struct {
+	Command  []string `yaml:"command"`            // Command to execute for health check
+	Interval string   `yaml:"interval,omitempty"` // Check interval (default: 30s)
+	Timeout  string   `yaml:"timeout,omitempty"`  // Command timeout (default: 5s)
 }
 
 // ServicesConfig specifies service-level overrides

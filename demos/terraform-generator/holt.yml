@@ -10,6 +10,11 @@ agents:
     bid_script: ["/app/bid.sh"]
     workspace:
       mode: rw  # Needs write access to commit Terraform code
+    # M3.9: Realistic health check - verify terraform binary is available
+    health_check:
+      command: ["terraform", "version"]
+      interval: "30s"
+      timeout: "5s"
 
   TerraformFmt:
     image: "holt-terraformfmt-tf-demo:latest"
