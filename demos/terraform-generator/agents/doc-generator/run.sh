@@ -11,10 +11,14 @@ cd /workspace
 git config user.email "docgenerator@holt.demo"
 git config user.name "Holt DocGenerator"
 
+# Capture original branch to preserve user's workspace state
+original_branch=$(git rev-parse --abbrev-ref HEAD 2>/dev/null || echo "")
+
 # Extract commit hash from target artefact
 commit_hash=$(echo "$input" | jq -r '.target_artefact.payload')
 
 echo "DocGenerator: Received TerraformCode commit: $commit_hash" >&2
+echo "DocGenerator: Original branch: $original_branch" >&2
 echo "DocGenerator: Generating module documentation (MOCKED)..." >&2
 
 # Checkout the Terraform code to read it
@@ -113,13 +117,27 @@ EOF
 
 # Commit the documentation
 git add README.md
-git commit -m "[holt-agent: DocGenerator] Generated module documentation
 
-Terraform commit: $commit_hash"
+# Check if there are changes to commit
+if git diff --cached --quiet; then
+    echo "DocGenerator: No changes to commit (file unchanged)" >&2
+    new_commit_hash=$(git rev-parse HEAD)
+else
+    git commit -m "[holt-agent: DocGenerator] Generated module documentation
 
-new_commit_hash=$(git rev-parse HEAD)
+Terraform commit: $commit_hash" >&2
+    new_commit_hash=$(git rev-parse HEAD)
+fi
 
 echo "DocGenerator: Committed documentation as $new_commit_hash" >&2
+
+# Update the original branch to point to our new commit and checkout to it
+# This preserves the branch for the next agent in the chain
+if [ -n "$original_branch" ] && [ "$original_branch" != "HEAD" ]; then
+    echo "DocGenerator: Updating branch $original_branch to point to new commit" >&2
+    git branch -f "$original_branch" "$new_commit_hash" 2>/dev/null || true
+    git checkout "$original_branch" --quiet 2>/dev/null || true
+fi
 
 # Output CodeCommit artefact with type "TerraformDocumentation"
 cat <<EOF

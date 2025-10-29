@@ -11,10 +11,14 @@ cd /workspace
 git config user.email "markdownlint@holt.demo"
 git config user.name "Holt MarkdownLint"
 
+# Capture original branch to preserve user's workspace state
+original_branch=$(git rev-parse --abbrev-ref HEAD 2>/dev/null || echo "")
+
 # Extract commit hash from target artefact
 commit_hash=$(echo "$input" | jq -r '.target_artefact.payload')
 
 echo "MarkdownLint: Received TerraformDocumentation commit: $commit_hash" >&2
+echo "MarkdownLint: Original branch: $original_branch" >&2
 echo "MarkdownLint: Formatting markdown files..." >&2
 
 # Checkout the documentation to format it
@@ -50,31 +54,39 @@ done
 if git diff --quiet; then
     echo "MarkdownLint: No formatting changes needed" >&2
     # No changes, return original commit
-    cat <<EOF
-{
-  "artefact_type": "FormattedDocumentation",
-  "artefact_payload": "$commit_hash",
-  "summary": "Markdown files already properly formatted"
-}
-EOF
+    new_commit_hash=$commit_hash
 else
     echo "MarkdownLint: Committing formatted documentation..." >&2
     # Commit the formatting changes
     git add .
-    git commit -m "[holt-agent: MarkdownLint] Formatted markdown documentation
 
-Original commit: $commit_hash"
+    # Double-check there are still changes after git add
+    if git diff --cached --quiet; then
+        echo "MarkdownLint: No changes to commit after staging" >&2
+        new_commit_hash=$commit_hash
+    else
+        git commit -m "[holt-agent: MarkdownLint] Formatted markdown documentation
 
-    new_commit_hash=$(git rev-parse HEAD)
+Original commit: $commit_hash" >&2
+        new_commit_hash=$(git rev-parse HEAD)
+    fi
 
     echo "MarkdownLint: Committed formatted documentation as $new_commit_hash" >&2
+fi
 
-    # Output CodeCommit artefact with type "FormattedDocumentation"
-    cat <<EOF
+# Always update the original branch and checkout to it, even if no changes
+# This preserves the branch for the next agent in the chain
+if [ -n "$original_branch" ] && [ "$original_branch" != "HEAD" ]; then
+    echo "MarkdownLint: Updating branch $original_branch to point to commit" >&2
+    git branch -f "$original_branch" "$new_commit_hash" 2>/dev/null || true
+    git checkout "$original_branch" --quiet 2>/dev/null || true
+fi
+
+# Output CodeCommit artefact with type "FormattedDocumentation"
+cat <<EOF
 {
   "artefact_type": "FormattedDocumentation",
   "artefact_payload": "$new_commit_hash",
-  "summary": "Formatted markdown documentation with markdownlint-cli2"
+  "summary": "$([ "$new_commit_hash" = "$commit_hash" ] && echo "Markdown files already properly formatted" || echo "Formatted markdown documentation with markdownlint-cli2")"
 }
 EOF
-fi

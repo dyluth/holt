@@ -225,6 +225,29 @@ func TestFormatters(t *testing.T) {
 		require.Contains(t, output, "id=abc-123")
 	})
 
+	t.Run("defaultFormatter formats Terminal artefact with completion message", func(t *testing.T) {
+		var buf []byte
+		writer := &testWriter{buf: &buf}
+		formatter := &defaultFormatter{writer: writer}
+
+		artefact := &blackboard.Artefact{
+			ID:             "terminal-123",
+			Type:           "PackagedModule",
+			StructuralType: blackboard.StructuralTypeTerminal,
+			ProducedByRole: "ModulePackager",
+		}
+
+		err := formatter.FormatArtefact(artefact)
+		require.NoError(t, err)
+
+		output := string(buf)
+		require.Contains(t, output, "✨ Artefact created")
+		require.Contains(t, output, "type=PackagedModule")
+		require.Contains(t, output, "id=terminal-123")
+		require.Contains(t, output, "🎉 Workflow completed")
+		require.Contains(t, output, "Terminal artefact created")
+	})
+
 	t.Run("defaultFormatter formats claim events", func(t *testing.T) {
 		var buf []byte
 		writer := &testWriter{buf: &buf}

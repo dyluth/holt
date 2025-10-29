@@ -195,6 +195,19 @@ func (f *defaultFormatter) FormatArtefact(artefact *blackboard.Artefact) error {
 	}
 
 	timestamp := time.Now().Format("15:04:05.000") // M3.9: Millisecond precision
+
+	// Special handling for Terminal artefacts - indicate workflow completion
+	if artefact.StructuralType == blackboard.StructuralTypeTerminal {
+		_, err := fmt.Fprintf(f.writer, "[%s] ✨ Artefact created: by=%s, type=%s, id=%s\n",
+			timestamp, artefact.ProducedByRole, artefact.Type, artefact.ID)
+		if err != nil {
+			return err
+		}
+		_, err = fmt.Fprintf(f.writer, "[%s] 🎉 Workflow completed: Terminal artefact created (type=%s)\n",
+			timestamp, artefact.Type)
+		return err
+	}
+
 	_, err := fmt.Fprintf(f.writer, "[%s] ✨ Artefact created: by=%s, type=%s, id=%s\n",
 		timestamp, artefact.ProducedByRole, artefact.Type, artefact.ID)
 	return err
@@ -297,7 +310,25 @@ func (f *jsonFormatter) FormatArtefact(artefact *blackboard.Artefact) error {
 		"event":     "artefact_created",
 		"data":      artefact,
 	}
-	return f.writeJSON(output)
+	if err := f.writeJSON(output); err != nil {
+		return err
+	}
+
+	// Add workflow_completed event for Terminal artefacts
+	if artefact.StructuralType == blackboard.StructuralTypeTerminal {
+		completionOutput := map[string]interface{}{
+			"timestamp": time.Now().UTC().Format(time.RFC3339),
+			"event":     "workflow_completed",
+			"data": map[string]interface{}{
+				"artefact_id":   artefact.ID,
+				"artefact_type": artefact.Type,
+				"produced_by":   artefact.ProducedByRole,
+			},
+		}
+		return f.writeJSON(completionOutput)
+	}
+
+	return nil
 }
 
 func (f *jsonFormatter) FormatClaim(claim *blackboard.Claim) error {

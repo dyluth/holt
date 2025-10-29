@@ -49,7 +49,7 @@ agents:
     command: ["/app/run.sh"]
     bid_script: ["/app/bid.sh"]
     workspace:
-      mode: ro  # Read-only access to package files
+      mode: rw  # Needs write access for git checkout and creating tar.gz
 
 services:
   redis:

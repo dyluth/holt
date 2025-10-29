@@ -8,6 +8,7 @@
 This demo showcases Holt's ability to orchestrate a realistic DevOps workflow involving:
 - **6 specialized agents** (2 LLM-based, 4 tool-based)
 - **Multi-phase coordination** (review → exclusive → parallel → exclusive → terminal)
+- **Automated feedback loop** (TerraformDrafter reworks code after review rejection)
 - **Type-based workflow progression** (agents bid based on artefact types)
 - **Validation gates** (both linters must approve before proceeding)
 - **Complete audit trail** (every step traceable in git and blackboard)
@@ -17,9 +18,13 @@ This demo showcases Holt's ability to orchestrate a realistic DevOps workflow in
 ```
 User Goal: "Create a Terraform module for S3 static website hosting"
     ↓
-[TerraformDrafter] → Generates main.tf
+[TerraformDrafter] → Generates main.tf (v1, poorly formatted - DEMO)
     ↓
-[TerraformFmt + TfLint] → Review phase (both must approve)
+[TerraformFmt + TfLint] → Review phase → REJECT with feedback
+    ↓
+[TerraformDrafter] → Rework: Generates main.tf (v2, properly formatted)
+    ↓
+[TerraformFmt + TfLint] → Review phase → APPROVE
     ↓
 [DocGenerator] → Generates README.md
     ↓
@@ -27,6 +32,8 @@ User Goal: "Create a Terraform module for S3 static website hosting"
     ↓
 [ModulePackager] → Creates s3-module.tar.gz (Terminal artefact)
 ```
+
+**Note**: The first attempt deliberately generates poorly formatted code to demonstrate the automated feedback loop (M3.3). This shows how Holt handles review rejections and automatic rework without manual intervention.
 
 ## Quick Start
 
@@ -59,17 +66,18 @@ git config user.name "Demo User"
 git commit --allow-empty -m "Initial commit"
 ```
 
-#### 3. Copy Complete Demo Assets
+#### 3. Copy Configuration
 
-**CRITICAL**: Copy the entire demo structure, not just holt.yml:
+Copy the `holt.yml` configuration to your workspace:
 
 ```bash
 HOLT_REPO=<path-to-holt-repo>
-cp -r $HOLT_REPO/demos/terraform-generator/agents .
 cp $HOLT_REPO/demos/terraform-generator/holt.yml .
-git add .
-git commit -m "Add Holt configuration and agents"
+git add holt.yml
+git commit -m "Add Holt configuration"
 ```
+
+**Note**: The agent scripts are baked into the Docker images, so you only need `holt.yml` in your workspace.
 
 #### 4. Initialize and Run
 
@@ -104,20 +112,17 @@ cd <holt-repo>
 
 ### "Error: Failed to load holt.yml: no such file or directory"
 
-**Cause**: The orchestrator cannot find the agent Dockerfiles in the workspace.
+**Cause**: The `holt.yml` file is not present in your workspace.
 
-**Solution**: Ensure you copied the **complete demo structure** (both `agents/` directory and `holt.yml`), not just `holt.yml`:
+**Solution**: Copy the `holt.yml` configuration file to your workspace:
 
 ```bash
-# WRONG - only copies holt.yml
 cp /path/to/holt/demos/terraform-generator/holt.yml .
-
-# CORRECT - copies complete structure
-cp -r /path/to/holt/demos/terraform-generator/agents .
-cp /path/to/holt/demos/terraform-generator/holt.yml .
-git add .
-git commit -m "Add Holt configuration and agents"
+git add holt.yml
+git commit -m "Add Holt configuration"
 ```
+
+**Note**: Agent scripts are baked into the Docker images, so you don't need to copy the `agents/` directory to your workspace.
 
 ### "Git workspace is not clean"
 
@@ -146,11 +151,30 @@ holt logs TfLint
 docker logs holt-orchestrator-<instance-name>
 ```
 
-## Implementation Note
+## Implementation Notes
+
+### Mocked LLM Responses
 
 **Current Status**: Uses **mocked LLM responses** (hardcoded Terraform and README content) for deterministic testing. This validates the complete 6-agent orchestration without external API dependencies.
 
 **Future Enhancement**: Replace mocked agents with real OpenAI API calls once orchestration is proven.
+
+### Git Workspace Management
+
+Holt respects your branch workflow:
+
+1. **Branch preservation**: All agents capture the original branch at startup
+2. **Linear history**: Each agent updates the original branch pointer as it creates commits
+3. **Final cleanup**: ModulePackager returns workspace to your starting branch
+
+**Example**: If you start on `feature-branch`:
+- All commits (TerraformDrafter, DocGenerator, MarkdownLint) update `feature-branch`
+- After completion, you're back on `feature-branch` with all commits
+- Git history is linear on your original branch
+
+**Note**: Agents temporarily checkout commits to read previous work, but always update your original branch with new commits to maintain a clean, linear history.
+
+**Future Enhancement**: For higher concurrency scenarios, git worktrees could provide better isolation. See `design/future-enhancements.md` for details.
 
 ---
 
