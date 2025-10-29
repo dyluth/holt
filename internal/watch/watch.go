@@ -203,8 +203,8 @@ func (f *defaultFormatter) FormatArtefact(artefact *blackboard.Artefact) error {
 		if err != nil {
 			return err
 		}
-		_, err = fmt.Fprintf(f.writer, "[%s] 🎉 Workflow completed: Terminal artefact created (type=%s)\n",
-			timestamp, artefact.Type)
+		_, err = fmt.Fprintf(f.writer, "[%s] 🎉 Workflow completed: Terminal artefact created (type=%s, id=%s)\n",
+			timestamp, artefact.Type, artefact.ID)
 		return err
 	}
 

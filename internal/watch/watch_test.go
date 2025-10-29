@@ -246,6 +246,7 @@ func TestFormatters(t *testing.T) {
 		require.Contains(t, output, "id=terminal-123")
 		require.Contains(t, output, "🎉 Workflow completed")
 		require.Contains(t, output, "Terminal artefact created")
+		require.Contains(t, output, "id=terminal-123")
 	})
 
 	t.Run("defaultFormatter formats claim events", func(t *testing.T) {
