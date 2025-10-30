@@ -81,26 +81,23 @@ Holt follows a systematic **three-stage feature development process** designed f
 
 ## **File Organization for Feature Designs**
 
-Feature design documents are organized by delivery phase to maintain clear progression and dependency management:
+Feature design documents are organized by delivery phase to maintain clear progression and dependency management. The filenames below are illustrative examples.
 
 ```
 design/features/
 ├── phase-1-heartbeat/              # Core Infrastructure
-│   ├── redis-blackboard-foundation.md
-│   ├── basic-orchestrator-engine.md
-│   └── cli-lifecycle-commands.md
+│   └── M1.1-redis-blackboard-foundation.md
 ├── phase-2-single-agent/           # Basic Execution
-│   ├── agent-pup-implementation.md
-│   ├── git-workspace-integration.md
-│   └── basic-claim-execution.md
+│   └── M2.1-agent-pup-foundation.md
 ├── phase-3-coordination/           # Multi-Agent Workflow
-│   ├── consensus-bidding-model.md
-│   ├── phased-execution-system.md
-│   └── controller-worker-pattern.md
-└── phase-4-human-loop/             # Production Ready
-    ├── question-answer-system.md
-    ├── monitoring-health-checks.md
-    └── production-readiness.md
+│   ├── M3.1-multiple-agents-enhanced-bidding.md
+│   └── M3.10-cli-observability.md
+├── phase-4-human-loop/             # Production Ready & Human Interaction
+│   └── M4.1-question-answer-system.md
+├── phase-5-complex-coordination/   # Advanced DAG Workflows
+│   └── M5.1-declarative-fan-in-synchronization.md
+└── phase-6-kubernetes-native/      # Kubernetes Operator & Deployment
+    └── M6.1-holt-operator-and-crd-design.md
 ```
 
 ## **AI Agent Guidelines for Feature Development**

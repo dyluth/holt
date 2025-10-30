@@ -2,42 +2,47 @@
 
 **Purpose**: Navigation guide for AI agents to efficiently find relevant documentation  
 **Scope**: Essential - read first for any Holt development task  
-**Estimated tokens**: ~500 tokens  
+**Estimated tokens**: ~600 tokens  
 **Read when**: Starting any development task, unsure which documents to consult
 
 ## **Quick Start: Core Context**
 
 **Always start here** (required for all tasks):
-1. **`PROJECT_CONTEXT.md`** (~1,500 tokens) - Project overview, philosophy, architecture concepts
-2. **This file** (~500 tokens) - Navigation guidance for specific tasks
-3. **`QUICK_REFERENCE.md`** (~800 tokens) - Key concepts, data structures, and patterns
+1. **`README.md`** (~2,000 tokens) - High-level project overview, enterprise features, and the official 6-phase roadmap.
+2. **`PROJECT_CONTEXT.md`** (~1,500 tokens) - The project's core philosophy, architectural principles, and vision.
+3. **This file** (~600 tokens) - Navigation guidance for specific tasks.
+4. **`QUICK_REFERENCE.md`** (~800 tokens) - Key concepts, data structures, and command patterns.
 
 ## **Task-Specific Reading Lists**
 
-### **Understanding the System**
-- **`design/holt-system-specification.md`** (~5,700 tokens) - Complete architecture overview
-- **`QUICK_REFERENCE.md`** (~800 tokens) - Key concepts and data structures
+### **Understanding the System Architecture**
+- **`design/holt-system-specification.md`** (~5,700 tokens) - Complete technical architecture overview.
+- **`PROJECT_CONTEXT.md`** (~1,500 tokens) - The "why" behind the architecture.
 
-### **Designing Features**
-- **`DEVELOPMENT_PROCESS.md`** (~2,000 tokens) - Three-stage development lifecycle  
-- **`design/holt-feature-design-template.md`** (~3,500 tokens) - Systematic design template
-- **`design/features/phase-X/README.md`** (~300 tokens each) - Phase-specific constraints
+### **Understanding the Roadmap & Vision**
+- **`README.md`** (Roadmap section) - The official 6-phase project roadmap.
+- **`design/features/phase-X/README.md`** - Detailed goals for each specific phase.
+- **`design/future-enhancements.md`** - The long-term vision for enterprise features beyond the core roadmap.
+
+### **Designing New Features**
+- **`DEVELOPMENT_PROCESS.md`** (~2,000 tokens) - The three-stage development lifecycle.  
+- **`design/holt-feature-design-template.md`** (~3,500 tokens) - The template for creating new feature designs.
 
 ### **Implementing Orchestrator Features**
-- **`design/holt-orchestrator-component.md`** (~3,200 tokens) - Orchestrator logic and algorithms
-- **`QUICK_REFERENCE.md`** (~800 tokens) - Redis patterns and event flows
+- **`design/holt-orchestrator-component.md`** (~3,200 tokens) - Orchestrator logic and algorithms.
+- **`QUICK_REFERENCE.md`** (~800 tokens) - Redis patterns and event flows.
 
 ### **Implementing Agent Features**  
-- **`design/agent-pup.md`** (~3,300 tokens) - Agent pup architecture and contracts
-- **`QUICK_REFERENCE.md`** (~800 tokens) - Tool execution patterns
+- **`design/agent-pup.md`** (~3,300 tokens) - Agent pup architecture and contracts.
+- **`QUICK_REFERENCE.md`** (~800 tokens) - Tool execution patterns.
 
-### **Working with CLI/User Interface**
-- **`design/holt-system-specification.md`** (sections 6-7) - CLI commands and human interaction
-- **`QUICK_REFERENCE.md`** (~800 tokens) - Command reference
+### **Working with the CLI (Observability & Commands)**
+- **`design/features/phase-3-coordination/M3.10-cli-observability.md`** - Design for the powerful `watch` and `hoard` filtering and output features.
+- **`QUICK_REFERENCE.md`** (~800 tokens) - Command reference.
 
 ### **System Integration & Testing**
-- **`design/holt-system-specification.md`** (sections 8-9) - Error handling and technical details
-- **`DEVELOPMENT_PROCESS.md`** (Stage 3) - Integration validation process
+- **`DEVELOPMENT_PROCESS.md`** (Stage 3) - Integration validation process.
+- **`design/holt-system-specification.md`** (sections 8-9) - Error handling and technical details.
 
 ## **Strategic Reading & Context Management**
 
@@ -52,32 +57,27 @@ Use the **`Task-Specific Reading Lists`** or **`Common Navigation Patterns`** se
 **3. Prioritize Summaries**
 To save tokens, prefer reading `QUICK_REFERENCE.md` or component-specific documents before consulting the full `design/holt-system-specification.md`. The token estimates help you budget your context window.
 
-**Example Workflow (Constrained Context):**
-1.  Read `PROJECT_CONTEXT.md` and `QUICK_REFERENCE.md`.
-2.  Identify and read the most relevant component document (e.g., `design/holt-orchestrator-component.md`).
-3.  If you still need more detail, search within the full `design/holt-system-specification.md` for specific keywords rather than reading the whole file.
-
 ## **Common Navigation Patterns**
 
 ### **"I need to understand Holt's architecture"**
-→ `PROJECT_CONTEXT.md` + `QUICK_REFERENCE.md` + `design/holt-system-specification.md`
+→ `PROJECT_CONTEXT.md` + `design/holt-system-specification.md`
+
+### **"What is the project's roadmap?"**
+→ `README.md` (Roadmap section) + `design/future-enhancements.md`
 
 ### **"I'm designing a new feature"**  
-→ `DEVELOPMENT_PROCESS.md` + `design/holt-feature-design-template.md` + relevant phase README
+→ `DEVELOPMENT_PROCESS.md` + `design/holt-feature-design-template.md`
 
-### **"I'm implementing orchestrator logic"**
-→ `design/holt-orchestrator-component.md` + `QUICK_REFERENCE.md`
+### **"I'm implementing CLI observability features"**
+→ `design/features/phase-3-coordination/M3.10-cli-observability.md` + `QUICK_REFERENCE.md`
 
 ### **"I'm implementing agent functionality"**
 → `design/agent-pup.md` + `QUICK_REFERENCE.md`
 
-### **"I need to integrate/test features"**
-→ `DEVELOPMENT_PROCESS.md` (Stage 3) + relevant component specifications
-
 ## **Getting Help**
 
 When documentation is unclear or insufficient:
-1. **Check cross-references** between documents
-2. **Look for examples** in phase-specific READMEs
-3. **Refer to quick references** for common patterns
-4. **Ask specific questions** about ambiguous requirements
+1. **Check cross-references** between documents.
+2. **Look for examples** in phase-specific READMEs or demo directories.
+3. **Refer to quick references** for common patterns.
+4. **Ask specific questions** about ambiguous requirements.

@@ -411,65 +411,36 @@ When a Failure artefact is created, the workflow for that claim stops. For V1, t
 * **CI/CD automation**: All builds, tests, and security scans are managed via GitHub Actions.  
 * **Makefile automation**: All common development tasks (build, test, lint, clean) are available as make targets.
 
-## **Phased delivery plan**
+## Phased delivery plan
 
-The following phased approach ensures risk-minimized delivery that builds core infrastructure first:
+Holt is being developed through a series of well-defined phases, each delivering a significant leap in capabilities. The project's status is tracked against this roadmap.
 
-### **Phase 1: "Heartbeat" - Core Infrastructure**
-*Goal: Prove the blackboard architecture works*
+### Phase 1: "Heartbeat" ✅
+*Goal: Prove the core blackboard architecture works with basic orchestrator and CLI functionality.*
+- **Features:** Redis blackboard with Pub/Sub, CLI for instance management, basic orchestrator claim engine.
 
-**Deliverables:**
-- Redis blackboard with complete key schemas
-- Basic orchestrator (artefact watching, claim creation)
-- CLI commands: `holt up`, `holt down`, `holt list`, `holt forage`
-- Basic artefact creation and claim lifecycle
+### Phase 2: "Single Agent" ✅
+*Goal: Enable a single agent to perform a complete, useful task.*
+- **Features:** Agent `pup` implementation, claim bidding, Git workspace integration, and context assembly.
 
-**Success Criteria:**
-- `holt forage --goal "hello world"` creates initial artefact
-- Orchestrator creates corresponding claim
-- System state visible via Redis CLI
+### Phase 3: "Coordination" 🚧
+*Goal: Orchestrate multiple, specialized agents in a collaborative workflow.*
+- **Features:** Multi-stage pipelines (review → parallel → exclusive), controller-worker scaling pattern, consensus bidding, automated feedback loops, and powerful CLI observability features.
 
-### **Phase 2: "Single Agent" - Basic Execution**
-*Goal: One agent can claim and execute work*
+### Phase 4: "Human-in-the-Loop" 📋
+*Goal: Make the system production-ready with human oversight.*
+- **Features:** `Question`/`Answer` artefacts for human guidance and mandatory approval gates for critical actions.
 
-**Deliverables:**
-- Agent pup binary with claim watching
-- Basic agent execution (one simple agent type)
-- Git integration (checkout, commit workflow)
-- CLI commands: `holt watch`, `holt hoard`, `holt unearth`
+### Phase 5: "Complex Coordination" 📋
+*Goal: Enable the orchestration of complex, non-linear workflows (DAGs).*
+- **Features:** Support for "fan-in" synchronization patterns and conditional workflow pathing based on agent bidding logic.
 
-**Success Criteria:**
-- End-to-end workflow: forage → claim → execute → artefact
-- Agent can modify code and commit results
-- Full audit trail on blackboard
+### Phase 6: "Kubernetes-Native" 📋
+*Goal: Evolve Holt into a first-class, native Kubernetes platform.*
+- **Features:** A **Holt Operator** for managing instances via Custom Resource Definitions (CRDs), native integration with Kubernetes networking and storage, and **Prometheus metrics endpoints**.
 
-### **Phase 3: "Coordination" - Multi-Agent Workflow**
-*Goal: Review → Parallel → Exclusive phases working*
-
-**Deliverables:**
-- Full consensus bidding model
-- Review/Parallel/Exclusive phase execution
-- Multiple agent types working together
-- Failure handling and Failure artefacts
-
-**Success Criteria:**
-- Complex workflow with review feedback loop
-- Multiple agents working in parallel
-- Proper error handling and recovery
-
-### **Phase 4: "Human-in-the-Loop" - Production Ready**
-*Goal: Full featured system with human oversight*
-
-**Deliverables:**
-- Question/Answer artefact system
-- CLI commands: `holt questions`, `holt answer`
-- Health checks and monitoring
-- Complete documentation
-
-**Success Criteria:**
-- Complex workflows with human decision points
-- Production-ready operational features
-- Comprehensive error handling
+### Future Enhancements
+For a detailed look at long-term, enterprise-focused ideas like RBAC, Secrets Management, and High Availability, see the living document at **[design/future-enhancements.md](./design/future-enhancements.md)**.
 
 ## **Future Work**
 
