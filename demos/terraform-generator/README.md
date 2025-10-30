@@ -37,12 +37,25 @@ User Goal: "Create a Terraform module for S3 static website hosting"
 
 ## Quick Start
 
+### Prerequisites
+
+- Docker installed and running
+- Git installed
+- Holt CLI installed (`holt` command available)
+- **(Optional)** OpenAI API key for real LLM generation
+
 ### Option 1: Automated (Recommended)
 
 Use the provided script that handles all setup automatically:
 
 ```bash
 cd <holt-repo>
+
+# For mocked mode (no API key needed)
+./demos/terraform-generator/run-demo.sh
+
+# For real LLM mode (requires OpenAI API key)
+export OPENAI_API_KEY="sk-..."
 ./demos/terraform-generator/run-demo.sh
 ```
 
@@ -84,6 +97,10 @@ git commit -m "Add Holt configuration"
 ```bash
 holt init
 holt up
+
+# Optional: Set OpenAI API key for real LLM generation
+export OPENAI_API_KEY="sk-..."
+
 holt forage --goal "Create a Terraform module to provision a basic S3 bucket for static website hosting"
 ```
 
@@ -95,8 +112,13 @@ holt watch
 
 # After completion
 ls -l s3-module.tar.gz
-tar -xzf s3-module.tar.gz
-cat main.tf README.md
+
+# Extract to a new directory (files already exist in workspace)
+mkdir extracted-module
+tar -xzf s3-module.tar.gz -C extracted-module/
+cat extracted-module/main.tf extracted-module/README.md
+
+# View git history and audit trail
 git log --oneline
 holt hoard
 ```
@@ -153,11 +175,31 @@ docker logs holt-orchestrator-<instance-name>
 
 ## Implementation Notes
 
-### Mocked LLM Responses
+### Dual-Mode LLM Operation
 
-**Current Status**: Uses **mocked LLM responses** (hardcoded Terraform and README content) for deterministic testing. This validates the complete 6-agent orchestration without external API dependencies.
+The `TerraformDrafter` and `DocGenerator` agents support **dual-mode operation**:
 
-**Future Enhancement**: Replace mocked agents with real OpenAI API calls once orchestration is proven.
+**Mocked Mode (Default)**:
+- Uses hardcoded responses for deterministic testing
+- No external API dependencies or costs
+- Works offline
+- First attempt deliberately generates poorly formatted code to demonstrate M3.3 feedback loop
+
+**Real LLM Mode (OpenAI API)**:
+- Activated when `OPENAI_API_KEY` environment variable is set
+- Uses `gpt-4o-mini` model for cost-effective generation
+- Generates actual Terraform code and documentation based on your goal
+- Requires internet connection and valid API key
+- Natural generation (may produce well-formatted code on first attempt)
+
+**To enable real LLM mode:**
+```bash
+export OPENAI_API_KEY="sk-your-api-key-here"
+holt up
+holt forage --goal "your infrastructure goal"
+```
+
+The environment variable is passed through from the host environment via `holt.yml` configuration. The `${OPENAI_API_KEY}` placeholder in `holt.yml` is automatically expanded by Holt when creating containers.
 
 ### Git Workspace Management
 

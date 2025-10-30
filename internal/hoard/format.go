@@ -5,13 +5,13 @@ import (
 	"fmt"
 	"io"
 	"strings"
+	"time"
 
 	"github.com/dyluth/holt/pkg/blackboard"
-	"github.com/olekukonko/tablewriter"
 )
 
 // FormatTable writes artefacts as a formatted table to the provided writer.
-// The table includes columns: ID, TYPE, PRODUCED BY, and PAYLOAD (truncated).
+// The table includes columns: ID, VERSION, TYPE, PRODUCED BY, TIMESTAMP, and PAYLOAD (truncated).
 // Returns the number of artefacts formatted.
 func FormatTable(w io.Writer, artefacts []*blackboard.Artefact, instanceName string) int {
 	if len(artefacts) == 0 {
@@ -22,22 +22,23 @@ func FormatTable(w io.Writer, artefacts []*blackboard.Artefact, instanceName str
 	// Print header
 	fmt.Fprintf(w, "Artefacts for instance '%s':\n\n", instanceName)
 
-	// Create table
-	table := tablewriter.NewWriter(w)
-	table.Header("ID", "TYPE", "PRODUCED BY", "PAYLOAD")
+	// Print header row
+	fmt.Fprintf(w, "%-10s %-5s %-10s %-18s %-8s %s\n",
+		"ID", "VER", "TYPE", "BY", "AGE", "PAYLOAD")
+	fmt.Fprintf(w, "%-10s %-5s %-10s %-18s %-8s %s\n",
+		"----------", "-----", "----------", "------------------", "--------", "----------------------------------------")
 
-	// Add rows
+	// Print data rows
 	for _, a := range artefacts {
-		table.Append([]string{
-			a.ID,
-			a.Type,
+		fmt.Fprintf(w, "%-10s %-5s %-10s %-18s %-8s %s\n",
+			formatID(a.ID),
+			formatVersion(a.Version),
+			formatType(a.Type),
 			formatProducedBy(a.ProducedByRole),
+			formatTimestamp(a.CreatedAtMs),
 			formatPayload(a.Payload),
-		})
+		)
 	}
-
-	// Render table
-	table.Render()
 
 	// Print count
 	countMsg := "artefact"
@@ -91,7 +92,41 @@ func FormatSingleJSON(w io.Writer, artefact *blackboard.Artefact) error {
 	return nil
 }
 
-// formatPayload truncates payload to first line with max 60 characters for table display.
+// formatID truncates artefact ID to first 8 characters for compact display.
+func formatID(id string) string {
+	if len(id) > 8 {
+		return id[:8]
+	}
+	return id
+}
+
+// formatType truncates type names for compact display.
+// Shortens common types to save space.
+func formatType(typeName string) string {
+	// Shorten common type names
+	switch typeName {
+	case "TerraformCode":
+		return "TfCode"
+	case "TerraformDocumentation":
+		return "TfDocs"
+	case "FormattedDocumentation":
+		return "FmtDocs"
+	case "PackagedModule":
+		return "Package"
+	case "GoalDefined":
+		return "Goal"
+	case "ToolExecutionFailure":
+		return "Failure"
+	}
+
+	// Truncate long type names
+	if len(typeName) > 20 {
+		return typeName[:17] + "..."
+	}
+	return typeName
+}
+
+// formatPayload truncates payload to first line with max 40 characters for table display.
 // Multi-line payloads show only the first line. Empty payloads return "-".
 func formatPayload(payload string) string {
 	if payload == "" {
@@ -114,9 +149,9 @@ func formatPayload(payload string) string {
 		return "-"
 	}
 
-	// Truncate to 60 chars
-	if len(firstLine) > 60 {
-		return firstLine[:57] + "..."
+	// Truncate to 40 chars (shorter for compact display)
+	if len(firstLine) > 40 {
+		return firstLine[:37] + "..."
 	}
 
 	return firstLine
@@ -129,4 +164,38 @@ func formatProducedBy(role string) string {
 		return "-"
 	}
 	return role
+}
+
+// formatVersion formats the version number for table display.
+// Shows "v1", "v2", etc. for versions > 1, or "-" for version 1 (initial artefact).
+func formatVersion(version int) string {
+	if version <= 1 {
+		return "-"
+	}
+	return fmt.Sprintf("v%d", version)
+}
+
+// formatTimestamp formats Unix timestamp in milliseconds to human-readable time.
+// Shows relative time like "2m ago", "1h ago", etc.
+func formatTimestamp(timestampMs int64) string {
+	if timestampMs == 0 {
+		return "-"
+	}
+
+	// Convert ms to time
+	t := time.Unix(timestampMs/1000, (timestampMs%1000)*1000000)
+
+	// Calculate time difference from now
+	diff := time.Since(t)
+
+	// Format as relative time
+	if diff < time.Minute {
+		return fmt.Sprintf("%ds ago", int(diff.Seconds()))
+	} else if diff < time.Hour {
+		return fmt.Sprintf("%dm ago", int(diff.Minutes()))
+	} else if diff < 24*time.Hour {
+		return fmt.Sprintf("%dh ago", int(diff.Hours()))
+	} else {
+		return fmt.Sprintf("%dd ago", int(diff.Hours()/24))
+	}
 }

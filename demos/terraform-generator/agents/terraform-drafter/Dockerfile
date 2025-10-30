@@ -15,8 +15,8 @@ RUN CGO_ENABLED=0 GOOS=linux go build -o pup ./cmd/pup
 # Runtime stage
 FROM alpine:latest
 
-# Install dependencies: git for commits, jq for JSON parsing
-RUN apk --no-cache add git jq
+# Install dependencies: git for commits, jq for JSON parsing, curl for API calls
+RUN apk --no-cache add git jq curl
 
 WORKDIR /app
 

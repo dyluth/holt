@@ -145,7 +145,7 @@ func runUp(cmd *cobra.Command, args []string) error {
 	runID := uuid.New().String()
 	if err := createInstance(ctx, cli, cfg, targetInstanceName, runID, workspacePath); err != nil {
 		// Attempt rollback on failure
-		printer.Info("\nResource creation failed. Rolling back...\n")
+		printer.Info("\nResource creation failed: %v\nRolling back...\n", err)
 		if rollbackErr := rollbackInstance(ctx, cli, targetInstanceName); rollbackErr != nil {
 			printer.Warning("rollback encountered errors: %v\n", rollbackErr)
 		}
@@ -551,9 +551,11 @@ func launchAgentContainer(ctx context.Context, cli *client.Client, instanceName,
 		env = append(env, fmt.Sprintf("HOLT_AGENT_BID_SCRIPT=%s", bidScriptJSON))
 	}
 
-	// Add custom environment variables from config
+	// Add custom environment variables from config (with expansion)
 	if len(agent.Environment) > 0 {
-		env = append(env, agent.Environment...)
+		for _, envVar := range agent.Environment {
+			env = append(env, os.ExpandEnv(envVar))
+		}
 	}
 
 	// Create container
@@ -743,15 +745,36 @@ func getDockerSocketGroups() []string {
 // For traditional/controller agents, resolves image ID from running container.
 // Fails hard if docker inspect fails - audit trail integrity is critical.
 func populateAgentImages(ctx context.Context, cli *client.Client, cfg *config.HoltConfig, instanceName string, redisPort int) error {
-	// Connect to Redis
+	// Determine Redis address based on environment
+	// In Docker-in-Docker (DinD) scenarios, we need to use host.docker.internal or gateway IP
+	// Otherwise, use localhost with mapped port
+	redisAddr := fmt.Sprintf("127.0.0.1:%d", redisPort)
+
+	// Check if we're in a Docker container
+	if _, err := os.Stat("/.dockerenv"); err == nil {
+		// Try host.docker.internal first (works on Docker Desktop)
+		redisAddr = fmt.Sprintf("host.docker.internal:%d", redisPort)
+	}
+
 	redisClient := redis.NewClient(&redis.Options{
-		Addr: fmt.Sprintf("localhost:%d", redisPort),
+		Addr: redisAddr,
 	})
 	defer redisClient.Close()
 
-	// Test connection
-	if err := redisClient.Ping(ctx).Err(); err != nil {
-		return fmt.Errorf("failed to connect to Redis: %w", err)
+	// Test connection with retry (Redis may need a moment to be ready)
+	var lastErr error
+	for i := 0; i < 10; i++ {
+		if err := redisClient.Ping(ctx).Err(); err == nil {
+			break // Connection successful
+		} else {
+			lastErr = err
+			if i < 9 {
+				time.Sleep(500 * time.Millisecond)
+			}
+		}
+	}
+	if lastErr != nil {
+		return fmt.Errorf("failed to connect to Redis after retries: %w", lastErr)
 	}
 
 	// M3.9: Import blackboard package for schema helper

@@ -10,6 +10,8 @@ agents:
     bid_script: ["/app/bid.sh"]
     workspace:
       mode: rw  # Needs write access to commit Terraform code
+    environment:
+      - "OPENAI_API_KEY=${OPENAI_API_KEY}"  # Pass through from host environment
     # M3.9: Realistic health check - verify terraform binary is available
     health_check:
       command: ["terraform", "version"]
@@ -36,6 +38,8 @@ agents:
     bid_script: ["/app/bid.sh"]
     workspace:
       mode: rw  # Needs write access to commit documentation
+    environment:
+      - "OPENAI_API_KEY=${OPENAI_API_KEY}"  # Pass through from host environment
 
   MarkdownLint:
     image: "holt-markdownlint-tf-demo:latest"
