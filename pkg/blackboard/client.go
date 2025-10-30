@@ -5,6 +5,7 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"sort"
 	"sync"
 
 	"github.com/redis/go-redis/v9"
@@ -128,6 +129,40 @@ func (c *Client) ArtefactExists(ctx context.Context, artefactID string) (bool, e
 		return false, fmt.Errorf("failed to check artefact existence: %w", err)
 	}
 	return exists > 0, nil
+}
+
+// ScanArtefacts retrieves all artefact IDs that match the given prefix.
+// Used for short ID resolution to find full UUIDs from user-provided prefixes.
+// Uses Redis SCAN with pattern matching for efficiency.
+// Returns array of full UUIDs (sorted) that start with the prefix.
+//
+// Example: prefix="abc123" might return ["abc12345-6789-...", "abc12399-1234-..."]
+func (c *Client) ScanArtefacts(ctx context.Context, prefix string) ([]string, error) {
+	// Build scan pattern
+	pattern := fmt.Sprintf("holt:%s:artefact:%s*", c.instanceName, prefix)
+
+	// Use SCAN to find matching keys
+	var matchingIDs []string
+	iter := c.rdb.Scan(ctx, 0, pattern, 0).Iterator()
+
+	for iter.Next(ctx) {
+		key := iter.Val()
+		// Extract UUID from key: holt:{instance}:artefact:{uuid}
+		artefactPrefix := fmt.Sprintf("holt:%s:artefact:", c.instanceName)
+		if len(key) > len(artefactPrefix) {
+			uuid := key[len(artefactPrefix):]
+			matchingIDs = append(matchingIDs, uuid)
+		}
+	}
+
+	if err := iter.Err(); err != nil {
+		return nil, fmt.Errorf("failed to scan artefact keys: %w", err)
+	}
+
+	// Sort for consistent ordering in error messages
+	sort.Strings(matchingIDs)
+
+	return matchingIDs, nil
 }
 
 // CreateClaim writes a claim to Redis and publishes an event.

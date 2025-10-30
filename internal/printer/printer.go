@@ -24,8 +24,58 @@ var (
 	cyan   = color.New(color.FgCyan)
 )
 
-// Success prints a success message in green with a checkmark prefix
+// VerbosityLevel defines the output verbosity.
+type VerbosityLevel int
+
+const (
+	// VerbosityDefault shows clean, summary-level output (default)
+	VerbosityDefault VerbosityLevel = iota
+	// VerbosityDebug shows verbose debug output
+	VerbosityDebug
+	// VerbosityQuiet shows only essential output (errors and final results)
+	VerbosityQuiet
+)
+
+// globalVerbosity holds the current verbosity level (set by root command flags)
+var globalVerbosity = VerbosityDefault
+
+// SetVerbosity sets the global verbosity level.
+// Should be called by the root command based on --debug/--quiet flags.
+func SetVerbosity(level VerbosityLevel) {
+	globalVerbosity = level
+}
+
+// GetVerbosity returns the current global verbosity level.
+func GetVerbosity() VerbosityLevel {
+	return globalVerbosity
+}
+
+// IsDebug returns true if debug verbosity is enabled.
+func IsDebug() bool {
+	return globalVerbosity == VerbosityDebug
+}
+
+// IsQuiet returns true if quiet verbosity is enabled.
+func IsQuiet() bool {
+	return globalVerbosity == VerbosityQuiet
+}
+
+// Debug prints a message only if debug verbosity is enabled.
+// Used for verbose implementation details (port numbers, container IDs, Redis keys).
+func Debug(format string, a ...any) {
+	if !IsDebug() {
+		return
+	}
+	msg := fmt.Sprintf(format, a...)
+	fmt.Printf("[DEBUG] %s", msg)
+}
+
+// Success prints a success message in green with a checkmark prefix.
+// Suppressed in quiet mode.
 func Success(format string, a ...any) {
+	if IsQuiet() {
+		return
+	}
 	msg := fmt.Sprintf(format, a...)
 	if !strings.HasPrefix(msg, "✓") {
 		green.Printf("✓ %s", msg)
@@ -34,12 +84,17 @@ func Success(format string, a ...any) {
 	}
 }
 
-// Info prints an informational message in the default color
+// Info prints an informational message in the default color.
+// Suppressed in quiet mode.
 func Info(format string, a ...any) {
+	if IsQuiet() {
+		return
+	}
 	fmt.Printf(format, a...)
 }
 
-// Warning prints a warning message in yellow with a warning emoji prefix
+// Warning prints a warning message in yellow with a warning emoji prefix.
+// Always shown (not suppressed by quiet mode).
 func Warning(format string, a ...any) {
 	msg := fmt.Sprintf(format, a...)
 	if !strings.HasPrefix(msg, "⚠️") {
@@ -111,8 +166,12 @@ func ErrorWithContext(title string, explanation string, context map[string]strin
 	return fmt.Errorf("%s", title)
 }
 
-// Step prints a step message with emphasis (used in multi-step operations)
+// Step prints a step message with emphasis (used in multi-step operations).
+// Suppressed in quiet mode.
 func Step(format string, a ...any) {
+	if IsQuiet() {
+		return
+	}
 	cyan.Printf("→ %s", fmt.Sprintf(format, a...))
 }
 

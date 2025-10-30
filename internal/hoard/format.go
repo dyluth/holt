@@ -50,23 +50,23 @@ func FormatTable(w io.Writer, artefacts []*blackboard.Artefact, instanceName str
 	return len(artefacts)
 }
 
-// FormatJSONArray writes artefacts as a JSON array to the provided writer.
-// The array contains complete artefact objects with proper JSON formatting.
-func FormatJSONArray(w io.Writer, artefacts []*blackboard.Artefact) error {
-	// Marshal to pretty JSON
-	data, err := json.MarshalIndent(artefacts, "", "  ")
-	if err != nil {
-		return fmt.Errorf("failed to marshal artefacts to JSON: %w", err)
-	}
+// FormatJSONL writes artefacts as line-delimited JSON (JSONL) to the provided writer.
+// Each artefact is written as a single JSON object on its own line.
+// This format is ideal for streaming and processing with tools like jq.
+func FormatJSONL(w io.Writer, artefacts []*blackboard.Artefact) error {
+	for _, artefact := range artefacts {
+		// Marshal artefact to JSON (compact, no indentation)
+		data, err := json.Marshal(artefact)
+		if err != nil {
+			return fmt.Errorf("failed to marshal artefact to JSON: %w", err)
+		}
 
-	// Write to output
-	_, err = w.Write(data)
-	if err != nil {
-		return fmt.Errorf("failed to write JSON output: %w", err)
+		// Write as single line
+		_, err = fmt.Fprintf(w, "%s\n", string(data))
+		if err != nil {
+			return fmt.Errorf("failed to write JSONL output: %w", err)
+		}
 	}
-
-	// Add newline for clean output
-	fmt.Fprintln(w)
 
 	return nil
 }

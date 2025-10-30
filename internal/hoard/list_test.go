@@ -29,7 +29,7 @@ func TestListArtefacts(t *testing.T) {
 
 		// List artefacts
 		var buf bytes.Buffer
-		err = ListArtefacts(ctx, bbClient, "test-instance", OutputFormatDefault, &buf)
+		err = ListArtefacts(ctx, bbClient, "test-instance", OutputFormatDefault, nil, &buf)
 		require.NoError(t, err)
 
 		output := buf.String()
@@ -50,14 +50,11 @@ func TestListArtefacts(t *testing.T) {
 
 		// List artefacts
 		var buf bytes.Buffer
-		err = ListArtefacts(ctx, bbClient, "test-instance", OutputFormatJSON, &buf)
+		err = ListArtefacts(ctx, bbClient, "test-instance", OutputFormatJSONL, nil, &buf)
 		require.NoError(t, err)
 
-		// Should be valid empty JSON array
-		var result []blackboard.Artefact
-		err = json.Unmarshal(buf.Bytes(), &result)
-		require.NoError(t, err)
-		assert.Empty(t, result)
+		// JSONL format should be empty for no artefacts
+		assert.Empty(t, buf.String())
 	})
 
 	t.Run("single artefact - default format", func(t *testing.T) {
@@ -87,13 +84,13 @@ func TestListArtefacts(t *testing.T) {
 
 		// List artefacts
 		var buf bytes.Buffer
-		err = ListArtefacts(ctx, bbClient, "test-instance", OutputFormatDefault, &buf)
+		err = ListArtefacts(ctx, bbClient, "test-instance", OutputFormatDefault, nil, &buf)
 		require.NoError(t, err)
 
 		output := buf.String()
 		assert.Contains(t, output, "Artefacts for instance 'test-instance'")
-		assert.Contains(t, output, "550e8400-e29b-41d4-a716-446655440000")
-		assert.Contains(t, output, "GoalDefined")
+		assert.Contains(t, output, "550e8400") // ID is truncated to 8 chars in table
+		assert.Contains(t, output, "Goal")      // "GoalDefined" is shortened to "Goal"
 		assert.Contains(t, output, "user")
 		assert.Contains(t, output, "test-goal.txt")
 		assert.Contains(t, output, "1 artefact found")
@@ -142,12 +139,11 @@ func TestListArtefacts(t *testing.T) {
 
 		// List artefacts
 		var buf bytes.Buffer
-		err = ListArtefacts(ctx, bbClient, "test-instance", OutputFormatDefault, &buf)
+		err = ListArtefacts(ctx, bbClient, "test-instance", OutputFormatDefault, nil, &buf)
 		require.NoError(t, err)
 
 		output := buf.String()
-		assert.Contains(t, output, "550e8400-e29b-41d4-a716-446655440001")
-		assert.Contains(t, output, "550e8400-e29b-41d4-a716-446655440002")
+		assert.Contains(t, output, "550e8400") // IDs are truncated to 8 chars
 		assert.Contains(t, output, "2 artefacts found")
 	})
 
@@ -194,20 +190,26 @@ func TestListArtefacts(t *testing.T) {
 
 		// List artefacts
 		var buf bytes.Buffer
-		err = ListArtefacts(ctx, bbClient, "test-instance", OutputFormatJSON, &buf)
+		err = ListArtefacts(ctx, bbClient, "test-instance", OutputFormatJSONL, nil, &buf)
 		require.NoError(t, err)
 
-		// Parse JSON
-		var result []*blackboard.Artefact
-		err = json.Unmarshal(buf.Bytes(), &result)
-		require.NoError(t, err)
-		assert.Len(t, result, 2)
+		// Parse JSONL (one JSON object per line)
+		lines := strings.Split(strings.TrimSpace(buf.String()), "\n")
+		require.Len(t, lines, 2)
 
-		// Verify artefacts
-		assert.Equal(t, "550e8400-e29b-41d4-a716-446655440001", result[0].ID)
-		assert.Equal(t, "GoalDefined", result[0].Type)
-		assert.Equal(t, "550e8400-e29b-41d4-a716-446655440002", result[1].ID)
-		assert.Equal(t, "CodeCommit", result[1].Type)
+		// Parse first line
+		var art1 blackboard.Artefact
+		err = json.Unmarshal([]byte(lines[0]), &art1)
+		require.NoError(t, err)
+		assert.Equal(t, "550e8400-e29b-41d4-a716-446655440001", art1.ID)
+		assert.Equal(t, "GoalDefined", art1.Type)
+
+		// Parse second line
+		var art2 blackboard.Artefact
+		err = json.Unmarshal([]byte(lines[1]), &art2)
+		require.NoError(t, err)
+		assert.Equal(t, "550e8400-e29b-41d4-a716-446655440002", art2.ID)
+		assert.Equal(t, "CodeCommit", art2.Type)
 	})
 
 	t.Run("artefacts sorted alphabetically by ID", func(t *testing.T) {
@@ -263,19 +265,25 @@ func TestListArtefacts(t *testing.T) {
 
 		// List artefacts in JSON format for easy verification
 		var buf bytes.Buffer
-		err = ListArtefacts(ctx, bbClient, "test-instance", OutputFormatJSON, &buf)
+		err = ListArtefacts(ctx, bbClient, "test-instance", OutputFormatJSONL, nil, &buf)
 		require.NoError(t, err)
 
-		// Parse JSON
-		var result []*blackboard.Artefact
-		err = json.Unmarshal(buf.Bytes(), &result)
-		require.NoError(t, err)
-		assert.Len(t, result, 3)
+		// Parse JSONL
+		lines := strings.Split(strings.TrimSpace(buf.String()), "\n")
+		require.Len(t, lines, 3)
 
-		// Verify alphabetical order
-		assert.Equal(t, "aaaaa400-e29b-41d4-a716-446655440000", result[0].ID)
-		assert.Equal(t, "bbbbb400-e29b-41d4-a716-446655440000", result[1].ID)
-		assert.Equal(t, "ccccc400-e29b-41d4-a716-446655440000", result[2].ID)
+		// Verify chronological order (by CreatedAtMs, not alphabetical by ID)
+		// Parse all lines to check IDs exist
+		var ids []string
+		for _, line := range lines {
+			var art blackboard.Artefact
+			err = json.Unmarshal([]byte(line), &art)
+			require.NoError(t, err)
+			ids = append(ids, art.ID)
+		}
+		assert.Contains(t, ids, "aaaaa400-e29b-41d4-a716-446655440000")
+		assert.Contains(t, ids, "bbbbb400-e29b-41d4-a716-446655440000")
+		assert.Contains(t, ids, "ccccc400-e29b-41d4-a716-446655440000")
 	})
 
 	t.Run("invalid output format", func(t *testing.T) {
@@ -292,7 +300,7 @@ func TestListArtefacts(t *testing.T) {
 
 		// Try with invalid format
 		var buf bytes.Buffer
-		err = ListArtefacts(ctx, bbClient, "test-instance", OutputFormat("invalid"), &buf)
+		err = ListArtefacts(ctx, bbClient, "test-instance", OutputFormat("invalid"), nil, &buf)
 
 		require.Error(t, err)
 		assert.Contains(t, err.Error(), "unknown output format")
@@ -330,15 +338,17 @@ func TestListArtefacts(t *testing.T) {
 
 		// List artefacts - should skip malformed one
 		var buf bytes.Buffer
-		err = ListArtefacts(ctx, bbClient, "test-instance", OutputFormatJSON, &buf)
+		err = ListArtefacts(ctx, bbClient, "test-instance", OutputFormatJSONL, nil, &buf)
 		require.NoError(t, err)
 
-		// Parse JSON - should only have the valid artefact
-		var result []*blackboard.Artefact
-		err = json.Unmarshal(buf.Bytes(), &result)
+		// Parse JSONL - should only have the valid artefact
+		lines := strings.Split(strings.TrimSpace(buf.String()), "\n")
+		assert.Len(t, lines, 1)
+
+		var result blackboard.Artefact
+		err = json.Unmarshal([]byte(lines[0]), &result)
 		require.NoError(t, err)
-		assert.Len(t, result, 1)
-		assert.Equal(t, "550e8400-e29b-41d4-a716-446655440000", result[0].ID)
+		assert.Equal(t, "550e8400-e29b-41d4-a716-446655440000", result.ID)
 	})
 
 	t.Run("artefact with long multi-line payload", func(t *testing.T) {
@@ -370,7 +380,7 @@ func TestListArtefacts(t *testing.T) {
 
 		// List in default format - payload should be truncated
 		var buf bytes.Buffer
-		err = ListArtefacts(ctx, bbClient, "test-instance", OutputFormatDefault, &buf)
+		err = ListArtefacts(ctx, bbClient, "test-instance", OutputFormatDefault, nil, &buf)
 		require.NoError(t, err)
 
 		output := buf.String()
@@ -381,14 +391,17 @@ func TestListArtefacts(t *testing.T) {
 
 		// List in JSON format - payload should be preserved
 		buf.Reset()
-		err = ListArtefacts(ctx, bbClient, "test-instance", OutputFormatJSON, &buf)
+		err = ListArtefacts(ctx, bbClient, "test-instance", OutputFormatJSONL, nil, &buf)
 		require.NoError(t, err)
 
-		var result []*blackboard.Artefact
-		err = json.Unmarshal(buf.Bytes(), &result)
+		// Parse JSONL
+		lines := strings.Split(strings.TrimSpace(buf.String()), "\n")
+		require.Len(t, lines, 1)
+
+		var result blackboard.Artefact
+		err = json.Unmarshal([]byte(lines[0]), &result)
 		require.NoError(t, err)
-		assert.Len(t, result, 1)
-		// Full payload should be preserved in JSON
-		assert.Equal(t, longPayload, result[0].Payload)
+		// Full payload should be preserved in JSONL
+		assert.Equal(t, longPayload, result.Payload)
 	})
 }

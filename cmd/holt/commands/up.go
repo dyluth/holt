@@ -46,7 +46,8 @@ Workspace safety checks prevent multiple instances on the same directory unless 
 
 func init() {
 	upCmd.Flags().StringVarP(&upInstanceName, "name", "n", "", "Instance name (auto-generated if omitted)")
-	upCmd.Flags().BoolVarP(&upForce, "force", "f", false, "Bypass workspace collision check")
+	// Note: Cannot use -f shorthand because it conflicts with global --config flag
+	upCmd.Flags().BoolVar(&upForce, "force", false, "Bypass workspace collision check")
 	rootCmd.AddCommand(upCmd)
 }
 
@@ -184,7 +185,7 @@ func createInstance(ctx context.Context, cli *client.Client, cfg *config.HoltCon
 		return fmt.Errorf("failed to allocate Redis port: %w", err)
 	}
 
-	printer.Success("Allocated Redis port: %d\n", redisPort)
+	printer.Debug("Allocated Redis port: %d\n", redisPort)
 
 	// Step 2: Create isolated network
 	networkName := dockerpkg.NetworkName(instanceName)
@@ -198,7 +199,7 @@ func createInstance(ctx context.Context, cli *client.Client, cfg *config.HoltCon
 		return fmt.Errorf("failed to create network '%s': %w", networkName, err)
 	}
 
-	printer.Success("Created network: %s\n", networkName)
+	printer.Debug("Created network: %s\n", networkName)
 
 	// Step 3: Start Redis container with port mapping
 	redisImage := "redis:7-alpine"
@@ -236,7 +237,7 @@ func createInstance(ctx context.Context, cli *client.Client, cfg *config.HoltCon
 		return fmt.Errorf("failed to start Redis container: %w", err)
 	}
 
-	printer.Success("Started Redis container: %s (port %d)\n", redisName, redisPort)
+	printer.Debug("Started Redis container: %s (port %d)\n", redisName, redisPort)
 
 	// Step 4: Verify orchestrator image exists
 	orchestratorImage := "holt-orchestrator:latest"
@@ -282,7 +283,7 @@ func createInstance(ctx context.Context, cli *client.Client, cfg *config.HoltCon
 		return fmt.Errorf("failed to start orchestrator container: %w", err)
 	}
 
-	printer.Success("Started orchestrator container: %s\n", orchestratorName)
+	printer.Debug("Started orchestrator container: %s\n", orchestratorName)
 
 	// Step 6: Launch agent containers
 	if err := launchAgentContainers(ctx, cli, cfg, instanceName, runID, workspacePath, networkName, redisName); err != nil {
@@ -345,21 +346,24 @@ func rollbackInstance(ctx context.Context, cli *client.Client, instanceName stri
 func printUpSuccess(instanceName, workspacePath string, cfg *config.HoltConfig) {
 	agentCount := len(cfg.Agents)
 	printer.Success("\nInstance '%s' started successfully (%d agents ready)\n\n", instanceName, agentCount)
-	printer.Info("Containers:\n")
-	printer.Info("  • %s (running)\n", dockerpkg.RedisContainerName(instanceName))
-	printer.Info("  • %s (running)\n", dockerpkg.OrchestratorContainerName(instanceName))
+
+	// Debug-level container/network details
+	printer.Debug("Containers:\n")
+	printer.Debug("  • %s (running)\n", dockerpkg.RedisContainerName(instanceName))
+	printer.Debug("  • %s (running)\n", dockerpkg.OrchestratorContainerName(instanceName))
 
 	// List agent containers (M3.7: agent key IS the role)
 	for agentRole, agent := range cfg.Agents {
-		printer.Info("  • %s (running, healthy, bidding_strategy=%s)\n",
+		printer.Debug("  • %s (running, healthy, bidding_strategy=%s)\n",
 			dockerpkg.AgentContainerName(instanceName, agentRole),
 			agent.BiddingStrategy)
 	}
 
-	printer.Info("\n")
-	printer.Info("Network:\n")
-	printer.Info("  • %s\n", dockerpkg.NetworkName(instanceName))
-	printer.Info("\n")
+	printer.Debug("\n")
+	printer.Debug("Network:\n")
+	printer.Debug("  • %s\n", dockerpkg.NetworkName(instanceName))
+	printer.Debug("\n")
+
 	printer.Info("Workspace: %s\n", workspacePath)
 	printer.Info("\n")
 	printer.Info("Next steps:\n")
@@ -390,7 +394,7 @@ func verifyOrchestratorImage(ctx context.Context, cli *client.Client, imageName 
 	for _, image := range images {
 		for _, tag := range image.RepoTags {
 			if tag == imageName {
-				printer.Success("Found orchestrator image: %s\n", imageName)
+				printer.Debug("Found orchestrator image: %s\n", imageName)
 				return nil
 			}
 		}
@@ -446,7 +450,7 @@ func validateAgentImages(ctx context.Context, cli *client.Client, cfg *config.Ho
 		)
 	}
 
-	printer.Success("Validated %d agent image(s)\n", len(cfg.Agents))
+	printer.Debug("Validated %d agent image(s)\n", len(cfg.Agents))
 	return nil
 }
 
@@ -493,14 +497,14 @@ func launchAgentContainers(ctx context.Context, cli *client.Client, cfg *config.
 		containerNames = append(containerNames, dockerpkg.AgentContainerName(instanceName, result.agentName))
 	}
 
-	printer.Success("Started %d agent container(s) in parallel\n", agentCount)
+	printer.Debug("Started %d agent container(s) in parallel\n", agentCount)
 
 	// M3.1: Validate all agents are healthy before reporting success
 	if err := validateAllAgentsHealthy(ctx, cli, containerNames); err != nil {
 		return fmt.Errorf("agent health check failed: %w", err)
 	}
 
-	printer.Success("All agents healthy\n")
+	printer.Debug("All agents healthy\n")
 
 	return nil
 }

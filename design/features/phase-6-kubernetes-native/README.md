@@ -11,6 +11,7 @@
 - A shared Persistent Volume (PV) is used for the Git workspace, accessible by all agent Pods within an instance.
 - Enterprise-grade features such as `ServiceAccounts`, `NetworkPolicies`, and fine-grained RBAC are utilized to ensure secure, multi-tenant operation.
 - The existing Docker-based mode and the new Kubernetes-native mode are both fully supported, allowing users to choose their preferred deployment model.
+- All containers MUST provide a prometheus metrics endpoint providing key metrics - agents should log bid totals by type and whether granted, and success / failure counts.
 
 ## **Key Architectural Changes & Features**
 

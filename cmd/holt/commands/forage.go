@@ -198,7 +198,8 @@ func runForage(cmd *cobra.Command, args []string) error {
 		// Start streaming in a goroutine
 		streamDone := make(chan error, 1)
 		go func() {
-			streamDone <- watch.StreamActivity(ctx, bbClient, targetInstanceName, watch.OutputFormatDefault, os.Stdout)
+			// No filters, no exit-on-completion for forage command
+			streamDone <- watch.StreamActivity(ctx, bbClient, targetInstanceName, watch.OutputFormatDefault, nil, false, os.Stdout)
 		}()
 
 		// Give subscription time to set up before publishing artefact

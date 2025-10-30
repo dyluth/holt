@@ -6,6 +6,8 @@ import (
 	"fmt"
 	"io"
 	"log"
+	"path/filepath"
+	"sort"
 	"time"
 
 	"github.com/dyluth/holt/pkg/blackboard"
@@ -16,8 +18,51 @@ type OutputFormat string
 
 const (
 	OutputFormatDefault OutputFormat = "default"
-	OutputFormatJSON    OutputFormat = "json"
+	OutputFormatJSONL   OutputFormat = "jsonl"
 )
+
+// FilterCriteria defines filtering options for watch command.
+// All filters are ANDed together.
+type FilterCriteria struct {
+	SinceTimestampMs int64  // Unix timestamp in milliseconds, 0 = no filter
+	UntilTimestampMs int64  // Unix timestamp in milliseconds, 0 = no filter
+	TypeGlob         string // Glob pattern for artefact type, empty = no filter
+	AgentRole        string // Exact match for produced_by_role, empty = no filter
+}
+
+// matchesFilter returns true if the artefact matches all filter criteria.
+func (fc *FilterCriteria) matchesFilter(art *blackboard.Artefact) bool {
+	// Time filtering
+	if fc.SinceTimestampMs > 0 && art.CreatedAtMs < fc.SinceTimestampMs {
+		return false
+	}
+	if fc.UntilTimestampMs > 0 && art.CreatedAtMs > fc.UntilTimestampMs {
+		return false
+	}
+
+	// Type filtering - glob pattern matching
+	if fc.TypeGlob != "" {
+		matched, err := filepath.Match(fc.TypeGlob, art.Type)
+		if err != nil || !matched {
+			return false
+		}
+	}
+
+	// Agent filtering - exact match on produced_by_role
+	if fc.AgentRole != "" && art.ProducedByRole != fc.AgentRole {
+		return false
+	}
+
+	return true
+}
+
+// hasFilters returns true if any filters are active.
+func (fc *FilterCriteria) hasFilters() bool {
+	return fc.SinceTimestampMs > 0 ||
+		fc.UntilTimestampMs > 0 ||
+		fc.TypeGlob != "" ||
+		fc.AgentRole != ""
+}
 
 // PollForClaim polls for claim creation for a given artefact ID.
 // Returns the created claim or an error if timeout occurs.
@@ -52,25 +97,40 @@ func PollForClaim(ctx context.Context, client *blackboard.Client, artefactID str
 	}
 }
 
-// StreamActivity streams workflow events to the provided writer.
+// StreamActivity streams workflow events to the provided writer with filtering support.
+// Displays historical events first (if filters active), then streams live events.
 // Subscribes to artefact_events, claim_events, and workflow_events channels.
 // Handles reconnection on transient failures with 2s retry interval and 60s timeout.
-func StreamActivity(ctx context.Context, client *blackboard.Client, instanceName string, format OutputFormat, writer io.Writer) error {
+//
+// If exitOnCompletion is true, exits with nil when a Terminal artefact is detected.
+func StreamActivity(ctx context.Context, client *blackboard.Client, instanceName string, format OutputFormat, filters *FilterCriteria, exitOnCompletion bool, writer io.Writer) error {
 	// Create formatter
 	var formatter eventFormatter
 	switch format {
-	case OutputFormatJSON:
-		formatter = &jsonFormatter{writer: writer}
+	case OutputFormatJSONL:
+		formatter = &jsonlFormatter{writer: writer}
 	default:
 		formatter = &defaultFormatter{writer: writer}
 	}
 
-	// Subscribe to all channels with reconnection logic
+	// Phase 1: Query and display historical events if filters are active
+	// Note: For now, we only query historical artefacts. Claims and workflow events
+	// are typically short-lived and stored in Redis with TTL, so historical query
+	// focuses on artefacts which are the primary persistent data.
+	// Live streaming will show all event types (artefacts, claims, workflow events).
+	if filters != nil && filters.hasFilters() {
+		if err := displayHistoricalArtefacts(ctx, client, instanceName, filters, formatter); err != nil {
+			// Log error but continue to live streaming
+			log.Printf("⚠️  Failed to query historical artefacts: %v", err)
+		}
+	}
+
+	// Phase 2: Subscribe to live events with reconnection logic
 	for {
-		err := streamWithSubscriptions(ctx, client, formatter)
+		err := streamWithSubscriptions(ctx, client, formatter, filters, exitOnCompletion)
 		if err == nil || err == context.Canceled || err == context.DeadlineExceeded {
-			// Clean exit
-			return err
+			// Clean exit (includes Terminal detection if exitOnCompletion)
+			return nil
 		}
 
 		// Connection error - attempt reconnection
@@ -89,8 +149,115 @@ func StreamActivity(ctx context.Context, client *blackboard.Client, instanceName
 	}
 }
 
+// displayHistoricalArtefacts queries and displays historical artefacts and claims matching filters.
+func displayHistoricalArtefacts(ctx context.Context, client *blackboard.Client, instanceName string, filters *FilterCriteria, formatter eventFormatter) error {
+	// Collect both artefacts and claims
+	type event struct {
+		timestamp int64
+		artefact  *blackboard.Artefact
+		claim     *blackboard.Claim
+	}
+	var events []event
+
+	// Scan for all artefact keys
+	artefactPattern := fmt.Sprintf("holt:%s:artefact:*", instanceName)
+	iter := client.RedisClient().Scan(ctx, 0, artefactPattern, 0).Iterator()
+
+	for iter.Next(ctx) {
+		key := iter.Val()
+
+		// Extract artefact ID from key
+		artefactPrefix := fmt.Sprintf("holt:%s:artefact:", instanceName)
+		if len(key) <= len(artefactPrefix) {
+			continue
+		}
+		artefactID := key[len(artefactPrefix):]
+
+		// Fetch artefact
+		artefact, err := client.GetArtefact(ctx, artefactID)
+		if err != nil {
+			// Skip malformed artefacts
+			continue
+		}
+
+		// Apply filters
+		if filters.matchesFilter(artefact) {
+			events = append(events, event{
+				timestamp: artefact.CreatedAtMs,
+				artefact:  artefact,
+			})
+		}
+	}
+
+	if err := iter.Err(); err != nil {
+		return fmt.Errorf("failed to scan artefacts: %w", err)
+	}
+
+	// Scan for all claim keys
+	claimPattern := fmt.Sprintf("holt:%s:claim:*", instanceName)
+	iter = client.RedisClient().Scan(ctx, 0, claimPattern, 0).Iterator()
+
+	for iter.Next(ctx) {
+		key := iter.Val()
+
+		// Extract claim ID from key
+		claimPrefix := fmt.Sprintf("holt:%s:claim:", instanceName)
+		if len(key) <= len(claimPrefix) {
+			continue
+		}
+		claimID := key[len(claimPrefix):]
+
+		// Fetch claim
+		claim, err := client.GetClaim(ctx, claimID)
+		if err != nil {
+			// Skip malformed claims
+			continue
+		}
+
+		// Claims don't have timestamps, but we can infer from associated artefact
+		// For now, add all claims (filters don't apply to claims)
+		events = append(events, event{
+			timestamp: 0, // Claims don't have creation time, will sort last
+			claim:     claim,
+		})
+	}
+
+	if err := iter.Err(); err != nil {
+		return fmt.Errorf("failed to scan claims: %w", err)
+	}
+
+	// Sort by creation time (oldest first), claims with no timestamp come last
+	sort.Slice(events, func(i, j int) bool {
+		if events[i].timestamp == 0 && events[j].timestamp == 0 {
+			return false // Keep original order for claims
+		}
+		if events[i].timestamp == 0 {
+			return false // Claims go last
+		}
+		if events[j].timestamp == 0 {
+			return true // Claims go last
+		}
+		return events[i].timestamp < events[j].timestamp
+	})
+
+	// Format and output each event
+	for _, evt := range events {
+		if evt.artefact != nil {
+			if err := formatter.FormatArtefact(evt.artefact); err != nil {
+				log.Printf("⚠️  Failed to format historical artefact: %v", err)
+			}
+		} else if evt.claim != nil {
+			if err := formatter.FormatClaim(evt.claim); err != nil {
+				log.Printf("⚠️  Failed to format historical claim: %v", err)
+			}
+		}
+	}
+
+	return nil
+}
+
 // streamWithSubscriptions creates subscriptions and streams events until error or cancellation
-func streamWithSubscriptions(ctx context.Context, client *blackboard.Client, formatter eventFormatter) error {
+func streamWithSubscriptions(ctx context.Context, client *blackboard.Client, formatter eventFormatter, filters *FilterCriteria, exitOnCompletion bool) error {
 	// Subscribe to all three channels
 	artefactSub, err := client.SubscribeArtefactEvents(ctx)
 	if err != nil {
@@ -120,8 +287,20 @@ func streamWithSubscriptions(ctx context.Context, client *blackboard.Client, for
 			if !ok {
 				return fmt.Errorf("artefact events channel closed")
 			}
+
+			// Apply filters
+			if filters != nil && !filters.matchesFilter(artefact) {
+				continue
+			}
+
+			// Format and output artefact
 			if err := formatter.FormatArtefact(artefact); err != nil {
 				log.Printf("⚠️  Failed to format artefact event: %v", err)
+			}
+
+			// Check for Terminal artefact if exitOnCompletion is enabled
+			if exitOnCompletion && artefact.StructuralType == blackboard.StructuralTypeTerminal {
+				return nil // Clean exit
 			}
 
 		case claim, ok := <-claimSub.Events():
@@ -299,12 +478,12 @@ func (f *defaultFormatter) FormatWorkflow(event *blackboard.WorkflowEvent) error
 	}
 }
 
-// jsonFormatter produces line-delimited JSON output
-type jsonFormatter struct {
+// jsonlFormatter produces line-delimited JSON output (JSONL format)
+type jsonlFormatter struct {
 	writer io.Writer
 }
 
-func (f *jsonFormatter) FormatArtefact(artefact *blackboard.Artefact) error {
+func (f *jsonlFormatter) FormatArtefact(artefact *blackboard.Artefact) error {
 	output := map[string]interface{}{
 		"timestamp": time.Now().UTC().Format(time.RFC3339),
 		"event":     "artefact_created",
@@ -331,7 +510,7 @@ func (f *jsonFormatter) FormatArtefact(artefact *blackboard.Artefact) error {
 	return nil
 }
 
-func (f *jsonFormatter) FormatClaim(claim *blackboard.Claim) error {
+func (f *jsonlFormatter) FormatClaim(claim *blackboard.Claim) error {
 	output := map[string]interface{}{
 		"timestamp": time.Now().UTC().Format(time.RFC3339),
 		"event":     "claim_created",
@@ -340,7 +519,7 @@ func (f *jsonFormatter) FormatClaim(claim *blackboard.Claim) error {
 	return f.writeJSON(output)
 }
 
-func (f *jsonFormatter) FormatWorkflow(event *blackboard.WorkflowEvent) error {
+func (f *jsonlFormatter) FormatWorkflow(event *blackboard.WorkflowEvent) error {
 	output := map[string]interface{}{
 		"timestamp": time.Now().UTC().Format(time.RFC3339),
 		"event":     event.Event,
@@ -349,7 +528,7 @@ func (f *jsonFormatter) FormatWorkflow(event *blackboard.WorkflowEvent) error {
 	return f.writeJSON(output)
 }
 
-func (f *jsonFormatter) writeJSON(data interface{}) error {
+func (f *jsonlFormatter) writeJSON(data interface{}) error {
 	bytes, err := json.Marshal(data)
 	if err != nil {
 		return err

@@ -8,6 +8,7 @@ import (
 	dockerpkg "github.com/dyluth/holt/internal/docker"
 	"github.com/dyluth/holt/internal/instance"
 	"github.com/dyluth/holt/internal/printer"
+	"github.com/dyluth/holt/internal/timespec"
 	"github.com/dyluth/holt/internal/watch"
 	"github.com/dyluth/holt/pkg/blackboard"
 	"github.com/redis/go-redis/v9"
@@ -15,37 +16,69 @@ import (
 )
 
 var (
-	watchInstanceName string
-	watchOutputFormat string
+	watchInstanceName     string
+	watchOutputFormat     string
+	watchSince            string
+	watchUntil            string
+	watchType             string
+	watchAgent            string
+	watchExitOnCompletion bool
 )
 
 var watchCmd = &cobra.Command{
 	Use:   "watch",
-	Short: "Monitor real-time workflow activity",
-	Long: `Monitor real-time workflow progress and agent activity.
+	Short: "Monitor real-time workflow activity with filtering",
+	Long: `Monitor real-time workflow progress and agent activity with powerful filtering.
 
-Streams artefact creations, claim events, agent bids, and grant decisions
-as they occur, providing complete visibility into workflow execution.
+Displays historical events matching filters, then streams live events as they occur.
 
 Output Formats:
   default - Human-readable output with timestamps and emojis
-  json    - Line-delimited JSON for programmatic processing
+  jsonl   - Line-delimited JSON, one event per line (streamable)
+
+Time Filters:
+  --since  - Show events after this time
+             Duration: 1h, 30m, 1h30m, 2h45m30s
+             Absolute: 2025-10-29T13:00:00Z (RFC3339)
+  --until  - Show events before this time (same format as --since)
+
+Content Filters:
+  --type   - Filter by artefact type (glob pattern: "Code*", "*Result")
+  --agent  - Filter by agent role (exact match: "coder", "reviewer")
 
 Examples:
-  # Watch all activity on inferred instance
+  # Watch all activity (historical + live)
   holt watch
 
-  # Watch specific instance
-  holt watch --name prod
+  # Watch and exit when workflow completes
+  holt watch --exit-on-completion
 
-  # Export events as JSON
-  holt watch --output=json > events.jsonl`,
+  # Filter for code commits in last hour
+  holt watch --since=1h --type="CodeCommit"
+
+  # Export events as JSONL for processing
+  holt watch --output=jsonl --since=30m | jq -r 'select(.event=="artefact_created") | .data.id'
+
+  # Monitor specific agent
+  holt watch --agent=coder --since="2025-10-29T13:00:00Z"`,
 	RunE: runWatch,
 }
 
 func init() {
 	watchCmd.Flags().StringVarP(&watchInstanceName, "name", "n", "", "Target instance name (auto-inferred if omitted)")
-	watchCmd.Flags().StringVarP(&watchOutputFormat, "output", "o", "default", "Output format (default or json)")
+	watchCmd.Flags().StringVarP(&watchOutputFormat, "output", "o", "default", "Output format (default or jsonl)")
+
+	// Time-based filters
+	watchCmd.Flags().StringVar(&watchSince, "since", "", "Show events after time (duration or RFC3339)")
+	watchCmd.Flags().StringVar(&watchUntil, "until", "", "Show events before time (duration or RFC3339)")
+
+	// Content-based filters
+	watchCmd.Flags().StringVar(&watchType, "type", "", "Filter by artefact type (glob pattern)")
+	watchCmd.Flags().StringVar(&watchAgent, "agent", "", "Filter by agent role (exact match)")
+
+	// Behavior flags
+	watchCmd.Flags().BoolVar(&watchExitOnCompletion, "exit-on-completion", false, "Exit with code 0 when Terminal artefact detected")
+
 	rootCmd.AddCommand(watchCmd)
 }
 
@@ -57,13 +90,13 @@ func runWatch(cmd *cobra.Command, args []string) error {
 	switch watchOutputFormat {
 	case "default":
 		outputFormat = watch.OutputFormatDefault
-	case "json":
-		outputFormat = watch.OutputFormatJSON
+	case "jsonl":
+		outputFormat = watch.OutputFormatJSONL
 	default:
 		return printer.Error(
 			"invalid output format",
 			fmt.Sprintf("Unknown format: %s", watchOutputFormat),
-			[]string{"Valid formats: default, json"},
+			[]string{"Valid formats: default, jsonl"},
 		)
 	}
 
@@ -145,6 +178,30 @@ func runWatch(cmd *cobra.Command, args []string) error {
 		)
 	}
 
-	// Phase 5: Stream workflow activity
-	return watch.StreamActivity(ctx, bbClient, targetInstanceName, outputFormat, os.Stdout)
+	// Phase 5: Parse time filters
+	sinceMS, untilMS, err := parseTimeFilters()
+	if err != nil {
+		return printer.Error(
+			"invalid time filter",
+			err.Error(),
+			[]string{"Use duration format like '1h30m' or RFC3339 like '2025-10-29T13:00:00Z'"},
+		)
+	}
+
+	// Phase 6: Build filter criteria
+	filterCriteria := &watch.FilterCriteria{
+		SinceTimestampMs: sinceMS,
+		UntilTimestampMs: untilMS,
+		TypeGlob:         watchType,
+		AgentRole:        watchAgent,
+	}
+
+	// Phase 7: Stream workflow activity
+	return watch.StreamActivity(ctx, bbClient, targetInstanceName, outputFormat, filterCriteria, watchExitOnCompletion, os.Stdout)
+}
+
+// parseTimeFilters parses the --since and --until flags into millisecond timestamps.
+// Returns (sinceMS, untilMS, error).
+func parseTimeFilters() (int64, int64, error) {
+	return timespec.ParseRange(watchSince, watchUntil)
 }

@@ -318,10 +318,10 @@ func TestFormatters(t *testing.T) {
 		require.Contains(t, output, "type=exclusive")
 	})
 
-	t.Run("jsonFormatter formats artefact events", func(t *testing.T) {
+	t.Run("jsonlFormatter formats artefact events", func(t *testing.T) {
 		var buf []byte
 		writer := &testWriter{buf: &buf}
-		formatter := &jsonFormatter{writer: writer}
+		formatter := &jsonlFormatter{writer: writer}
 
 		artefact := &blackboard.Artefact{
 			ID:   "abc-123",
@@ -338,10 +338,10 @@ func TestFormatters(t *testing.T) {
 		require.Contains(t, output, `"type":"GoalDefined"`)
 	})
 
-	t.Run("jsonFormatter formats claim events", func(t *testing.T) {
+	t.Run("jsonlFormatter formats claim events", func(t *testing.T) {
 		var buf []byte
 		writer := &testWriter{buf: &buf}
-		formatter := &jsonFormatter{writer: writer}
+		formatter := &jsonlFormatter{writer: writer}
 
 		claim := &blackboard.Claim{
 			ID:         "claim-123",
@@ -358,10 +358,10 @@ func TestFormatters(t *testing.T) {
 		require.Contains(t, output, `"artefact_id":"artefact-456"`)
 	})
 
-	t.Run("jsonFormatter formats workflow events", func(t *testing.T) {
+	t.Run("jsonlFormatter formats workflow events", func(t *testing.T) {
 		var buf []byte
 		writer := &testWriter{buf: &buf}
-		formatter := &jsonFormatter{writer: writer}
+		formatter := &jsonlFormatter{writer: writer}
 
 		event := &blackboard.WorkflowEvent{
 			Event: "bid_submitted",
