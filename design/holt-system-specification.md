@@ -103,21 +103,24 @@ A record of the Orchestrator's decisions about a specific Artefact.
 
 * **id** (string): The UUID of the claim
 * **artefact_id** (string): The ID of the artefact this claim is for
+* **additional_context_ids** (string): A JSON-encoded array of Artefact IDs (e.g., `Review` artefacts) to be included as context. Used for the automated feedback loop.
 * **status** (string): The current state of the claim:
+  * `pending_consensus` - Waiting for all agents to bid
   * `pending_review` - Waiting for review phase completion
   * `pending_parallel` - Waiting for parallel phase completion  
   * `pending_exclusive` - Waiting for exclusive phase completion
+  * `pending_assignment` - Waiting to be assigned to an agent for rework (feedback loop)
   * `complete` - All phases finished successfully
   * `terminated` - Failed or killed due to feedback
-* **granted_review_agents** (string): A JSON-encoded array of agent names (from holt.yml) whose review bids were granted
-* **granted_parallel_agents** (string): A JSON-encoded array of agent names whose claim bids were granted
-* **granted_exclusive_agent** (string): The single agent name whose exclusive bid was granted
+* **granted_review_agents** (string): A JSON-encoded array of agent roles (from holt.yml) whose review bids were granted
+* **granted_parallel_agents** (string): A JSON-encoded array of agent roles whose claim bids were granted
+* **granted_exclusive_agent** (string): The single agent role whose exclusive bid was granted
 
 #### **Bids (holt:{instance_name}:claim:{uuid}:bids - Redis Hash)**
 
 A collection of bids submitted by agents for a specific claim.
 
-* **Key-Value Pairs:** The hash is a map where each key is the agent's **logical name** (e.g., 'go-coder-agent' from holt.yml) and the value is its bid type:
+* **Key-Value Pairs:** The hash is a map where each key is the agent's **role** (e.g., 'go-coder-agent' from holt.yml) and the value is its bid type:
   * `review` - Request to review the artefact
   * `claim` - Request to work on the artefact in parallel
   * `exclusive` - Request exclusive access to work on the artefact
@@ -133,78 +136,59 @@ The agent's container has the project's working directory mounted. The payload f
 
 ## **The holt.yml configuration file**
 
-The holt.yml file is the central, declarative configuration for a Holt instance. It defines the clan of agents available to the orchestrator.
+The `holt.yml` file is the central, declarative configuration for a Holt instance. It defines the clan of agents available to the orchestrator.
 
-### **Agent definition**
+### **Agent Definition**
 
-In Holt, we use the term **Agent** to describe any containerised component that performs work. An agent can be an intelligent, LLM-driven actor (like a code generator) or a simple, deterministic tool (like a test runner). This distinction is an implementation detail of the agent itself; the orchestrator treats them all as tool-equipped containers.
-
-Each agent is defined under the agents key in holt.yml.
+Each top-level key under the `agents` map is the agent's unique **role**. This role is the definitive identifier used for bidding, granting, and logging.
 
 ```yaml
 version: '1.0'
 
-# Defines the clan of agents available to the orchestrator
 agents:
-  # This is the agent's unique logical name
-  go-coder-agent:
-    # The agent's functional role for claim routing
-    # Multiple agents can share the same role
-    role: 'coder'
-    
-    # Standard Docker build context OR pre-built image
+  # This key is the agent's unique role.
+  doc-writer:
+    # Standard Docker build context. Alternatively, use a pre-built `image`.
     build:
-      context: './agents/go-coder'
-    # Alternative: use pre-built image
-    # image: 'my-registry/go-coder-agent:latest'
+      context: './agents/doc-writer'
     
-    # The mandatory command the pup will execute for this agent
-    # This is the entrypoint for the agent's specific logic
-    command: ["/usr/bin/run-go-coder.sh"]
+    # The mandatory command the pup will execute.
+    command: ["/usr/bin/run.sh"]
     
-    # Defines how many instances of this agent can run in parallel
-    # If replicas > 1, the strategy must be 'fresh_per_call'
-    # Defaults to 1 if omitted
-    replicas: 3
-    
-    # Agent container lifecycle strategy
-    # 'reuse' (default) - container started once and left running
-    # 'fresh_per_call' - new container for every granted claim
-    # Must be 'fresh_per_call' if replicas > 1
-    strategy: 'fresh_per_call'
-    
-    # Defines the project workspace mounted into the container
-    # Path is relative to where the 'holt' command is run
+    # The workspace is mounted read-write for this agent.
     workspace:
-      # 'ro' for read-only, 'rw' for read-write
       mode: 'rw'
+
+  # A scalable agent using the controller-worker pattern.
+  go-linter:
+    build:
+      context: './agents/go-linter'
+    command: ["/usr/bin/run-linter.sh"]
     
-    # Environment variables injected into the container
-    # Mirrors docker-compose syntax
+    # This agent acts as a controller, enabling scaled execution.
+    mode: controller
+    
+    # The controller will delegate work to up to 5 ephemeral worker containers.
+    max_concurrent: 5
+
+    # The workspace is mounted read-only, as a linter shouldn't modify files.
+    workspace:
+      mode: 'ro'
+
+  # An intelligent agent that uses a script to decide when to bid.
+  refactor-agent:
+    build:
+      context: './agents/refactor-agent'
+    command: ["/usr/bin/run-refactor.sh"]
+    workspace:
+      mode: 'rw'
+
+    # Delegates the bid decision to an external script.
+    bid_script: "/usr/bin/decide-bid.sh"
+
+    # Environment variables, mirroring docker-compose syntax.
     environment:
-      # Injects the value from the host's environment
-      - GITHUB_TOKEN
-      # Sets a specific value inside the container
-      - LOG_LEVEL=debug
-    
-    # Resource constraints for the agent container
-    # Mirrors docker-compose syntax
-    resources:
-      limits:
-        cpus: '0.50'
-        memory: 512M
-      reservations:
-        cpus: '0.25'
-        memory: 256M
-    
-    # Optional prompts for LLM-driven agents
-    # This section is optional for deterministic agents
-    # Prompts are passed to the agent as environment variables
-    prompts:
-      claim: |
-        You are a senior Go developer...
-      execution: |
-        You are a senior Go developer...
+      - OPENAI_API_KEY
 
 # Optional: Overrides for core infrastructure services
 services:
@@ -214,52 +198,29 @@ services:
     image: 'redis:7-alpine'
 ```
 
-## **Agent scaling and concurrency**
+## **Agent Scaling and Concurrency**
 
-Holt supports two distinct operational models depending on the `replicas` configuration for each agent.
+Holt supports two distinct operational models for agents, configured via the `mode` property in `holt.yml`.
 
-### **Single-instance agents (replicas: 1)**
+### **1. Standard Agents (Default)**
 
-For agents with `replicas: 1` (the default), the orchestrator manages a single container instance that runs the full agent pup with both bidding and execution capabilities. This is the standard model described in the `design/agent-pup.md` document.
+If the `mode` property is omitted, the agent runs in standard mode. The orchestrator manages a single, persistent container for this role. The `pup` process inside this container is fully autonomous: it watches for claims, bids on them, and executes any work it is granted.
 
-### **Scalable agents (replicas > 1): Controller-Worker pattern**
+This is the simplest operational model, suitable for roles that do not require horizontal scaling.
 
-For agents configured with `replicas > 1`, Holt uses a **controller-worker pattern** to eliminate race conditions and provide clean separation of concerns. This pattern consists of two distinct components:
+### **2. Scalable Agents (`mode: controller`)**
 
-#### **1. The Controller Pup ("bidder-only" mode)**
+For roles that need to handle multiple tasks concurrently (like linters or test runners), Holt uses a **controller-worker pattern**. This is enabled by setting `mode: controller` for an agent role.
 
-When `holt up` is run, the orchestrator launches **one and only one** persistent container for the scalable agent (e.g., `go-coder-agent`).
+This pattern involves two types of `pup` processes:
 
-The pup process within this container runs in a special **"bidder-only" mode**:
-- It runs only the Claim Watcher goroutine
-- It watches for all new claims and evaluates them on behalf of its agent type
-- It submits bids to the orchestrator
-- **The Work Executor goroutine is disabled** - it never performs any work itself
-- This container remains running throughout the holt's lifecycle
+*   **The Controller `pup`**: When `holt up` is run, the orchestrator launches **one persistent container** for the role. The `pup` inside this container runs in a special **controller mode**. It watches for and bids on claims, but **it never executes work itself**. Its sole job is to acquire work for its fleet of workers.
 
-#### **2. The Worker Pups ("execute-only" mode)**
+*   **The Worker `pup`s**: When the orchestrator grants a claim to this role, it launches a **new, ephemeral container** for the specific task. The `pup` inside this worker container is launched in **worker mode** (`pup --execute-claim <claim_id>`). It executes the single assigned claim, publishes its result, and then exits. The orchestrator is responsible for cleaning up the ephemeral container.
 
-When the orchestrator decides to grant a claim to a scalable agent, it **cannot** assign the work to the persistent controller pup. Instead:
+The `max_concurrent` property in `holt.yml` defines the maximum number of worker containers that the orchestrator will launch in parallel for that role.
 
-1. **Ephemeral container creation**: The orchestrator spins up a new, ephemeral container using the same agent image
-2. **Direct work assignment**: The pup process in this new container is launched in **"execute-only" mode** with the granted `claim_id` passed as a command-line argument: `pup --execute-claim <claim_id>`
-3. **Single-purpose execution**: This "worker pup" has no Claim Watcher loop. It:
-   - Starts and sees its direct assignment
-   - Performs the work for that single claim
-   - Posts the resulting artefact to the blackboard
-   - Exits cleanly
-4. **Container cleanup**: The orchestrator is responsible for cleaning up the ephemeral container
-
-#### **Benefits of the controller-worker pattern**
-
-- **Eliminates race conditions**: Only one persistent container bids, avoiding confusion about work assignment
-- **Clean separation of concerns**: Bidding logic remains centralized while execution scales horizontally
-- **Resource efficiency**: Work containers only exist when needed
-- **Simplified orchestration**: Clear ownership of each claim and predictable container lifecycle
-
-#### **Implementation scheduling**
-
-This controller-worker pattern is fundamental to multi-agent coordination and will be implemented as part of **Phase 3: "Coordination"** of the delivery roadmap.
+This pattern provides clean separation of concerns, eliminates race conditions for work acquisition, and allows for efficient, horizontal scaling of agent execution.
 
 ## **The thematic CLI**
 
@@ -325,7 +286,7 @@ The review process is deterministic with clear pass/fail definitions:
 
 **Decision-making:** The Orchestrator makes decisions based on a simple check: is the Review artefact's payload empty? It does not interpret the content of feedback.
 
-**Feedback loop:** When a claim is terminated due to feedback, the Orchestrator's new task for the original agent will include both the original artefact and the Review artefact in its source_artefacts, providing necessary context for the next iteration.
+**Feedback loop:** When a claim is rejected, the Orchestrator initiates the **Automated Feedback Loop**. It creates a new claim, directly assigned to the original agent, and populates the claim's `additional_context_ids` field with the IDs of the `Review` artefacts. This provides the necessary context for the agent to address the feedback in the next iteration.
 
 ## **Technical implementation details**
 
@@ -423,11 +384,11 @@ Holt is being developed through a series of well-defined phases, each delivering
 *Goal: Enable a single agent to perform a complete, useful task.*
 - **Features:** Agent `pup` implementation, claim bidding, Git workspace integration, and context assembly.
 
-### Phase 3: "Coordination" 🚧
+### Phase 3: "Coordination" ✅
 *Goal: Orchestrate multiple, specialized agents in a collaborative workflow.*
 - **Features:** Multi-stage pipelines (review → parallel → exclusive), controller-worker scaling pattern, consensus bidding, automated feedback loops, and powerful CLI observability features.
 
-### Phase 4: "Human-in-the-Loop" 📋
+### Phase 4: "Human-in-the-Loop" 🚧
 *Goal: Make the system production-ready with human oversight.*
 - **Features:** `Question`/`Answer` artefacts for human guidance and mandatory approval gates for critical actions.
 
