@@ -121,24 +121,30 @@ holt forage --goal "description"         # Start a new workflow
 ```
 
 ### **Observability & Debugging**
-*Note: `watch` and `hoard` support short IDs (e.g., `abc123de`)*
-```bash
-# Monitor real-time activity with powerful filtering
-holt watch [--name <instance>] [--since 1h] [--type "Code*"] [--agent Coder] [--output jsonl]
+*Note: All commands support short IDs (e.g., `abc123de`)*
 
-# Exit watch automatically when a workflow completes
-holt watch --exit-on-completion
+**`holt watch [--since <duration>] [--type <glob>] [--agent <role>] [--output jsonl]`**
 
-# Inspect historical artefacts with the same filtering flags
-holt hoard [--name <instance>] [--since 1h] [--output jsonl]
+The primary tool for observing a Holt instance. It has two modes:
 
-# Get full details for a specific artefact (short ID supported)
-holt hoard <artefact-id>
+*   **Live Mode (default):** Streams all events on the Blackboard in real-time.
+*   **Historical Replay Mode (`--since`):** Use a duration (e.g., `1h`, `30m`) to get a complete, chronological replay of a past workflow. This replay reconstructs the entire sequence of events, including:
+    *   Artefacts (with original creation timestamps)
+    *   Claims (including terminated claims)
+    *   Bids, grants, and review results
+    *   Rework assignments from feedback loops
 
-# View logs for a specific agent or component
-holt logs <agent-role> # e.g., holt logs Coder
-holt logs orchestrator
-```
+**`holt hoard [--since <duration>] [--type <glob>] [--agent <role>] [--output jsonl]`**
+
+Inspects historical artefacts. Use the filtering flags to find specific artefacts created in the past. To see the full history of a workflow, use `holt watch --since`.
+
+**`holt hoard <artefact-id>`**
+
+Retrieves and displays the full details for a single artefact.
+
+**`holt logs <agent-role|orchestrator>`**
+
+Views the logs for a specific running or stopped container (e.g., `holt logs Coder`).
 
 ### **Human-in-the-Loop (Phase 4+)**
 ```bash
