@@ -127,15 +127,30 @@ func (wm *WorkerManager) CleanupOrphanedWorkers(ctx context.Context) error {
 // LaunchWorker creates and starts an ephemeral worker container
 // M3.4: Workers are launched when a controller wins a grant
 // M3.7: agentRole parameter is the agent key from holt.yml (which IS the role)
+// M3.9: Resolves worker image ID and stores in claim for audit trail
 func (wm *WorkerManager) LaunchWorker(ctx context.Context, claim *blackboard.Claim, agentRole string, agent config.Agent, bbClient *blackboard.Client) error {
 	// M3.7: Use centralized WorkerContainerName function
 	containerName := dockerpkg.WorkerContainerName(wm.instanceName, agentRole, claim.ID)
+
+	// M3.9: Resolve worker image ID for audit trail
+	imageID, err := wm.resolveWorkerImageID(ctx, agent.Worker.Image)
+	if err != nil {
+		return fmt.Errorf("failed to resolve worker image ID: %w", err)
+	}
+
+	// M3.9: Store image ID in claim
+	claim.GrantedAgentImageID = imageID
+	if err := bbClient.UpdateClaim(ctx, claim); err != nil {
+		log.Printf("[Orchestrator] Warning: Failed to update claim with worker image ID: %v", err)
+		// Non-fatal - continue with worker launch
+	}
 
 	wm.logEvent("worker_launching", map[string]interface{}{
 		"container_name": containerName,
 		"claim_id":       claim.ID,
 		"role":           agentRole,
 		"agent_name":     agentRole, // M3.7: Agent name = role
+		"image_id":       wm.truncateImageID(imageID), // M3.9
 	})
 
 	// Build Docker container config
@@ -418,4 +433,40 @@ func (wm *WorkerManager) IsAtWorkerLimit(role string, maxConcurrent int) bool {
 // logEvent logs structured orchestrator events
 func (wm *WorkerManager) logEvent(event string, data map[string]interface{}) {
 	log.Printf("[Orchestrator] event=%s %v", event, data)
+}
+
+// resolveWorkerImageID resolves a worker image tag to its Docker image digest (M3.9).
+// Returns full sha256:... digest if available, falls back to image ID.
+func (wm *WorkerManager) resolveWorkerImageID(ctx context.Context, imageTag string) (string, error) {
+	imageInfo, _, err := wm.dockerClient.ImageInspectWithRaw(ctx, imageTag)
+	if err != nil {
+		return "", fmt.Errorf("failed to inspect worker image: %w", err)
+	}
+
+	// Prefer RepoDigests (contains registry path + sha256)
+	if len(imageInfo.RepoDigests) > 0 {
+		return imageInfo.RepoDigests[0], nil
+	}
+
+	// Fallback to image ID (local builds without registry)
+	if imageInfo.ID != "" {
+		return imageInfo.ID, nil
+	}
+
+	return "", fmt.Errorf("worker image has no digest or ID")
+}
+
+// truncateImageID shortens an image ID/digest for display (M3.9).
+func (wm *WorkerManager) truncateImageID(imageID string) string {
+	if len(imageID) > 7 && imageID[:7] == "sha256:" {
+		hash := imageID[7:]
+		if len(hash) >= 12 {
+			return hash[:12]
+		}
+		return hash
+	}
+	if len(imageID) >= 12 {
+		return imageID[:12]
+	}
+	return imageID
 }

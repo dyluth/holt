@@ -111,19 +111,52 @@ func SelectExclusiveWinner(bidders []string) string {
 // publishClaimGrantedEvent publishes a claim_granted event to the workflow_events channel.
 // The grant type is explicitly provided by the caller to avoid ambiguity when
 // multiple grant arrays are populated (e.g., during phase transitions).
-func (e *Engine) publishClaimGrantedEvent(ctx context.Context, claimID string, agentName string, grantType string) error {
+// M3.9: Includes agent_image_id in the event data for audit trails.
+func (e *Engine) publishClaimGrantedEvent(ctx context.Context, claimID string, agentName string, grantType string, agentImageID string) error {
 	eventData := map[string]interface{}{
-		"claim_id":   claimID,
-		"agent_name": agentName,
-		"grant_type": grantType,
+		"claim_id":       claimID,
+		"agent_name":     agentName,
+		"grant_type":     grantType,
+		"agent_image_id": agentImageID, // M3.9: Agent version auditing
 	}
 
 	if err := e.client.PublishWorkflowEvent(ctx, "claim_granted", eventData); err != nil {
 		return fmt.Errorf("failed to publish workflow event: %w", err)
 	}
 
-	log.Printf("[Orchestrator] Published claim_granted event: claim_id=%s, agent=%s, type=%s",
-		claimID, agentName, grantType)
+	log.Printf("[Orchestrator] Published claim_granted event: claim_id=%s, agent=%s, type=%s, image=%s",
+		claimID, agentName, grantType, truncateImageID(agentImageID))
 
 	return nil
+}
+
+// getAgentImageID retrieves the Docker image ID for an agent from Redis (M3.9).
+// Returns the image ID stored in the agent_images hash, or empty string if not found.
+// This is used for audit trail - linking grants to exact container versions.
+func (e *Engine) getAgentImageID(ctx context.Context, agentRole string) string {
+	agentImagesKey := blackboard.AgentImagesKey(e.instanceName)
+
+	imageID, err := e.client.RedisClient().HGet(ctx, agentImagesKey, agentRole).Result()
+	if err != nil {
+		// Log warning but don't fail - audit trail is best-effort for traditional agents
+		log.Printf("[Orchestrator] Warning: Could not retrieve image ID for agent '%s': %v", agentRole, err)
+		return ""
+	}
+
+	return imageID
+}
+
+// truncateImageID shortens an image ID/digest for logging (M3.9).
+func truncateImageID(imageID string) string {
+	if len(imageID) > 7 && imageID[:7] == "sha256:" {
+		hash := imageID[7:]
+		if len(hash) >= 12 {
+			return hash[:12]
+		}
+		return hash
+	}
+	if len(imageID) >= 12 {
+		return imageID[:12]
+	}
+	return imageID
 }

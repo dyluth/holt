@@ -30,6 +30,7 @@ func ArtefactToHash(a *Artefact) (map[string]interface{}, error) {
 		"payload":          a.Payload,
 		"source_artefacts": string(sourceArtefactsJSON),
 		"produced_by_role": a.ProducedByRole,
+		"created_at_ms":    a.CreatedAtMs, // M3.9
 	}
 
 	return hash, nil
@@ -57,6 +58,9 @@ func HashToArtefact(hash map[string]string) (*Artefact, error) {
 		sourceArtefacts = []string{}
 	}
 
+	// M3.9: Parse created_at_ms
+	createdAtMs, _ := strconv.ParseInt(hash["created_at_ms"], 10, 64)
+
 	artefact := &Artefact{
 		ID:              hash["id"],
 		LogicalID:       hash["logical_id"],
@@ -66,6 +70,7 @@ func HashToArtefact(hash map[string]string) (*Artefact, error) {
 		Payload:         hash["payload"],
 		SourceArtefacts: sourceArtefacts,
 		ProducedByRole:  hash["produced_by_role"],
+		CreatedAtMs:     createdAtMs, // M3.9
 	}
 
 	return artefact, nil
@@ -128,6 +133,9 @@ func ClaimToHash(c *Claim) (map[string]interface{}, error) {
 	hash["last_grant_agent"] = c.LastGrantAgent
 	hash["last_grant_time"] = c.LastGrantTime
 	hash["artefact_expected"] = c.ArtefactExpected
+
+	// M3.9: Agent version auditing
+	hash["granted_agent_image_id"] = c.GrantedAgentImageID
 
 	return hash, nil
 }
@@ -206,6 +214,7 @@ func HashToClaim(hash map[string]string) (*Claim, error) {
 		LastGrantAgent:        hash["last_grant_agent"], // M3.5
 		LastGrantTime:         lastGrantTime,         // M3.5
 		ArtefactExpected:      artefactExpected,      // M3.5
+		GrantedAgentImageID:   hash["granted_agent_image_id"], // M3.9
 	}
 
 	return claim, nil

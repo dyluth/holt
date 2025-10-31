@@ -4,62 +4,24 @@
 
 Holt enables organizations to safely automate complex software engineering tasks using AI agents—while maintaining complete control, security, and regulatory compliance.
 
-## Why Holt? The Solution for Regulated AI
+---
 
-- **🔒 Ultimate Security & Data Privacy:** Run all agents in your own environment. Your proprietary code and data **never** leave your control. Works with cloud APIs (OpenAI, Claude) or **air-gapped local models** (Llama 3 on your infrastructure).
+## Enterprise-Ready by Design
 
-- **⚖️ Enterprise-Grade Compliance:** Get a complete, immutable audit trail of every action, decision, and code change, ready for any SOX, HIPAA, or regulatory review.
+Holt is an opinionated, integrated platform, purpose-built for secure and regulated environments. Its architecture provides enterprise-grade capabilities out-of-the-box.
 
-- **✅ You Are Always in Control:** Enforce human-in-the-loop checkpoints for critical actions, ensuring AI **assists** your team, not replaces it.
+*   **Absolute Data Sovereignty**: Holt is self-hosted by default, allowing for deployment in **air-gapped environments**. The entire platform runs on your infrastructure, ensuring no data, metadata, or logs ever leave your security perimeter.
+*   **Unparalleled Auditability**: The central "Blackboard" acts as a chronological, append-only ledger, providing a complete audit trail of every action taken by every agent.
 
-- **🚀 No Vendor Lock-in. Total Flexibility:** Holt is built 'BYO-everything.' It works with **any AI model** (from OpenAI to a local Llama 3) and **any tool** (from `curl` to your proprietary CLI) that can run in a container. You are never locked into a single vendor.
+---
 
-## Use Cases for Regulated Industries
+## Compliance and Security
 
-### Regulated Industries
+Holt is architected to support the stringent security and compliance requirements of regulated industries. Its self-hosted nature, chronological audit trail, and declarative policies provide the foundation needed to build a compliant system.
 
-Holt's immutable audit trail and human-in-the-loop design make it uniquely suited for:
+For a detailed guide on how Holt's features map to the technical controls of frameworks like **HIPAA, SOC 2, and ISO 27001**, please read our full compliance guide:
 
-- **Financial services**: Auditable AI workflows for risk assessment, compliance reporting
-- **Healthcare**: Traceable AI-assisted processes for clinical documentation, research protocols
-- **Government**: Controllable AI automation with full audit trails for policy analysis
-- **Legal**: Documented AI workflows for contract analysis, due diligence
-
-### Software Engineering
-
-- **Multi-step code generation**: Design → Implement → Test → Deploy
-- **Refactoring workflows**: Analyze → Refactor → Validate → Commit
-- **Documentation generation**: Read code → Generate docs → Update README
-- **Test automation**: Write tests → Run tests → Fix failures → Verify
-
-### DevOps & Infrastructure
-
-- **Infrastructure as code**: Generate Terraform → Review → Apply → Validate
-- **Deployment automation**: Build → Test → Stage → Deploy with approval gates
-- **Monitoring & alerting**: Detect issue → Diagnose → Propose fix → Human approval → Apply
-
-## What Makes Holt Different: The Pragmatic Choice
-
-### vs. LangChain / LlamaIndex
-
-- **Container-native**: Orchestrates any CLI tool, not just Python functions
-- **Event-driven**: Agents don't poll - they react to Pub/Sub events
-- **Immutable audit trail**: Every decision permanently recorded
-- **Human-in-the-loop**: Designed for oversight, not autonomous operation
-
-### vs. CrewAI / AutoGPT
-
-- **Production-ready**: Built for reliability, not research demos
-- **Git-centric**: Version control integrated from the ground up
-- **Multi-instance**: Multiple Holts can run concurrently with workspace safety
-- **Compliance-focused**: Audit trail and human controls for regulated industries
-
-### vs. Temporal / Airflow
-
-- **AI-native**: Designed for LLM agent orchestration, not general workflows
-- **Blackboard pattern**: Shared state with event-driven coordination
-- **Container-per-agent**: Isolation and security by default
-- **Zero infrastructure**: **Just Docker and Redis - no clusters to manage**
+**[➡️ Holt: A Guide to Compliance](./HOLT_COMPLIANCE_GUIDE.md)**
 
 ---
 
@@ -191,26 +153,14 @@ graph TD
 
 ## Project Status
 
-**Phase 3 (M3.4) Complete** ✅ - Multi-agent coordination with horizontal scaling
+**Phase 4 In Progress** 🚧 - Human-in-the-loop and production hardening.
 
-Current capabilities:
-- ✅ Event-driven orchestration via Redis blackboard
-- ✅ Container-native agent execution
-- ✅ Git-centric workflow with commit tracking
-- ✅ Complete immutable audit trail
-- ✅ Human-in-the-loop support
-- ✅ Multi-instance workspace safety
-- ✅ Multi-agent coordination (review → parallel → exclusive phases)
-- ✅ Consensus-based bidding system
-- ✅ Automated feedback loops with review-based iteration
-- ✅ Automatic version management for iterative refinement
-- ✅ Controller-worker pattern for horizontal scaling
-- ✅ Ephemeral worker containers with automatic cleanup
-- ✅ Concurrency limits with stateless grant pausing
+### Key Completed Features (Phases 1-3)
 
-Coming in Phase 3+:
-- 🚧 Runtime failure detection & timeouts (M3.6+)
-- 🚧 Orchestrator restart resilience (M3.5+)
+*   **Core Orchestration**: Event-driven engine, Redis blackboard, Git-native workflows.
+*   **Advanced Coordination**: Multi-agent consensus bidding and phased execution (Review, Parallel, Exclusive).
+*   **Resilience & Scaling**: Controller-worker pattern for horizontal scaling, orchestrator restart resilience, and automated feedback loops for agent self-correction.
+*   **Security & Audit**: Immutable audit trail, workspace isolation (`ro`/`rw` modes), and multi-instance safety.
 
 ---
 
@@ -220,15 +170,15 @@ Coming in Phase 3+:
 
 A Redis-based shared state system where all components interact. Think of it as a lightweight ledger storing:
 
-- **Artefacts**: Immutable work products (code commits, designs, analyses)
+- **Artefacts**: Append-only work products (code commits, designs, analyses)
 - **Claims**: The orchestrator's decisions about work assignment
 - **Bids**: Agents' expressions of interest in claims
 
-Every interaction is timestamped and recorded, creating an immutable audit trail perfect for regulated environments.
+Every interaction is timestamped and recorded, creating a chronological audit trail perfect for regulated environments.
 
 ### Artefacts
 
-Immutable data objects representing work products. Each artefact has:
+Append-only data objects representing work products. Each artefact has:
 
 - **type**: User-defined (e.g., "CodeCommit", "DesignSpec", "TestReport")
 - **payload**: Main content (commit hash, JSON data, text)
@@ -529,7 +479,8 @@ holt/
 
 ---
 
-## Key Design Principles
+## Guiding principles
+
 
 ### Pragmatism over Novelty (YAGNI)
 
@@ -541,7 +492,7 @@ We use battle-hardened tools (Docker, Redis, Git) rather than building custom so
 
 ### Auditability as a Core Feature
 
-Artefacts are immutable. Every decision is recorded on the blackboard with timestamps. Complete audit trail for compliance and debugging.
+The Holt platform treats artefacts as write-once records. Every decision is recorded on the blackboard with timestamps. Complete audit trail for compliance and debugging.
 
 ### Small, Single-Purpose Components
 
@@ -555,41 +506,12 @@ Agents can use any tool that can be containerized - not just Python functions. T
 
 ## Roadmap
 
-### Phase 1: "Heartbeat" ✅
+Holt is being developed through a series of well-defined phases, from the initial "Heartbeat" to a fully "Kubernetes-Native" platform. For a detailed overview of the project's phased delivery plan and future direction, please see our comprehensive roadmap:
 
-- Redis blackboard with Pub/Sub
-- CLI lifecycle management
-- Orchestrator claim engine
-- Basic E2E workflow
+**[➡️ View the Full Project Roadmap](./ROADMAP.md)**
 
-### Phase 2: "Single Agent" ✅
-
-- Agent pup implementation
-- Claim watching and bidding
-- Tool execution contract
-- Git workspace integration
-- Context assembly algorithm
-
-### Phase 3: "Coordination" 🚧
-
-- Multi-agent coordination (review → parallel → exclusive)
-- Controller-worker scaling pattern
-- Full consensus bidding model
-- Enhanced error handling
-
-### Phase 4: "Human-in-the-Loop" 📋
-
-- Question/Answer artefacts
-- Human approval gates
-- Interactive workflows
-- Production monitoring
-
-### Beyond Phase 4
-
-- Dynamic agent registration
-- Advanced context strategies
-- LLM-based bidding
-- Distributed deployment
+### Future Enhancements
+For a detailed look at long-term, enterprise-focused ideas like RBAC, Secrets Management, and High Availability, see the living document at **[design/future-enhancements.md](./design/future-enhancements.md)**.
 
 ---
 

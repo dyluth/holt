@@ -1,83 +1,64 @@
-# **AI Agent Navigation Guide: What to Read When**
+# AI Agent Navigation Guide
 
-**Purpose**: Navigation guide for AI agents to efficiently find relevant documentation  
-**Scope**: Essential - read first for any Holt development task  
-**Estimated tokens**: ~500 tokens  
-**Read when**: Starting any development task, unsure which documents to consult
+**Purpose**: A machine-readable index for AI agents to efficiently find relevant documentation and manage context windows.
+**Scope**: Essential - read first for any development task.
 
-## **Quick Start: Core Context**
+---
 
-**Always start here** (required for all tasks):
-1. **`PROJECT_CONTEXT.md`** (~1,500 tokens) - Project overview, philosophy, architecture concepts
-2. **This file** (~500 tokens) - Navigation guidance for specific tasks
-3. **`QUICK_REFERENCE.md`** (~800 tokens) - Key concepts, data structures, and patterns
+## 1. Core Context Documents
 
-## **Task-Specific Reading Lists**
+For any non-trivial task, load this core set of documents to understand the project's high-level architecture, goals, and current state.
 
-### **Understanding the System**
-- **`design/holt-system-specification.md`** (~5,700 tokens) - Complete architecture overview
-- **`QUICK_REFERENCE.md`** (~800 tokens) - Key concepts and data structures
+- **`README.md`** (~2,000 tokens) - Project overview, quick start, and links to key documents.
+- **`ROADMAP.md`** (~500 tokens) - The official 6-phase project roadmap.
+- **`PROJECT_CONTEXT.md`** (~1,500 tokens) - The project's core philosophy and architectural principles.
+- **`QUICK_REFERENCE.md`** (~1,000 tokens) - Essential data structures, CLI commands, and Redis patterns.
 
-### **Designing Features**
-- **`DEVELOPMENT_PROCESS.md`** (~2,000 tokens) - Three-stage development lifecycle  
-- **`design/holt-feature-design-template.md`** (~3,500 tokens) - Systematic design template
-- **`design/features/phase-X/README.md`** (~300 tokens each) - Phase-specific constraints
+---
 
-### **Implementing Orchestrator Features**
-- **`design/holt-orchestrator-component.md`** (~3,200 tokens) - Orchestrator logic and algorithms
-- **`QUICK_REFERENCE.md`** (~800 tokens) - Redis patterns and event flows
+## 2. Task-Specific Reading Lists
 
-### **Implementing Agent Features**  
-- **`design/agent-pup.md`** (~3,300 tokens) - Agent pup architecture and contracts
-- **`QUICK_REFERENCE.md`** (~800 tokens) - Tool execution patterns
+To supplement the core context, select from the lists below based on your specific task.
 
-### **Working with CLI/User Interface**
-- **`design/holt-system-specification.md`** (sections 6-7) - CLI commands and human interaction
-- **`QUICK_REFERENCE.md`** (~800 tokens) - Command reference
+### **Topic: Onboarding & Contributing**
+- **`CONTRIBUTING.md`** (~1,000 tokens) - How to set up the environment and contribute.
+- **`DEVELOPMENT_PROCESS.md`** (~2,000 tokens) - The mandatory design-first development lifecycle.
 
-### **System Integration & Testing**
-- **`design/holt-system-specification.md`** (sections 8-9) - Error handling and technical details
-- **`DEVELOPMENT_PROCESS.md`** (Stage 3) - Integration validation process
+### **Topic: Enterprise & Compliance Features**
+- **`ENTERPRISE_GRADE_HOLT.md`** (~1,000 tokens) - Explains built-in security, auditability, and governance.
+- **`HOLT_COMPLIANCE_GUIDE.md`** (~1,500 tokens) - Maps Holt features to HIPAA, SOC 2, and ISO 27001 controls.
 
-## **Strategic Reading & Context Management**
+### **Topic: Learning by Example**
+- **`docs/HOW_TO_1_BUILD_A_SIMPLE_AGENT.md`** - Walkthrough of the basic file-creation agent.
+- **`docs/HOW_TO_2_BUILD_A_MULTI_AGENT_WORKFLOW.md`** - Deep dive into the collaborative recipe-generator demo.
+- **`docs/HOW_TO_3_BUILD_AN_IAC_AGENT.md`** - Guide to the advanced Terraform agent.
 
-Your goal is to build the most relevant context for your task while respecting token limits. Use this strategic approach:
+### **Topic: Core Architecture Deep Dive**
+- **`design/holt-system-specification.md`** (~5,000 tokens) - The complete technical architecture.
+- **`design/holt-orchestrator-component.md`** (~3,000 tokens) - The Orchestrator's internal logic.
+- **`design/agent-pup.md`** (~3,000 tokens) - The `pup` architecture and tool execution contract.
 
-**1. Start with the Core Context**
-Always read the documents listed in the **`Quick Start: Core Context`** section first. They provide the foundational knowledge for any task.
+### **Topic: Designing a New Feature**
+- **`DEVELOPMENT_PROCESS.md`** (~2,000 tokens) - The three-stage development lifecycle.
+- **`design/holt-feature-design-template.md`** (~3,500 tokens) - The required template for all new feature designs.
 
-**2. Select Task-Specific Documents**
-Use the **`Task-Specific Reading Lists`** or **`Common Navigation Patterns`** sections to identify the specific design documents needed for your objective.
+---
 
-**3. Prioritize Summaries**
-To save tokens, prefer reading `QUICK_REFERENCE.md` or component-specific documents before consulting the full `design/holt-system-specification.md`. The token estimates help you budget your context window.
+## 3. Common Navigation Patterns
 
-**Example Workflow (Constrained Context):**
-1.  Read `PROJECT_CONTEXT.md` and `QUICK_REFERENCE.md`.
-2.  Identify and read the most relevant component document (e.g., `design/holt-orchestrator-component.md`).
-3.  If you still need more detail, search within the full `design/holt-system-specification.md` for specific keywords rather than reading the whole file.
+- **Goal: "Understand the project's security and compliance features."**
+  - → `ENTERPRISE_GRADE_HOLT.md`
+  - → `HOLT_COMPLIANCE_GUIDE.md`
 
-## **Common Navigation Patterns**
+- **Goal: "Learn how to build my first agent."**
+  - → `docs/HOW_TO_1_BUILD_A_SIMPLE_AGENT.md`
+  - → `QUICK_REFERENCE.md` (for data structures)
 
-### **"I need to understand Holt's architecture"**
-→ `PROJECT_CONTEXT.md` + `QUICK_REFERENCE.md` + `design/holt-system-specification.md`
+- **Goal: "Design a new feature for Phase 4."**
+  - → `ROADMAP.md` (to understand Phase 4 goals)
+  - → `DEVELOPMENT_PROCESS.md` (to understand the process)
+  - → `design/holt-feature-design-template.md` (to create the design document)
 
-### **"I'm designing a new feature"**  
-→ `DEVELOPMENT_PROCESS.md` + `design/holt-feature-design-template.md` + relevant phase README
-
-### **"I'm implementing orchestrator logic"**
-→ `design/holt-orchestrator-component.md` + `QUICK_REFERENCE.md`
-
-### **"I'm implementing agent functionality"**
-→ `design/agent-pup.md` + `QUICK_REFERENCE.md`
-
-### **"I need to integrate/test features"**
-→ `DEVELOPMENT_PROCESS.md` (Stage 3) + relevant component specifications
-
-## **Getting Help**
-
-When documentation is unclear or insufficient:
-1. **Check cross-references** between documents
-2. **Look for examples** in phase-specific READMEs
-3. **Refer to quick references** for common patterns
-4. **Ask specific questions** about ambiguous requirements
+- **Goal: "Fix a bug in the Orchestrator."**
+  - → `design/holt-orchestrator-component.md` (to understand the logic)
+  - → `QUICK_REFERENCE.md` (for Redis patterns)

@@ -46,8 +46,10 @@ func (e *Engine) GrantParallelPhase(ctx context.Context, claim *blackboard.Claim
 		if err := e.publishGrantNotificationWithType(ctx, agentName, claim.ID, "claim"); err != nil {
 			log.Printf("[Orchestrator] Failed to publish parallel grant notification to %s: %v", agentName, err)
 		}
+		// M3.9: Get agent image ID for audit trail
+		agentImageID := e.getAgentImageID(ctx, agentName)
 		// Publish event for watching
-		if err := e.publishClaimGrantedEvent(ctx, claim.ID, agentName, "claim"); err != nil {
+		if err := e.publishClaimGrantedEvent(ctx, claim.ID, agentName, "claim", agentImageID); err != nil {
 			log.Printf("[Orchestrator] Failed to publish workflow event for parallel grant to %s: %v", agentName, err)
 		}
 	}

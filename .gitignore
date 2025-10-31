@@ -38,6 +38,7 @@ go.work.sum
 \#*\#
 .#*
 
+
 # OS generated files
 Thumbs.db
 ehthumbs.db
@@ -67,6 +68,7 @@ docker-compose.override.yml
 .scratch/
 tmp/
 temp/
+*.txt
 
 # Agent build artifacts and runtime files
 agents/*/bin/

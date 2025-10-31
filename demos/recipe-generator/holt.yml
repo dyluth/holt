@@ -7,6 +7,9 @@ agents:
     bid_script: ["/app/bid.sh"]
     workspace:
       mode: rw
+    # M3.9: Simple health check example
+    health_check:
+      command: ["true"]
 
   Validator:
     image: "holt-validator-recipe-demo:latest"

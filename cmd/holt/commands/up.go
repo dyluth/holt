@@ -46,7 +46,8 @@ Workspace safety checks prevent multiple instances on the same directory unless 
 
 func init() {
 	upCmd.Flags().StringVarP(&upInstanceName, "name", "n", "", "Instance name (auto-generated if omitted)")
-	upCmd.Flags().BoolVarP(&upForce, "force", "f", false, "Bypass workspace collision check")
+	// Note: Cannot use -f shorthand because it conflicts with global --config flag
+	upCmd.Flags().BoolVar(&upForce, "force", false, "Bypass workspace collision check")
 	rootCmd.AddCommand(upCmd)
 }
 
@@ -145,7 +146,7 @@ func runUp(cmd *cobra.Command, args []string) error {
 	runID := uuid.New().String()
 	if err := createInstance(ctx, cli, cfg, targetInstanceName, runID, workspacePath); err != nil {
 		// Attempt rollback on failure
-		printer.Info("\nResource creation failed. Rolling back...\n")
+		printer.Info("\nResource creation failed: %v\nRolling back...\n", err)
 		if rollbackErr := rollbackInstance(ctx, cli, targetInstanceName); rollbackErr != nil {
 			printer.Warning("rollback encountered errors: %v\n", rollbackErr)
 		}
@@ -184,7 +185,7 @@ func createInstance(ctx context.Context, cli *client.Client, cfg *config.HoltCon
 		return fmt.Errorf("failed to allocate Redis port: %w", err)
 	}
 
-	printer.Success("Allocated Redis port: %d\n", redisPort)
+	printer.Debug("Allocated Redis port: %d\n", redisPort)
 
 	// Step 2: Create isolated network
 	networkName := dockerpkg.NetworkName(instanceName)
@@ -198,7 +199,7 @@ func createInstance(ctx context.Context, cli *client.Client, cfg *config.HoltCon
 		return fmt.Errorf("failed to create network '%s': %w", networkName, err)
 	}
 
-	printer.Success("Created network: %s\n", networkName)
+	printer.Debug("Created network: %s\n", networkName)
 
 	// Step 3: Start Redis container with port mapping
 	redisImage := "redis:7-alpine"
@@ -236,7 +237,7 @@ func createInstance(ctx context.Context, cli *client.Client, cfg *config.HoltCon
 		return fmt.Errorf("failed to start Redis container: %w", err)
 	}
 
-	printer.Success("Started Redis container: %s (port %d)\n", redisName, redisPort)
+	printer.Debug("Started Redis container: %s (port %d)\n", redisName, redisPort)
 
 	// Step 4: Verify orchestrator image exists
 	orchestratorImage := "holt-orchestrator:latest"
@@ -282,11 +283,16 @@ func createInstance(ctx context.Context, cli *client.Client, cfg *config.HoltCon
 		return fmt.Errorf("failed to start orchestrator container: %w", err)
 	}
 
-	printer.Success("Started orchestrator container: %s\n", orchestratorName)
+	printer.Debug("Started orchestrator container: %s\n", orchestratorName)
 
 	// Step 6: Launch agent containers
 	if err := launchAgentContainers(ctx, cli, cfg, instanceName, runID, workspacePath, networkName, redisName); err != nil {
 		return fmt.Errorf("failed to launch agent containers: %w", err)
+	}
+
+	// Step 7: M3.9: Populate agent_images hash for audit trail
+	if err := populateAgentImages(ctx, cli, cfg, instanceName, redisPort); err != nil {
+		return fmt.Errorf("failed to populate agent images: %w", err)
 	}
 
 	return nil
@@ -340,21 +346,24 @@ func rollbackInstance(ctx context.Context, cli *client.Client, instanceName stri
 func printUpSuccess(instanceName, workspacePath string, cfg *config.HoltConfig) {
 	agentCount := len(cfg.Agents)
 	printer.Success("\nInstance '%s' started successfully (%d agents ready)\n\n", instanceName, agentCount)
-	printer.Info("Containers:\n")
-	printer.Info("  • %s (running)\n", dockerpkg.RedisContainerName(instanceName))
-	printer.Info("  • %s (running)\n", dockerpkg.OrchestratorContainerName(instanceName))
+
+	// Debug-level container/network details
+	printer.Debug("Containers:\n")
+	printer.Debug("  • %s (running)\n", dockerpkg.RedisContainerName(instanceName))
+	printer.Debug("  • %s (running)\n", dockerpkg.OrchestratorContainerName(instanceName))
 
 	// List agent containers (M3.7: agent key IS the role)
 	for agentRole, agent := range cfg.Agents {
-		printer.Info("  • %s (running, healthy, bidding_strategy=%s)\n",
+		printer.Debug("  • %s (running, healthy, bidding_strategy=%s)\n",
 			dockerpkg.AgentContainerName(instanceName, agentRole),
 			agent.BiddingStrategy)
 	}
 
-	printer.Info("\n")
-	printer.Info("Network:\n")
-	printer.Info("  • %s\n", dockerpkg.NetworkName(instanceName))
-	printer.Info("\n")
+	printer.Debug("\n")
+	printer.Debug("Network:\n")
+	printer.Debug("  • %s\n", dockerpkg.NetworkName(instanceName))
+	printer.Debug("\n")
+
 	printer.Info("Workspace: %s\n", workspacePath)
 	printer.Info("\n")
 	printer.Info("Next steps:\n")
@@ -385,7 +394,7 @@ func verifyOrchestratorImage(ctx context.Context, cli *client.Client, imageName 
 	for _, image := range images {
 		for _, tag := range image.RepoTags {
 			if tag == imageName {
-				printer.Success("Found orchestrator image: %s\n", imageName)
+				printer.Debug("Found orchestrator image: %s\n", imageName)
 				return nil
 			}
 		}
@@ -441,7 +450,7 @@ func validateAgentImages(ctx context.Context, cli *client.Client, cfg *config.Ho
 		)
 	}
 
-	printer.Success("Validated %d agent image(s)\n", len(cfg.Agents))
+	printer.Debug("Validated %d agent image(s)\n", len(cfg.Agents))
 	return nil
 }
 
@@ -488,14 +497,14 @@ func launchAgentContainers(ctx context.Context, cli *client.Client, cfg *config.
 		containerNames = append(containerNames, dockerpkg.AgentContainerName(instanceName, result.agentName))
 	}
 
-	printer.Success("Started %d agent container(s) in parallel\n", agentCount)
+	printer.Debug("Started %d agent container(s) in parallel\n", agentCount)
 
 	// M3.1: Validate all agents are healthy before reporting success
 	if err := validateAllAgentsHealthy(ctx, cli, containerNames); err != nil {
 		return fmt.Errorf("agent health check failed: %w", err)
 	}
 
-	printer.Success("All agents healthy\n")
+	printer.Debug("All agents healthy\n")
 
 	return nil
 }
@@ -546,9 +555,11 @@ func launchAgentContainer(ctx context.Context, cli *client.Client, instanceName,
 		env = append(env, fmt.Sprintf("HOLT_AGENT_BID_SCRIPT=%s", bidScriptJSON))
 	}
 
-	// Add custom environment variables from config
+	// Add custom environment variables from config (with expansion)
 	if len(agent.Environment) > 0 {
-		env = append(env, agent.Environment...)
+		for _, envVar := range agent.Environment {
+			env = append(env, os.ExpandEnv(envVar))
+		}
 	}
 
 	// Create container
@@ -731,6 +742,119 @@ func getDockerSocketGroups() []string {
 	gidStr := strconv.FormatUint(uint64(gid), 10)
 	printer.Info("Docker socket GID: %s (adding to orchestrator container)\n", gidStr)
 	return []string{gidStr}
+}
+
+// populateAgentImages populates the agent_images hash in Redis (M3.9).
+// This hash maps agent roles to their Docker image IDs for audit trail.
+// For traditional/controller agents, resolves image ID from running container.
+// Fails hard if docker inspect fails - audit trail integrity is critical.
+func populateAgentImages(ctx context.Context, cli *client.Client, cfg *config.HoltConfig, instanceName string, redisPort int) error {
+	// Determine Redis address based on environment
+	// In Docker-in-Docker (DinD) scenarios, we need to use host.docker.internal or gateway IP
+	// Otherwise, use localhost with mapped port
+	redisAddr := fmt.Sprintf("127.0.0.1:%d", redisPort)
+
+	// Check if we're in a Docker container
+	if _, err := os.Stat("/.dockerenv"); err == nil {
+		// Try host.docker.internal first (works on Docker Desktop)
+		redisAddr = fmt.Sprintf("host.docker.internal:%d", redisPort)
+	}
+
+	redisClient := redis.NewClient(&redis.Options{
+		Addr: redisAddr,
+	})
+	defer redisClient.Close()
+
+	// Test connection with retry (Redis may need a moment to be ready)
+	var lastErr error
+	for i := 0; i < 10; i++ {
+		if err := redisClient.Ping(ctx).Err(); err == nil {
+			break // Connection successful
+		} else {
+			lastErr = err
+			if i < 9 {
+				time.Sleep(500 * time.Millisecond)
+			}
+		}
+	}
+	if lastErr != nil {
+		return fmt.Errorf("failed to connect to Redis after retries: %w", lastErr)
+	}
+
+	// M3.9: Import blackboard package for schema helper
+	agentImagesKey := fmt.Sprintf("holt:%s:agent_images", instanceName)
+
+	// Iterate through agents
+	for agentRole, agent := range cfg.Agents {
+		// Skip worker-only agents (they're not running yet)
+		if agent.Mode == "controller" || agent.Replicas == nil || *agent.Replicas == 1 {
+			// Get container name
+			containerName := dockerpkg.AgentContainerName(instanceName, agentRole)
+
+			// Get container info
+			containerInfo, err := cli.ContainerInspect(ctx, containerName)
+			if err != nil {
+				return fmt.Errorf("failed to inspect container %s: %w (Cannot start instance without complete audit trail)", containerName, err)
+			}
+
+			// Get image ID from container's image reference
+			imageID, err := getImageDigest(ctx, cli, containerInfo.Image)
+			if err != nil {
+				return fmt.Errorf("failed to resolve image ID for agent '%s': %w (Cannot start instance without complete audit trail)", agentRole, err)
+			}
+
+			// Store in Redis hash
+			if err := redisClient.HSet(ctx, agentImagesKey, agentRole, imageID).Err(); err != nil {
+				return fmt.Errorf("failed to store image ID for agent '%s': %w", agentRole, err)
+			}
+
+			printer.Info("  Registered agent '%s' with image %s\n", agentRole, truncateImageID(imageID))
+		}
+	}
+
+	printer.Success("Registered %d agent image(s) for audit trail\n", len(cfg.Agents))
+	return nil
+}
+
+// getImageDigest resolves a Docker image reference to its content-addressable digest.
+// Returns full sha256:... digest if available, falls back to image ID.
+func getImageDigest(ctx context.Context, cli *client.Client, imageRef string) (string, error) {
+	imageInfo, _, err := cli.ImageInspectWithRaw(ctx, imageRef)
+	if err != nil {
+		return "", fmt.Errorf("failed to inspect image: %w", err)
+	}
+
+	// Prefer RepoDigests (contains registry path + sha256)
+	if len(imageInfo.RepoDigests) > 0 {
+		return imageInfo.RepoDigests[0], nil
+	}
+
+	// Fallback to image ID (local builds without registry)
+	if imageInfo.ID != "" {
+		return imageInfo.ID, nil
+	}
+
+	return "", fmt.Errorf("image has no digest or ID")
+}
+
+// truncateImageID shortens an image ID/digest for display (M3.9).
+// Extracts first 12 characters of sha256 hash.
+func truncateImageID(imageID string) string {
+	// Handle "sha256:..." format
+	if len(imageID) > 7 && imageID[:7] == "sha256:" {
+		hash := imageID[7:]
+		if len(hash) >= 12 {
+			return hash[:12]
+		}
+		return hash
+	}
+
+	// Handle other formats
+	if len(imageID) >= 12 {
+		return imageID[:12]
+	}
+
+	return imageID
 }
 
 // detectAndHandleStaleLock checks for stale orchestrator locks and handles takeover (M3.5).

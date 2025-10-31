@@ -1,6 +1,15 @@
 # **Phase 4: "Human-in-the-Loop" - Implementation Milestones**
 
 **Phase Goal**: Full featured system with human oversight and production-ready operations.
+Thoughts from Cam:
+* there are times when one LLM might want to ask questions from the implementer LLM of an earlier Artefact (think implementer asking an implementation detail) - this is a form of late review, but done at the Claim / exlcusive step, not necessarily the review step - we need to support this additional flow.
+* human in the loop 2 modes:
+    - implicit human decision requests - questions that filter up to the top of the chain that the LLMs cant answer
+    - breakpointing - where a human can set explicit breakpoints or step controlls - eg whenever an artefact of type X is created, enter full control to review every decision.  this is complex, so we need to think hard on how to implement this, and what is simple, and what we can build later.
+    - also when in full control, the human can take action - eg add an explicit manual review artefact on something to cause it to be re-evaluated.
+* a much more sophisticated demo - eg a `Go Microservice & OpenAPI Spec` where there are designs, comprehensive design reviews, implementations (including asking implementation questions back to the architect), implementation reviews & tooling that runs the tests checks code coverage etc,  then documentation creation & reviews etc, then final total review including all genarated artefacts and code changes. -  showing off extensive use of tools AND LLMS.  and including the possibility of questions escalating up to the human.
+* 
+
 
 **Phase Success Criteria**:
 - Complex workflows with human decision points

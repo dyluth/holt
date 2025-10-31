@@ -3,6 +3,14 @@
 # Use Go 1.24 if available in /usr/local/go, otherwise use system go
 GO := $(shell [ -x /usr/local/go/bin/go ] && echo /usr/local/go/bin/go || echo go)
 
+# Version information from git
+VERSION := $(shell git describe --tags --always --dirty 2>/dev/null || echo "dev")
+COMMIT := $(shell git rev-parse --short HEAD 2>/dev/null || echo "none")
+BUILD_DATE := $(shell date -u '+%Y-%m-%d_%H:%M:%S')
+
+# Go build flags
+LDFLAGS := -ldflags "-X main.version=$(VERSION) -X main.commit=$(COMMIT) -X main.date=$(BUILD_DATE)"
+
 # Default target
 help:
 	@echo "Holt Development Makefile"
@@ -34,7 +42,9 @@ help:
 	@echo "Development:"
 	@echo "  build-orchestrator  - Build orchestrator binary (for debugging only)"
 	@echo "  build-pup           - Build agent pup binary"
-	@echo "  install             - Install holt binary to GOPATH/bin"
+	@echo "  install             - Install holt binary to user bin directory"
+	@echo "                        (tries /usr/local/bin, ~/.local/bin, or GOPATH/bin)"
+	@echo "                        Use PREFIX=/custom/path for custom location"
 	@echo "  clean               - Remove build artifacts"
 
 # Run all tests (depends on binaries being built)
@@ -110,35 +120,35 @@ test-all: test test-pup test-integration test-e2e
 build:
 	@echo "Building holt CLI..."
 	@mkdir -p bin
-	@$(GO) build -o bin/holt ./cmd/holt
-	@echo "✓ Built: bin/holt"
+	@$(GO) build $(LDFLAGS) -o bin/holt ./cmd/holt
+	@echo "✓ Built: bin/holt (version: $(VERSION), commit: $(COMMIT))"
 
 # Cross-compile for macOS ARM64 (M1/M2/M3 Macs)
 build-darwin-arm64:
 	@echo "Building holt CLI for macOS ARM64..."
 	@mkdir -p bin
-	@GOOS=darwin GOARCH=arm64 $(GO) build -o bin/holt-darwin-arm64 ./cmd/holt
+	@GOOS=darwin GOARCH=arm64 $(GO) build $(LDFLAGS) -o bin/holt-darwin-arm64 ./cmd/holt
 	@echo "✓ Built: bin/holt-darwin-arm64"
 
 # Cross-compile for macOS Intel
 build-darwin-amd64:
 	@echo "Building holt CLI for macOS Intel..."
 	@mkdir -p bin
-	@GOOS=darwin GOARCH=amd64 $(GO) build -o bin/holt-darwin-amd64 ./cmd/holt
+	@GOOS=darwin GOARCH=amd64 $(GO) build $(LDFLAGS) -o bin/holt-darwin-amd64 ./cmd/holt
 	@echo "✓ Built: bin/holt-darwin-amd64"
 
 # Cross-compile for Linux ARM64
 build-linux-arm64:
 	@echo "Building holt CLI for Linux ARM64..."
 	@mkdir -p bin
-	@GOOS=linux GOARCH=arm64 $(GO) build -o bin/holt-linux-arm64 ./cmd/holt
+	@GOOS=linux GOARCH=arm64 $(GO) build $(LDFLAGS) -o bin/holt-linux-arm64 ./cmd/holt
 	@echo "✓ Built: bin/holt-linux-arm64"
 
 # Cross-compile for Linux AMD64
 build-linux-amd64:
 	@echo "Building holt CLI for Linux AMD64..."
 	@mkdir -p bin
-	@GOOS=linux GOARCH=amd64 $(GO) build -o bin/holt-linux-amd64 ./cmd/holt
+	@GOOS=linux GOARCH=amd64 $(GO) build $(LDFLAGS) -o bin/holt-linux-amd64 ./cmd/holt
 	@echo "✓ Built: bin/holt-linux-amd64"
 
 # Build the orchestrator binary
@@ -178,11 +188,29 @@ build-all: build build-pup docker-orchestrator
 	@echo ""
 	@echo "Ready to use: ./bin/holt up"
 
-# Install holt binary
-install:
+# Install holt binary to user bin directory
+# Supports: /usr/local/bin (default, requires sudo), ~/.local/bin, or custom PREFIX
+install: build
 	@echo "Installing holt..."
-	@$(GO) install ./cmd/holt
-	@echo "✓ Installed to: $$($(GO) env GOPATH)/bin/holt"
+	@if [ -n "$(PREFIX)" ]; then \
+		INSTALL_DIR="$(PREFIX)/bin"; \
+	elif [ -w /usr/local/bin ]; then \
+		INSTALL_DIR="/usr/local/bin"; \
+	elif [ -d "$$HOME/.local/bin" ]; then \
+		INSTALL_DIR="$$HOME/.local/bin"; \
+	else \
+		INSTALL_DIR="$$($(GO) env GOPATH)/bin"; \
+		mkdir -p "$$INSTALL_DIR"; \
+	fi; \
+	echo "Installing to: $$INSTALL_DIR"; \
+	cp bin/holt "$$INSTALL_DIR/holt"; \
+	chmod +x "$$INSTALL_DIR/holt"; \
+	echo "✓ Installed: $$INSTALL_DIR/holt"; \
+	echo ""; \
+	if ! echo "$$PATH" | grep -q "$${INSTALL_DIR}"; then \
+		echo "⚠️  Note: $$INSTALL_DIR is not in your PATH"; \
+		echo "   Add to PATH: export PATH=\"$$INSTALL_DIR:\$$PATH\""; \
+	fi
 
 # Clean build artifacts
 clean:

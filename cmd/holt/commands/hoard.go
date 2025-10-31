@@ -9,6 +9,8 @@ import (
 	"github.com/dyluth/holt/internal/hoard"
 	"github.com/dyluth/holt/internal/instance"
 	"github.com/dyluth/holt/internal/printer"
+	"github.com/dyluth/holt/internal/resolver"
+	"github.com/dyluth/holt/internal/timespec"
 	"github.com/dyluth/holt/pkg/blackboard"
 	"github.com/redis/go-redis/v9"
 	"github.com/spf13/cobra"
@@ -17,46 +19,66 @@ import (
 var (
 	hoardInstanceName string
 	hoardOutputFormat string
+	hoardSince        string
+	hoardUntil        string
+	hoardType         string
+	hoardAgent        string
 )
 
 var hoardCmd = &cobra.Command{
 	Use:   "hoard [ARTEFACT_ID]",
-	Short: "Inspect blackboard artefacts",
+	Short: "Inspect blackboard artefacts with filtering",
 	Long: `Inspect blackboard artefacts in list or get mode.
 
 List Mode (no ARTEFACT_ID):
-  Displays an overview of all artefacts on the blackboard as a table
-  or JSON array. Use this to see what work products have been created.
+  Displays artefacts matching filters as a table or JSONL stream.
 
 Get Mode (with ARTEFACT_ID):
   Displays complete details of a single artefact as pretty-printed JSON.
-  Use this to inspect a specific artefact in detail.
+  Supports short IDs (e.g., "abc123" instead of full UUID).
 
 Output Formats (list mode only):
   default - Human-readable table with ID, Type, Produced By, and Payload
-  json    - JSON array of complete artefact objects
+  jsonl   - Line-delimited JSON, one artefact per line
+
+Time Filters (list mode only):
+  --since  - Show artefacts created after this time
+  --until  - Show artefacts created before this time
+
+Content Filters (list mode only):
+  --type   - Filter by artefact type (glob pattern: "Code*", "*Result")
+  --agent  - Filter by agent role (exact match: "coder", "reviewer")
 
 Examples:
-  # List all artefacts in table format
+  # List all artefacts
   holt hoard
 
-  # List all artefacts for specific instance
-  holt hoard --name prod-instance
+  # Filter by type and time
+  holt hoard --type="CodeCommit" --since=2h
 
-  # Get artefacts as JSON for scripting
-  holt hoard --output=json | jq '.[] | select(.type=="CodeCommit")'
+  # Get artefacts as JSONL for piping to jq
+  holt hoard --output=jsonl --since=1h | jq 'select(.structural_type=="Terminal") | .id'
 
-  # Get full details of specific artefact
-  holt hoard abc123-def456-...
+  # Get specific artefact by short ID
+  holt hoard abc123
 
-  # Extract artefact IDs for processing
-  holt hoard --output=json | jq -r '.[].id'`,
+  # Filter by agent
+  holt hoard --agent=reviewer --since="2025-10-29T00:00:00Z"`,
 	RunE: runHoard,
 }
 
 func init() {
 	hoardCmd.Flags().StringVarP(&hoardInstanceName, "name", "n", "", "Target instance name (auto-inferred if omitted)")
-	hoardCmd.Flags().StringVarP(&hoardOutputFormat, "output", "o", "default", "Output format: default or json (ignored in get mode)")
+	hoardCmd.Flags().StringVarP(&hoardOutputFormat, "output", "o", "default", "Output format: default or jsonl (ignored in get mode)")
+
+	// Time-based filters
+	hoardCmd.Flags().StringVar(&hoardSince, "since", "", "Show artefacts after time (duration or RFC3339)")
+	hoardCmd.Flags().StringVar(&hoardUntil, "until", "", "Show artefacts before time (duration or RFC3339)")
+
+	// Content-based filters
+	hoardCmd.Flags().StringVar(&hoardType, "type", "", "Filter by artefact type (glob pattern)")
+	hoardCmd.Flags().StringVar(&hoardAgent, "agent", "", "Filter by agent role (exact match)")
+
 	rootCmd.AddCommand(hoardCmd)
 }
 
@@ -72,13 +94,13 @@ func runHoard(cmd *cobra.Command, args []string) error {
 		switch hoardOutputFormat {
 		case "default":
 			outputFormat = hoard.OutputFormatDefault
-		case "json":
-			outputFormat = hoard.OutputFormatJSON
+		case "jsonl":
+			outputFormat = hoard.OutputFormatJSONL
 		default:
 			return printer.Error(
 				"invalid output format",
 				fmt.Sprintf("Unknown format: %s", hoardOutputFormat),
-				[]string{"Valid formats: default, json"},
+				[]string{"Valid formats: default, jsonl"},
 			)
 		}
 	}
@@ -163,13 +185,16 @@ func runHoard(cmd *cobra.Command, args []string) error {
 
 	// Phase 5: Execute appropriate mode
 	if isGetMode {
-		// Get mode: fetch and display single artefact
-		artefactID := args[0]
-		err := hoard.GetArtefact(ctx, bbClient, artefactID, os.Stdout)
+		// Get mode: resolve short ID and fetch artefact
+		shortID := args[0]
+
+		// Resolve short ID to full UUID
+		fullID, err := resolver.ResolveArtefactID(ctx, bbClient, shortID)
 		if err != nil {
-			if hoard.IsNotFound(err) {
+			// Handle resolver-specific errors
+			if resolver.IsNotFoundError(err) {
 				return printer.Error(
-					fmt.Sprintf("artefact with ID '%s' not found", artefactID),
+					fmt.Sprintf("artefact with ID '%s' not found", shortID),
 					"The specified artefact does not exist on the blackboard.",
 					[]string{
 						"List all artefacts:\n  holt hoard",
@@ -177,11 +202,49 @@ func runHoard(cmd *cobra.Command, args []string) error {
 					},
 				)
 			}
+			if resolver.IsAmbiguousError(err) {
+				ambigErr := err.(*resolver.AmbiguousError)
+				fmt.Fprintln(os.Stderr, resolver.FormatAmbiguousError(ambigErr))
+				return fmt.Errorf("ambiguous short ID")
+			}
+			return fmt.Errorf("failed to resolve artefact ID: %w", err)
+		}
+
+		// Fetch and display artefact
+		err = hoard.GetArtefact(ctx, bbClient, fullID, os.Stdout)
+		if err != nil {
+			if hoard.IsNotFound(err) {
+				return printer.Error(
+					fmt.Sprintf("artefact with ID '%s' not found", fullID),
+					"The artefact was resolved but could not be fetched.",
+					[]string{
+						"This might indicate a race condition. Try again.",
+					},
+				)
+			}
 			return fmt.Errorf("failed to get artefact: %w", err)
 		}
 	} else {
-		// List mode: fetch and display all artefacts
-		err := hoard.ListArtefacts(ctx, bbClient, targetInstanceName, outputFormat, os.Stdout)
+		// List mode: parse filters and fetch artefacts
+		sinceMS, untilMS, err := timespec.ParseRange(hoardSince, hoardUntil)
+		if err != nil {
+			return printer.Error(
+				"invalid time filter",
+				err.Error(),
+				[]string{"Use duration format like '1h30m' or RFC3339 like '2025-10-29T13:00:00Z'"},
+			)
+		}
+
+		// Build filter criteria
+		filterCriteria := &hoard.FilterCriteria{
+			SinceTimestampMs: sinceMS,
+			UntilTimestampMs: untilMS,
+			TypeGlob:         hoardType,
+			AgentRole:        hoardAgent,
+		}
+
+		// List artefacts with filtering
+		err = hoard.ListArtefacts(ctx, bbClient, targetInstanceName, outputFormat, filterCriteria, os.Stdout)
 		if err != nil {
 			return fmt.Errorf("failed to list artefacts: %w", err)
 		}

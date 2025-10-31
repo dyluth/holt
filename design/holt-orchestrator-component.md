@@ -2,7 +2,6 @@
 
 **Purpose**: Orchestrator component logic, algorithms, and implementation details  
 **Scope**: Component-specific - read when implementing orchestrator features  
-**Estimated tokens**: ~3,200 tokens  
 **Read when**: Implementing orchestrator logic, claim management, event handling
 
 ## **1. Core purpose**
@@ -10,247 +9,109 @@
 The Orchestrator is the central coordination engine of Holt. It is a lightweight, event-driven component that serves as a non-intelligent traffic cop, managing the lifecycle of Claims and coordinating agent work without making domain-specific decisions.
 
 Its fundamental purpose is to:
-- Watch for new Artefacts on the blackboard
-- Create corresponding Claims based on those Artefacts  
-- Coordinate the bidding process with all agents
-- Manage the phased execution of granted Claims
-- Handle failures and maintain system integrity
+- Watch for new Artefacts on the blackboard.
+- Create corresponding Claims based on those Artefacts.
+- Coordinate a consensus-based bidding process with all registered agents.
+- Manage the phased execution of granted Claims (Review, Parallel, Exclusive).
+- Handle automated feedback loops for iterative work.
+- Launch and manage ephemeral worker containers for scalable agents.
+- Recover from crashes or restarts without losing workflow state.
 
-The Orchestrator does **not** contain business logic or domain knowledge. All intelligence for bidding and work execution resides within the Agent Pups.
+## **2. System Bootstrapping & State Recovery**
 
-## **2. System bootstrapping**
+The Orchestrator is a stateful component that persists its critical state to Redis, allowing it to resume operations after a restart.
 
-The Orchestrator becomes active after the CLI initiates a workflow. The CLI is the first actor responsible for seeding the system with its initial state.
+### **2.1. Initial Workflow Trigger**
 
-### **Prerequisites validation**
+A workflow begins when an external actor (typically the `holt forage` CLI command) creates an initial `GoalDefined` artefact on the blackboard. The Orchestrator, which subscribes to all artefact creation events, detects this new artefact and begins the orchestration process by creating the first claim.
 
-The Orchestrator relies on the CLI to ensure prerequisites are met:
-* A clean, initialised Git repository is required
-* When `holt forage` is run, the CLI performs critical checks:
-  * Verifies that a `.git` directory exists
-  * Verifies that the Git working directory is clean (no uncommitted changes or untracked files)
-* The root of this verified Git repository becomes the workspace mounted into agent containers
-
-### **Initial workflow trigger**
-
-1. The `holt forage --goal "Create a REST API"` command connects to the Redis instance
-2. The CLI creates the very first Artefact on the blackboard with these properties:
-   * `structural_type`: Standard
-   * `type`: GoalDefined (a special, reserved type)
-   * `payload`: The raw string from the --goal flag
-   * `produced_by_role`: user
-3. This artefact's appearance triggers the Orchestrator to create the first Claim, starting the automated workflow
-
-## **3. Core orchestration logic**
-
-### **3.1. Event-driven architecture**
-
-The Orchestrator operates as a pure event-driven system:
-
-1. **Artefact monitoring**: The Orchestrator's primary loop subscribes to the `artefact_events` Redis Pub/Sub channel
-2. **Immediate response**: When any component creates a new artefact, it publishes the artefact_id to this channel
-3. **Claim creation**: The Orchestrator receives notifications immediately, reads the artefact, and creates a corresponding Claim
-4. **Agent notification**: It announces new claims to all agents by publishing the claim_id to the `claim_events` channel
-
-### **3.2. Full consensus model (V1)**
-
-The Orchestrator implements a "full consensus" bidding model to ensure deterministic, debuggable workflows:
-
-1. **Bid collection**: The Orchestrator waits until it has received a bid (including explicit 'ignore' bids) from every known agent
-2. **Agent registry**: The list of "known agents" comes from the holt.yml configuration loaded at startup
-3. **Timeout handling**: V1 does not implement bid timeouts - the system waits indefinitely for all agents to respond
-4. **Deterministic processing**: This ensures workflows are completely reproducible and debuggable
-
-### **3.3. Phased claim process**
-
-The Orchestrator manages Claims through a strict three-phase lifecycle:
-
-#### **Phase 1: Review (pending_review)**
-* **Grant criteria**: All agents that submitted 'review' bids are granted
-* **Execution**: Granted agents produce Review artefacts  
-* **Feedback detection**: Any Review payload that is not precisely `{}` or `[]` is considered feedback
-  * **Strict parsing**: This includes malformed JSON, simple strings, or any other content
-  * **Binary decision**: The check is purely syntactic - the Orchestrator does not interpret feedback content
-* **Outcomes**:
-  * If any Review contains feedback → status moves to `terminated` (claim is dead)
-  * If all reviews pass (exactly `{}` or `[]`) → status moves to `pending_parallel`
+### **2.2. Startup & Restart Resilience (M3.5)**
 
-#### **Phase 2: Parallel (pending_parallel)**
-* **Grant criteria**: All agents that submitted 'claim' bids are granted
-* **Execution**: Granted agents work concurrently on the artefact
-* **Completion**: Once all parallel tasks complete → status moves to `pending_exclusive`
+Upon starting, the orchestrator performs a recovery sequence to ensure seamless continuation of in-flight work:
 
-#### **Phase 3: Exclusive (pending_exclusive)**  
-* **Grant criteria**: The Orchestrator grants the claim to one exclusive bidder using first-bid-wins policy
-* **Execution**: The single granted agent gets exclusive access to work on the artefact
-* **Completion**: Once the exclusive task completes → status moves to `complete`
+1.  **Stale Lock Detection**: It checks for a stale instance lock in Redis. If a lock from a previous, crashed orchestrator is found (older than 30 seconds), it takes over the lock.
+2.  **Orphan Worker Cleanup**: It queries the Docker API for any worker containers from its previous run (identifiable by a unique `run_id` label) and removes them.
+3.  **Active Claim Recovery**: It scans Redis for all claims in a pending state (`pending_review`, `pending_parallel`, `pending_exclusive`, `pending_assignment`).
+4.  **State Reconstruction**: For each active claim, it reconstructs its in-memory tracking object from the state persisted in the claim's Redis hash.
+5.  **Grant Re-triggering**: If a claim was granted but the agent never produced an output (because the orchestrator crashed), the grant is re-triggered. For controller-worker agents, a new worker is launched; for traditional agents, the grant notification is re-published.
+6.  **Grant Queue Recovery**: It reloads the persistent grant queue from the Redis ZSET and will resume granting claims as worker slots become available.
 
-### **3.4. Agent failure handling**
+This process ensures that orchestrator restarts are transparent to the overall workflow.
 
-The Orchestrator treats failure as a first-class event:
+## **3. Core Orchestration Logic**
 
-1. **Failure detection**: If a granted agent fails (container crash, timeout, invalid output)
-2. **Failure artefact**: The Orchestrator posts a new Failure artefact containing error details
-3. **Claim termination**: The corresponding Claim status is set to `terminated`
-4. **Atomic phases**: Each claim phase is atomic - if any agent in a parallel phase fails, the parent Claim is terminated
+The orchestrator's main loop is event-driven, reacting to the creation of new artefacts on the blackboard.
 
-### **3.5. Workflow termination**
+### **3.1. Claim Creation**
 
-The Orchestrator recognizes workflow completion through Terminal artefacts:
+1.  **Artefact Monitoring**: The orchestrator subscribes to the `artefact_events` channel.
+2.  **Event Processing**: Upon receiving a notification for a new artefact, it fetches the full artefact data.
+3.  **Claim Filtering**: It **does not** create claims for `Terminal`, `Failure`, or `Review` structural types, as these represent the *end* of a work step, not the beginning.
+4.  **Idempotency**: It checks if a claim for the given artefact ID already exists. If so, it ignores the duplicate event.
+5.  **Claim Creation**: For a new, valid `Standard` or `Answer` artefact, it creates a new Claim object with status `pending_consensus` and persists it to the blackboard.
+6.  **Agent Notification**: It publishes the new claim ID to the `claim_events` channel to notify all agents of the new work opportunity.
 
-1. **Terminal detection**: An agent can produce an artefact with `structural_type: Terminal`
-2. **No claim creation**: The Orchestrator never creates Claims for Terminal artefacts
-3. **Reference validation**: Every Terminal artefact must reference the original GoalDefined artefact's ID
-4. **Completion criteria**: A user's goal is achieved when the primary thread ends in a Terminal artefact and no active claims remain
+### **3.2. Full Consensus Bidding (M3.1)**
 
-## **4. Workflow sequence diagram**
+After creating a claim, the orchestrator enters a consensus loop to gather bids from all agents defined in `holt.yml`.
 
-```mermaid
-sequenceDiagram
-    participant O as Orchestrator
-    participant B as Blackboard
-    participant Creator as Creator Agent
-    participant Reviewer as Reviewer Agent
-    participant ParallelAgent as Parallel Agent
-    participant ExclusiveAgent as Exclusive Agent
+1.  **Agent Registry**: At startup, the orchestrator loads the list of all agent roles from `holt.yml`.
+2.  **Bid Collection**: It waits until a bid has been received from every registered agent. It polls Redis every 100ms to check the bid status.
+3.  **Deterministic Tie-Breaking**: If multiple agents bid `exclusive`, the orchestrator deterministically chooses the winner by sorting the agent roles alphabetically and selecting the first one.
+4.  **No Timeouts (V1 Design)**: The V1 consensus model waits indefinitely for all bids. A non-responsive agent will halt the workflow for that claim, which must be resolved manually. This is a deliberate choice to prioritize determinism in early phases.
 
-    Creator->>B: 1. Creates Artefact A1 (version 1)
-    O-->>B: 2. Sees A1, creates Claim C1
-    
-    Reviewer->>O: 3. Bids 'review' on C1
-    ParallelAgent->>O: 4. Bids 'claim' on C1
-    ExclusiveAgent->>O: 5. Bids 'exclusive' on C1
+### **3.3. Phased Claim Execution (M3.2)**
 
-    O->>Reviewer: 6. Grants 'review' claim
-    Reviewer->>B: 7. Creates Review Artefact R1
-    
-    alt R1 has feedback
-        O->>B: 8a. Kills Claim C1
-        O->>Creator: 9a. Issues new goal (using A1+R1)
-        Creator->>B: 10a. Creates Artefact A2 (version 2)
-        Note over O,Creator: Cycle restarts for A2...
-    else R1 is approved
-        O->>ParallelAgent: 8b. Grants 'claim'
-        ParallelAgent->>B: 9b. Creates Artefact W1
-        O->>ExclusiveAgent: 10b. Waits for ParallelAgent, then grants 'exclusive'
-        ExclusiveAgent->>B: 11b. Creates final Artefact E1
-    end
-```
+Once consensus is reached, the orchestrator transitions the claim through a strict three-phase lifecycle.
 
-## **5. Orchestrator-specific Redis interactions**
+1.  **Phase Determination**: Based on the collected bids, the orchestrator determines the starting phase. If there are `review` bids, it starts in `pending_review`. If not, it skips to `pending_parallel` (if there are `claim` bids) or directly to `pending_exclusive`.
 
-### **5.1. Pub/Sub channel management**
+2.  **Review Phase (`pending_review`)**:
+    *   **Grant**: All agents that bid `review` are granted access. The orchestrator updates the claim's `granted_review_agents` field and persists it.
+    *   **Execution**: The orchestrator waits for all granted reviewers to produce `Review` artefacts.
+    *   **Completion**: Once all reviews are received, it inspects their payloads. Any payload other than an empty JSON object (`{}`) or empty array (`[]`) is considered a rejection.
+    *   **Outcome**:
+        *   **Rejection (Single Veto)**: If even one review contains feedback, the **Automated Feedback Loop (M3.3)** is triggered (see section 3.4).
+        *   **Approval**: If all reviews are approvals, the orchestrator transitions the claim to the next phase.
 
-The Orchestrator is responsible for:
-* **Subscribing** to `artefact_events` channel for new artefact notifications
-* **Publishing** to `claim_events` channel when new claims are created
-* **Connection resilience**: Implementing retry logic with exponential backoff for Redis failures
+3.  **Parallel Phase (`pending_parallel`)**:
+    *   **Grant**: All agents that bid `claim` are granted access.
+    *   **Execution**: The orchestrator waits for all granted parallel agents to produce their output artefacts.
+    *   **Completion**: Once all artefacts are received, it transitions the claim to the exclusive phase.
 
-### **5.2. Claim state management**
+4.  **Exclusive Phase (`pending_exclusive`)**:
+    *   **Grant**: The single, deterministically chosen winner of the `exclusive` bids is granted the claim.
+    *   **Execution**: The orchestrator waits for the agent to produce its output artefact.
+    *   **Completion**: When the artefact is received, the claim is marked as `complete`.
 
-The Orchestrator maintains Claims through their complete lifecycle:
-* **Creation**: Writing new Claim objects to `holt:{instance_name}:claim:{uuid}`
-* **Status updates**: Atomic updates to claim status fields
-* **Bid collection**: Reading from `holt:{instance_name}:claim:{uuid}:bids` to gather agent responses
-* **Granted agent tracking**: Maintaining lists of granted agents for each phase
+### **3.4. Automated Feedback Loop (M3.3)**
 
-### **5.3. Agent registry management**
+Instead of simply terminating a claim upon review rejection, the orchestrator initiates an automated rework cycle.
 
-The Orchestrator must maintain an accurate registry of known agents:
-* **Startup initialization**: Load agent list from holt.yml configuration
-* **Bid validation**: Ensure bids come only from known agents
-* **Consensus enforcement**: Require bids from all registered agents before proceeding
+1.  **Rejection Detection**: The orchestrator detects one or more `Review` artefacts with feedback.
+2.  **Iteration Limit Check**: It checks the `version` of the rejected artefact against the `orchestrator.max_review_iterations` limit from `holt.yml`. If the limit is exceeded, it creates a `Failure` artefact and terminates the workflow.
+3.  **Feedback Claim Creation**: If the limit is not reached, it creates a **new claim** with status `pending_assignment`.
+4.  **Direct Assignment**: This new claim is directly assigned to the role that produced the original, rejected artefact, bypassing the bidding process.
+5.  **Context Injection**: The claim includes the IDs of all feedback-containing `Review` artefacts in its `additional_context_ids` field, ensuring the original agent receives the feedback.
 
-## **6. Error handling and resilience**
+### **3.5. Controller-Worker Scaling (M3.4)**
 
-### **6.1. Redis connection failures**
+The orchestrator has special logic for handling agents configured in `mode: controller`.
 
-The Orchestrator implements robust Redis connectivity:
-* **Connection retry**: Exponential backoff policy with configurable retry limits
-* **Health check failure**: If Redis is unreachable after retries, health checks fail and process exits
-* **State recovery**: Upon reconnection, the Orchestrator resumes watching for new artefacts
+1.  **Controller Detection**: When granting a claim, the orchestrator checks if the winning agent role is a controller.
+2.  **Concurrency Check**: It checks its in-memory tracker to see how many workers are currently running for that role. If the number of active workers is at the `max_concurrent` limit, the grant is **paused**.
+3.  **Persistent Queue (M3.5)**: If a grant is paused, the claim ID is added to a persistent, role-specific FIFO queue in Redis (a ZSET scored by timestamp).
+4.  **Worker Launch**: If a slot is available, the orchestrator launches a new, ephemeral worker container via the Docker API. The worker is started with the command `pup --execute-claim <claim_id>`.
+5.  **Lifecycle Monitoring**: The orchestrator monitors the worker container. When the container exits, it inspects the exit code.
+6.  **Cleanup & Failure Handling**: If the exit code is 0, the process is complete. If non-zero, the orchestrator creates a `Failure` artefact containing the worker's logs and terminates the original claim. In both cases, the orchestrator removes the exited worker container.
 
-### **6.2. Agent timeout handling**
+## **4. State Persistence & Resilience (M3.5)**
 
-V1 Implementation approach:
-* **No bid timeouts**: The Orchestrator waits indefinitely for all agent bids
-* **Container health**: Relies on container orchestration (Docker/Kubernetes) to detect dead agents
-* **Future enhancement**: V2 will implement configurable bid timeouts
+*   **Continuous Persistence**: All significant state changes (phase transitions, grants, queueing) are immediately written to the corresponding `Claim` hash in Redis. The in-memory state is only a cache.
+*   **Heartbeat Lock**: The orchestrator maintains a lock key in Redis (`holt:{instance}:lock`) with a 60-second TTL, which it refreshes every 10 seconds. This acts as a heartbeat.
+*   **Recovery on Startup**: As described in Section 2.2, the orchestrator performs a full recovery sequence on startup, ensuring no work is lost and no resources are orphaned.
 
-### **6.3. Partial failure recovery**
+## **5. Health Checks and Monitoring**
 
-The Orchestrator handles partial failures atomically:
-* **Phase atomicity**: Each claim phase is all-or-nothing
-* **Parallel phase failure**: If any agent in parallel phase fails, entire claim terminates
-* **No automatic retry**: Failed claims require manual intervention to restart workflow
-
-### **6.4. Data consistency**
-
-The Orchestrator ensures blackboard consistency:
-* **Atomic updates**: All claim status changes are atomic Redis operations  
-* **Idempotent operations**: Duplicate artefact notifications don't create duplicate claims
-* **State validation**: Validates claim state before transitions
-
-## **7. Configuration and environment**
-
-### **7.1. Environment variables**
-
-The Orchestrator requires these environment variables:
-* **HOLT_INSTANCE_NAME**: The name of the holt instance (e.g., my-first-holt)
-* **REDIS_URL**: Connection string for the blackboard (e.g., redis://holt-my-first-holt-redis:6379)
-* **HOLT_CONFIG_PATH**: Path to the holt.yml configuration file
-
-### **7.2. Configuration loading**
-
-The Orchestrator loads configuration at startup:
-* **Agent registry**: Reads the complete list of agents from holt.yml
-* **Service overrides**: Applies any service-level configuration overrides
-* **Validation**: Ensures configuration is valid and complete before starting
-
-## **8. Health checks and monitoring**
-
-### **8.1. Health check endpoint**
-
-The Orchestrator exposes a health check at `GET /healthz`:
-* **200 OK**: Connected to Redis and able to read/write
-* **503 Service Unavailable**: Redis connection failed or configuration invalid
-
-### **8.2. Operational monitoring**
-
-The Orchestrator provides structured logging for:
-* **Claim lifecycle events**: Creation, phase transitions, completion, termination
-* **Agent bid tracking**: Bid collection progress and consensus achievement
-* **Error conditions**: Redis failures, invalid bids, configuration problems
-* **Performance metrics**: Claim processing times, bid collection duration
-
-### **8.3. Debugging support**
-
-The Orchestrator supports operational debugging:
-* **State inspection**: Current claims and their status via Redis CLI
-* **Event tracing**: Complete audit trail of all decisions and state changes
-* **Agent tracking**: Visibility into which agents have bid on which claims
-
-## **9. Integration with other components**
-
-### **9.1. Agent Pup coordination**
-
-The Orchestrator coordinates with Agent Pups through:
-* **Claim notifications**: Publishing new claim IDs to `claim_events` channel
-* **Bid collection**: Reading bids from claim-specific Redis hashes
-* **Work assignment**: Implicit work assignment through claim grants
-
-### **9.2. CLI integration**
-
-The Orchestrator works with the CLI through:
-* **Shared Redis instance**: Both components connect to the same Redis blackboard
-* **Artefact creation**: CLI creates initial GoalDefined artefacts that trigger workflows
-* **State visibility**: CLI commands read orchestrator-managed state for user display
-
-### **9.3. Blackboard interaction**
-
-The Orchestrator is the primary manager of blackboard state:
-* **Artefact monitoring**: Watches for new artefacts created by CLI or agents
-* **Claim management**: Creates, updates, and terminates claims
-* **State consistency**: Ensures blackboard state remains consistent and valid
-
-This component design ensures the Orchestrator remains focused, predictable, and maintainable while providing the coordination needed for complex multi-agent workflows.
+*   **Health Endpoint**: The orchestrator exposes a `GET /healthz` endpoint. It returns `200 OK` if it can connect to Redis and `503 Service Unavailable` otherwise.
+*   **Structured Logging**: All significant events (claim creation, phase transitions, grants, worker launches, errors) are logged as structured JSON to stdout, enabling integration with log aggregation systems.

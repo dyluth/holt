@@ -28,19 +28,19 @@ func TestFormatPayload(t *testing.T) {
 			expected: "hello.txt",
 		},
 		{
-			name:     "exactly 60 chars",
-			payload:  strings.Repeat("a", 60),
-			expected: strings.Repeat("a", 60),
+			name:     "exactly 40 chars",
+			payload:  strings.Repeat("a", 40),
+			expected: strings.Repeat("a", 40),
 		},
 		{
-			name:     "61 chars - should truncate",
-			payload:  strings.Repeat("a", 61),
-			expected: strings.Repeat("a", 57) + "...",
+			name:     "41 chars - should truncate",
+			payload:  strings.Repeat("a", 41),
+			expected: strings.Repeat("a", 37) + "...",
 		},
 		{
 			name:     "long payload - should truncate",
 			payload:  "a3f5b8c91d2e4f7a9b1c3d5e6f8a9b0c1d2e3f4a5b6c7d8e9f0a1b2c3d4e5f6",
-			expected: "a3f5b8c91d2e4f7a9b1c3d5e6f8a9b0c1d2e3f4a5b6c7d8e9f0a1b2c3...",
+			expected: "a3f5b8c91d2e4f7a9b1c3d5e6f8a9b0c1d2e3...",
 		},
 		{
 			name:     "multi-line payload - first line only",
@@ -50,7 +50,7 @@ func TestFormatPayload(t *testing.T) {
 		{
 			name:     "multi-line with long first line",
 			payload:  strings.Repeat("x", 70) + "\nSecond line",
-			expected: strings.Repeat("x", 57) + "...",
+			expected: strings.Repeat("x", 37) + "...",
 		},
 		{
 			name:     "payload with leading/trailing whitespace",
@@ -124,7 +124,7 @@ func TestFormatTable(t *testing.T) {
 		output := buf.String()
 		assert.Contains(t, output, "Artefacts for instance 'test-instance'")
 		assert.Contains(t, output, "abc-123")
-		assert.Contains(t, output, "GoalDefined")
+		assert.Contains(t, output, "Goal") // formatType shortens "GoalDefined" to "Goal"
 		assert.Contains(t, output, "test-agent")
 		assert.Contains(t, output, "hello.txt")
 		assert.Contains(t, output, "1 artefact found")
@@ -196,18 +196,15 @@ func TestFormatTable(t *testing.T) {
 	})
 }
 
-func TestFormatJSONArray(t *testing.T) {
+func TestFormatJSONL(t *testing.T) {
 	t.Run("empty artefacts", func(t *testing.T) {
 		var buf bytes.Buffer
-		err := FormatJSONArray(&buf, []*blackboard.Artefact{})
+		err := FormatJSONL(&buf, []*blackboard.Artefact{})
 
 		require.NoError(t, err)
 
-		// Should be valid JSON array
-		var result []blackboard.Artefact
-		err = json.Unmarshal(buf.Bytes(), &result)
-		require.NoError(t, err)
-		assert.Empty(t, result)
+		// Should be empty (no lines)
+		assert.Empty(t, buf.String())
 	})
 
 	t.Run("single artefact", func(t *testing.T) {
@@ -225,18 +222,21 @@ func TestFormatJSONArray(t *testing.T) {
 		}
 
 		var buf bytes.Buffer
-		err := FormatJSONArray(&buf, artefacts)
+		err := FormatJSONL(&buf, artefacts)
 
 		require.NoError(t, err)
 
-		// Should be valid JSON array
-		var result []*blackboard.Artefact
-		err = json.Unmarshal(buf.Bytes(), &result)
+		// Should be one JSON object per line (JSONL format)
+		lines := strings.Split(strings.TrimSpace(buf.String()), "\n")
+		assert.Len(t, lines, 1)
+
+		// Parse the single line
+		var result blackboard.Artefact
+		err = json.Unmarshal([]byte(lines[0]), &result)
 		require.NoError(t, err)
-		assert.Len(t, result, 1)
-		assert.Equal(t, "abc-123", result[0].ID)
-		assert.Equal(t, "GoalDefined", result[0].Type)
-		assert.Equal(t, "hello.txt", result[0].Payload)
+		assert.Equal(t, "abc-123", result.ID)
+		assert.Equal(t, "GoalDefined", result.Type)
+		assert.Equal(t, "hello.txt", result.Payload)
 	})
 
 	t.Run("multiple artefacts with full data", func(t *testing.T) {
@@ -264,24 +264,29 @@ func TestFormatJSONArray(t *testing.T) {
 		}
 
 		var buf bytes.Buffer
-		err := FormatJSONArray(&buf, artefacts)
+		err := FormatJSONL(&buf, artefacts)
 
 		require.NoError(t, err)
 
-		// Should be valid JSON array
-		var result []*blackboard.Artefact
-		err = json.Unmarshal(buf.Bytes(), &result)
+		// Should be two JSON objects, one per line (JSONL format)
+		lines := strings.Split(strings.TrimSpace(buf.String()), "\n")
+		assert.Len(t, lines, 2)
+
+		// Parse first line
+		var result1 blackboard.Artefact
+		err = json.Unmarshal([]byte(lines[0]), &result1)
 		require.NoError(t, err)
-		assert.Len(t, result, 2)
+		assert.Equal(t, "abc-123", result1.ID)
+		assert.Equal(t, "logical-1", result1.LogicalID)
+		assert.Equal(t, 1, result1.Version)
+		assert.Equal(t, blackboard.StructuralTypeStandard, result1.StructuralType)
 
-		// Verify all fields are preserved
-		assert.Equal(t, "abc-123", result[0].ID)
-		assert.Equal(t, "logical-1", result[0].LogicalID)
-		assert.Equal(t, 1, result[0].Version)
-		assert.Equal(t, blackboard.StructuralTypeStandard, result[0].StructuralType)
-
-		assert.Equal(t, "def-456", result[1].ID)
-		assert.Equal(t, []string{"abc-123"}, result[1].SourceArtefacts)
+		// Parse second line
+		var result2 blackboard.Artefact
+		err = json.Unmarshal([]byte(lines[1]), &result2)
+		require.NoError(t, err)
+		assert.Equal(t, "def-456", result2.ID)
+		assert.Equal(t, []string{"abc-123"}, result2.SourceArtefacts)
 	})
 
 	t.Run("preserves multi-line payloads", func(t *testing.T) {
@@ -299,16 +304,20 @@ func TestFormatJSONArray(t *testing.T) {
 		}
 
 		var buf bytes.Buffer
-		err := FormatJSONArray(&buf, artefacts)
+		err := FormatJSONL(&buf, artefacts)
 
 		require.NoError(t, err)
 
-		var result []*blackboard.Artefact
-		err = json.Unmarshal(buf.Bytes(), &result)
+		// JSONL format: one object per line
+		lines := strings.Split(strings.TrimSpace(buf.String()), "\n")
+		assert.Len(t, lines, 1)
+
+		var result blackboard.Artefact
+		err = json.Unmarshal([]byte(lines[0]), &result)
 		require.NoError(t, err)
 
 		// Multi-line payload should be preserved
-		assert.Equal(t, "line1\nline2\nline3", result[0].Payload)
+		assert.Equal(t, "line1\nline2\nline3", result.Payload)
 	})
 }
 

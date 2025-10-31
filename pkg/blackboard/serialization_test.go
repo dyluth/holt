@@ -314,7 +314,7 @@ func TestClaimRoundTrip_M3_5_PhaseState(t *testing.T) {
 				"agent-2": BidTypeReview,
 				"agent-3": BidTypeParallel,
 			},
-			StartTime: 1234567890,
+			StartTimeMs: 1234567890, // M3.9: Changed from StartTime
 		},
 		LastGrantAgent:   "agent-1",
 		LastGrantTime:    1234567890,
@@ -353,9 +353,9 @@ func TestClaimRoundTrip_M3_5_GrantQueue(t *testing.T) {
 		AdditionalContextIDs:  []string{},
 		TerminationReason:     "",
 		GrantQueue: &GrantQueue{
-			PausedAt:  1234567890,
-			AgentName: "coder-controller",
-			Position:  0,
+			PausedAtMs: 1234567890, // M3.9: Changed from PausedAt
+			AgentName:  "coder-controller",
+			Position:   0,
 		},
 		LastGrantAgent:   "coder-controller",
 		LastGrantTime:    1234567890,
