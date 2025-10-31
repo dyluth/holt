@@ -5,7 +5,7 @@
 **Estimated tokens**: ~5,700 tokens  
 **Read when**: Need complete architecture understanding, implementing core components
 
-Holt is a standalone, **container-native orchestration engine** designed to manage a clan of specialised, tool-equipped AI agents. It provides a robust, scalable, and auditable platform for automating complex workflows by leveraging the power of containerisation and the familiar paradigms of DevOps. While initially focused on software engineering tasks, Holt's immutable audit trails and human-in-the-loop design make it particularly valuable for regulated industries, compliance workflows, and any environment where AI transparency and accountability are business-critical.
+Holt is a standalone, **container-native orchestration engine** designed to manage a clan of specialised, tool-equipped AI agents. It provides a robust, scalable, and auditable platform for automating complex workflows by leveraging the power of containerisation and the familiar paradigms of DevOps. While initially focused on software engineering tasks, Holt's chronological audit trails and human-in-the-loop design make it particularly valuable for regulated industries, compliance workflows, and any environment where AI transparency and accountability are business-critical.
 
 It is not an LLM-chaining library. It is an orchestration engine for the real-world toolchains that software professionals use every day. It enables the automation of tasks that rely on compilers, CLIs, and infrastructure tools (git, docker, kubectl) by orchestrating agents whose tools are not just Python functions, but any command-line tool that can be packaged into a container.
 
@@ -16,7 +16,7 @@ Holt is an opinionated tool. Our development philosophy is guided by a clear set
 * **Pragmatism over novelty (YAGNI):** We prioritise using existing, battle-hardened tools rather than building our own. The core of Holt is an orchestrator, not a database or a container runtime. We use Docker for containers and Redis for state, because they are excellent.  
 * **Zero-configuration, progressively enhanced:** The experience must be seamless out of the box. A developer should be able to get a basic holt running with a single command. Smart defaults cover 90% of use cases, while advanced features and enterprise-grade workflows are available for those who need them.  
 * **Small, single-purpose components:** Each element in the system—the orchestrator, the CLI, the agent pup—has a clear, well-defined job and does that one thing excellently. Complexity is managed by composing simple parts.  
-* **Auditability is a core feature:** Artefacts are immutable. Every decision and agent interaction is recorded on the blackboard, providing a complete, auditable history of the workflow. This makes Holt particularly valuable for regulated industries, compliance workflows, and any environment where AI transparency and accountability are legally required or business-critical.  
+* **Auditability is a core feature:** The Holt platform treats artefacts as write-once records. Every decision and agent interaction is recorded on the blackboard, providing a complete, auditable history of the workflow. This makes Holt particularly valuable for regulated industries, compliance workflows, and any environment where AI transparency and accountability are legally required or business-critical.  
 * **ARM64-first design:** Development and deployment are optimised for ARM64, with AMD64 as a fully supported, compatible target.  
 * **Principle of least privilege:** Agents run in non-root containers with the minimal set of privileges required to perform their function.
 
@@ -80,7 +80,7 @@ All keys are namespaced to the instance to enable multiple holts on the same Red
 
 #### **Artefacts (holt:{instance_name}:artefact:{uuid} - Redis Hash)**
 
-The central, immutable data object in Holt.
+The central, append-only data object in Holt.
 
 * **id** (string): The unique UUID of this specific artefact
 * **logical_id** (string): A shared UUID that groups all versions of the same logical artefact together. For the first version, logical_id is the same as id
@@ -374,31 +374,9 @@ When a Failure artefact is created, the workflow for that claim stops. For V1, t
 
 ## Phased delivery plan
 
-Holt is being developed through a series of well-defined phases, each delivering a significant leap in capabilities. The project's status is tracked against this roadmap.
+Holt is being developed through a series of well-defined phases, each delivering a significant leap in capabilities. The project's status and future direction are tracked in our central roadmap document.
 
-### Phase 1: "Heartbeat" ✅
-*Goal: Prove the core blackboard architecture works with basic orchestrator and CLI functionality.*
-- **Features:** Redis blackboard with Pub/Sub, CLI for instance management, basic orchestrator claim engine.
-
-### Phase 2: "Single Agent" ✅
-*Goal: Enable a single agent to perform a complete, useful task.*
-- **Features:** Agent `pup` implementation, claim bidding, Git workspace integration, and context assembly.
-
-### Phase 3: "Coordination" ✅
-*Goal: Orchestrate multiple, specialized agents in a collaborative workflow.*
-- **Features:** Multi-stage pipelines (review → parallel → exclusive), controller-worker scaling pattern, consensus bidding, automated feedback loops, and powerful CLI observability features.
-
-### Phase 4: "Human-in-the-Loop" 🚧
-*Goal: Make the system production-ready with human oversight.*
-- **Features:** `Question`/`Answer` artefacts for human guidance and mandatory approval gates for critical actions.
-
-### Phase 5: "Complex Coordination" 📋
-*Goal: Enable the orchestration of complex, non-linear workflows (DAGs).*
-- **Features:** Support for "fan-in" synchronization patterns and conditional workflow pathing based on agent bidding logic.
-
-### Phase 6: "Kubernetes-Native" 📋
-*Goal: Evolve Holt into a first-class, native Kubernetes platform.*
-- **Features:** A **Holt Operator** for managing instances via Custom Resource Definitions (CRDs), native integration with Kubernetes networking and storage, and **Prometheus metrics endpoints**.
+For a detailed overview, please see **[The Holt Project Roadmap](../ROADMAP.md)**.
 
 ### Future Enhancements
 For a detailed look at long-term, enterprise-focused ideas like RBAC, Secrets Management, and High Availability, see the living document at **[design/future-enhancements.md](./design/future-enhancements.md)**.

@@ -4,34 +4,24 @@
 
 Holt enables organizations to safely automate complex software engineering tasks using AI agents—while maintaining complete control, security, and regulatory compliance.
 
+---
+
 ## Enterprise-Ready by Design
 
-Holt is not just a development tool; it is built for production workflows where security, compliance, and monitoring are paramount. It provides a suite of enterprise-grade features out-of-the-box, derived directly from its simple, first-principles architecture.
+Holt is an opinionated, integrated platform, purpose-built for secure and regulated environments. Its architecture provides enterprise-grade capabilities out-of-the-box.
 
-#### 1. Complete & Immutable Auditability
+*   **Absolute Data Sovereignty**: Holt is self-hosted by default, allowing for deployment in **air-gapped environments**. The entire platform runs on your infrastructure, ensuring no data, metadata, or logs ever leave your security perimeter.
+*   **Unparalleled Auditability**: The central "Blackboard" acts as a chronological, append-only ledger, providing a complete audit trail of every action taken by every agent.
 
-Holt provides a complete, unchangeable audit trail for the entire lifecycle of a workflow. This is not an add-on; it is a core property of the system.
+---
 
-*   **Immutable Ledger:** Every action, decision, and artefact is recorded as an immutable entry on the central blackboard.
-*   **Queryable History:** The `holt hoard` command provides an out-of-the-box tool to inspect and query this audit trail, allowing developers and compliance officers to trace any workflow from start to finish.
-*   **Git-Native Versioning:** For code-related tasks, every change is tied to a Git commit hash, integrating the audit trail with an industry-standard version control system.
+## Compliance and Security
 
-#### 2. Powerful, Built-in Observability
+Holt is architected to support the stringent security and compliance requirements of regulated industries. Its self-hosted nature, chronological audit trail, and declarative policies provide the foundation needed to build a compliant system.
 
-Holt provides integrated tools for monitoring and debugging your AI agents and workflows in real time.
+For a detailed guide on how Holt's features map to the technical controls of frameworks like **HIPAA, SOC 2, and ISO 27001**, please read our full compliance guide:
 
-*   **Automated Health Checks:** Every agent runs with a mandatory, built-in health check, allowing the orchestrator to immediately detect and report on agents that have crashed or become unresponsive.
-*   **Real-time Monitoring:** The `holt watch` command provides a live stream of all system events. With powerful filtering by **time, agent, and artefact type**, you can zero in on the exact information you need.
-*   **Machine-Readable Output:** The `watch` and `hoard` commands can output events as line-delimited JSON (`jsonl`), allowing you to seamlessly pipe Holt's observability data into external logging and monitoring systems like Splunk, Datadog, or the ELK stack.
-*   **Targeted Debugging:** The `holt logs <agent-name>` command lets you instantly access the logs for any specific agent, streamlining the debugging process.
-
-#### 3. Flexible, Container-Native Deployment
-
-Holt's architecture is designed for a seamless transition from local development to production deployment on any standard container platform.
-
-*   **Local Development:** The `holt up` command provides a simple, `docker-compose`-like experience for running a complete Holt instance on your local machine.
-*   **Production-Ready Architecture:** Because every agent and Holt component is a container, a `holt.yml` configuration serves as a blueprint for production. This stack can be deployed to any major orchestrator, including **Kubernetes, Amazon ECS, or Google Cloud Run**.
-*   **Future: First-Class Kubernetes Native:** The Phase 6 roadmap will make Holt a first-class citizen in Kubernetes. This includes a **Holt Operator** for managing the entire lifecycle, native integration with Kubernetes health and logging, and built-in **Prometheus metrics endpoints** for seamless integration with your existing monitoring infrastructure.
+**[➡️ Holt: A Guide to Compliance](./HOLT_COMPLIANCE_GUIDE.md)**
 
 ---
 
@@ -163,26 +153,14 @@ graph TD
 
 ## Project Status
 
-**Phase 3 (M3.4) Complete** ✅ - Multi-agent coordination with horizontal scaling
+**Phase 4 In Progress** 🚧 - Human-in-the-loop and production hardening.
 
-Current capabilities:
-- ✅ Event-driven orchestration via Redis blackboard
-- ✅ Container-native agent execution
-- ✅ Git-centric workflow with commit tracking
-- ✅ Complete immutable audit trail
-- ✅ Human-in-the-loop support
-- ✅ Multi-instance workspace safety
-- ✅ Multi-agent coordination (review → parallel → exclusive phases)
-- ✅ Consensus-based bidding system
-- ✅ Automated feedback loops with review-based iteration
-- ✅ Automatic version management for iterative refinement
-- ✅ Controller-worker pattern for horizontal scaling
-- ✅ Ephemeral worker containers with automatic cleanup
-- ✅ Concurrency limits with stateless grant pausing
+### Key Completed Features (Phases 1-3)
 
-Coming in Phase 3+:
-- 🚧 Runtime failure detection & timeouts (M3.6+)
-- 🚧 Orchestrator restart resilience (M3.5+)
+*   **Core Orchestration**: Event-driven engine, Redis blackboard, Git-native workflows.
+*   **Advanced Coordination**: Multi-agent consensus bidding and phased execution (Review, Parallel, Exclusive).
+*   **Resilience & Scaling**: Controller-worker pattern for horizontal scaling, orchestrator restart resilience, and automated feedback loops for agent self-correction.
+*   **Security & Audit**: Immutable audit trail, workspace isolation (`ro`/`rw` modes), and multi-instance safety.
 
 ---
 
@@ -192,15 +170,15 @@ Coming in Phase 3+:
 
 A Redis-based shared state system where all components interact. Think of it as a lightweight ledger storing:
 
-- **Artefacts**: Immutable work products (code commits, designs, analyses)
+- **Artefacts**: Append-only work products (code commits, designs, analyses)
 - **Claims**: The orchestrator's decisions about work assignment
 - **Bids**: Agents' expressions of interest in claims
 
-Every interaction is timestamped and recorded, creating an immutable audit trail perfect for regulated environments.
+Every interaction is timestamped and recorded, creating a chronological audit trail perfect for regulated environments.
 
 ### Artefacts
 
-Immutable data objects representing work products. Each artefact has:
+Append-only data objects representing work products. Each artefact has:
 
 - **type**: User-defined (e.g., "CodeCommit", "DesignSpec", "TestReport")
 - **payload**: Main content (commit hash, JSON data, text)
@@ -501,7 +479,8 @@ holt/
 
 ---
 
-## Key Design Principles
+## Guiding principles
+
 
 ### Pragmatism over Novelty (YAGNI)
 
@@ -513,7 +492,7 @@ We use battle-hardened tools (Docker, Redis, Git) rather than building custom so
 
 ### Auditability as a Core Feature
 
-Artefacts are immutable. Every decision is recorded on the blackboard with timestamps. Complete audit trail for compliance and debugging.
+The Holt platform treats artefacts as write-once records. Every decision is recorded on the blackboard with timestamps. Complete audit trail for compliance and debugging.
 
 ### Small, Single-Purpose Components
 
@@ -527,31 +506,9 @@ Agents can use any tool that can be containerized - not just Python functions. T
 
 ## Roadmap
 
-Holt is being developed through a series of well-defined phases, each delivering a significant leap in capabilities. The project's status is tracked against this roadmap.
+Holt is being developed through a series of well-defined phases, from the initial "Heartbeat" to a fully "Kubernetes-Native" platform. For a detailed overview of the project's phased delivery plan and future direction, please see our comprehensive roadmap:
 
-### Phase 1: "Heartbeat" ✅
-*Goal: Prove the core blackboard architecture works with basic orchestrator and CLI functionality.*
-- **Features:** Redis blackboard with Pub/Sub, CLI for instance management, basic orchestrator claim engine.
-
-### Phase 2: "Single Agent" ✅
-*Goal: Enable a single agent to perform a complete, useful task.*
-- **Features:** Agent `pup` implementation, claim bidding, Git workspace integration, and context assembly.
-
-### Phase 3: "Coordination" 🚧
-*Goal: Orchestrate multiple, specialized agents in a collaborative workflow.*
-- **Features:** Multi-stage pipelines (review → parallel → exclusive), controller-worker scaling pattern, consensus bidding, automated feedback loops, and powerful CLI observability features.
-
-### Phase 4: "Human-in-the-Loop" 📋
-*Goal: Make the system production-ready with human oversight.*
-- **Features:** `Question`/`Answer` artefacts for human guidance and mandatory approval gates for critical actions.
-
-### Phase 5: "Complex Coordination" 📋
-*Goal: Enable the orchestration of complex, non-linear workflows (DAGs).*
-- **Features:** Support for "fan-in" synchronization patterns and conditional workflow pathing based on agent bidding logic.
-
-### Phase 6: "Kubernetes-Native" 📋
-*Goal: Evolve Holt into a first-class, native Kubernetes platform.*
-- **Features:** A **Holt Operator** for managing instances via Custom Resource Definitions (CRDs), native integration with Kubernetes networking and storage, and **Prometheus metrics endpoints**.
+**[➡️ View the Full Project Roadmap](./ROADMAP.md)**
 
 ### Future Enhancements
 For a detailed look at long-term, enterprise-focused ideas like RBAC, Secrets Management, and High Availability, see the living document at **[design/future-enhancements.md](./design/future-enhancements.md)**.

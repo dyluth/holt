@@ -23,7 +23,7 @@ The experience must be seamless out of the box. A developer should be able to ge
 Each element—the orchestrator, the CLI, the agent pup—has a clear, well-defined job and does that one thing excellently. Complexity is managed by composing simple parts.
 
 ### **Auditability as a core feature**
-Artefacts are immutable. Every decision and agent interaction is recorded on the blackboard, providing a complete, auditable history of the workflow. This makes Holt particularly valuable for regulated industries, compliance workflows, and any environment where AI transparency and accountability are business-critical or legally required.
+Artefacts are treated as write-once records by the Holt platform. Every decision and agent interaction is recorded on the blackboard, providing a complete, auditable history of the workflow. This makes Holt particularly valuable for regulated industries, compliance workflows, and any environment where AI transparency and accountability are business-critical or legally required.
 
 ### **ARM64-first design**
 Development and deployment are optimized for ARM64, with AMD64 as a fully supported, compatible target.
@@ -35,10 +35,10 @@ Agents run in non-root containers with the minimal set of privileges required to
 
 Holt is not just a pattern; it is a complete system that provides enterprise-grade features out-of-the-box. Its simple, first-principles architecture is precisely what enables this powerful, built-in functionality.
 
-### Complete & Immutable Auditability
+### Complete & Chronological Auditability
 Holt provides a complete, unchangeable audit trail for the entire lifecycle of a workflow. This is not an add-on; it is a core property of the system.
 
-- **Immutable Ledger:** Every action, decision, and artefact is recorded as an immutable entry on the central blackboard.
+- **Append-Only Ledger:** Every action, decision, and artefact is recorded as an immutable entry on the central blackboard.
 - **Queryable History:** The `holt hoard` command provides an out-of-the-box tool to inspect and query this audit trail, allowing developers and compliance officers to trace any workflow from start to finish.
 - **Git-Native Versioning:** For code-related tasks, every change is tied to a Git commit hash, integrating the audit trail with an industry-standard version control system.
 
@@ -60,10 +60,10 @@ Holt's architecture is designed for a seamless transition from local development
 ## Key Architectural Concepts
 
 ### The Blackboard
-A Redis-based shared state system where all components interact via well-defined data structures. It serves as a lightweight ledger storing metadata and pointers, not large data blobs. **Critically for compliance**: every interaction is logged with timestamps, creating an immutable audit trail that meets regulatory requirements for AI transparency and accountability.
+A Redis-based shared state system where all components interact via well-defined data structures. It serves as a lightweight ledger storing metadata and pointers, not large data blobs. **Critically for compliance**: every interaction is logged with timestamps, creating a chronological audit trail that meets regulatory requirements for AI transparency and accountability.
 
 ### Artefacts
-Immutable data objects representing work products. They have:
+Append-only data objects representing work products. They have:
 - **structural_type**: Role in orchestration (Standard, Review, Question, Answer, Failure, Terminal)
 - **type**: User-defined, domain-specific string (e.g., "DesignSpec", "CodeCommit")
 - **payload**: Main content (often a git commit hash for code)
@@ -182,7 +182,7 @@ For a detailed look at long-term, enterprise-focused ideas like RBAC, Secrets Ma
 ### **Why Redis?**
 Battle-tested, excellent Pub/Sub support, simple data structures, high performance.
 
-### **Why immutable artefacts?**
+### **Why a Write-Once Architecture?**
 Provides complete audit trail and prevents race conditions in concurrent environments.
 
 ### **Why container-native?**
@@ -228,7 +228,7 @@ A successful Holt implementation should:
 
 ## **Vision Statement**
 
-Holt aims to be the **de facto orchestration platform** for AI-powered workflows in **any environment where auditability, control, and compliance are critical**. While initially focused on software engineering, Holt's immutable audit trails and human-in-the-loop design make it uniquely suited for regulated industries struggling to safely adopt AI.
+Holt aims to be the **de facto orchestration platform** for AI-powered workflows in **any environment where auditability, control, and compliance are critical**. While initially focused on software engineering, Holt's chronological audit trails and human-in-the-loop design make it uniquely suited for regulated industries struggling to safely adopt AI.
 
 By combining the reliability of containerization with the flexibility of AI agents, Holt enables organizations to automate complex tasks while maintaining **full visibility, control, and regulatory compliance**. This makes it invaluable for:
 
@@ -249,7 +249,7 @@ Every feature **must** be designed using the standardized template (`design/holt
 - **Is designed for failure first**, with robust handling of errors and edge cases.
 - **Maintains backward compatibility** and integration safety.
 - **Includes a comprehensive testing plan** (unit, integration, E2E).
-- **Preserves the immutable audit trail** at all costs.
+- **Preserves the chronological audit trail** at all costs.
 
 For the complete process, see `DEVELOPMENT_PROCESS.md`.
 
