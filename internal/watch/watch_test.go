@@ -260,7 +260,7 @@ func TestFormatters(t *testing.T) {
 			Status:     blackboard.ClaimStatusPendingReview,
 		}
 
-		err := formatter.FormatClaim(claim)
+		err := formatter.FormatClaim(claim, 0)
 		require.NoError(t, err)
 
 		output := string(buf)
@@ -284,7 +284,7 @@ func TestFormatters(t *testing.T) {
 			},
 		}
 
-		err := formatter.FormatWorkflow(event)
+		err := formatter.FormatWorkflow(event, 0)
 		require.NoError(t, err)
 
 		output := string(buf)
@@ -308,7 +308,7 @@ func TestFormatters(t *testing.T) {
 			},
 		}
 
-		err := formatter.FormatWorkflow(event)
+		err := formatter.FormatWorkflow(event, 0)
 		require.NoError(t, err)
 
 		output := string(buf)
@@ -349,7 +349,7 @@ func TestFormatters(t *testing.T) {
 			Status:     blackboard.ClaimStatusPendingReview,
 		}
 
-		err := formatter.FormatClaim(claim)
+		err := formatter.FormatClaim(claim, 0)
 		require.NoError(t, err)
 
 		output := string(buf)
@@ -371,7 +371,7 @@ func TestFormatters(t *testing.T) {
 			},
 		}
 
-		err := formatter.FormatWorkflow(event)
+		err := formatter.FormatWorkflow(event, 0)
 		require.NoError(t, err)
 
 		output := string(buf)

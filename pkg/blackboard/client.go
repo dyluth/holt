@@ -7,6 +7,7 @@ import (
 	"fmt"
 	"sort"
 	"sync"
+	"time"
 
 	"github.com/redis/go-redis/v9"
 )
@@ -63,6 +64,11 @@ func (c *Client) RedisClient() *redis.Client {
 // The artefact is stored as a Redis hash at holt:{instance}:artefact:{id}.
 // This method is idempotent - writing the same artefact twice is safe.
 func (c *Client) CreateArtefact(ctx context.Context, a *Artefact) error {
+	// M3.9: Auto-populate CreatedAtMs if not set
+	if a.CreatedAtMs == 0 {
+		a.CreatedAtMs = time.Now().UnixMilli()
+	}
+
 	// Validate artefact
 	if err := a.Validate(); err != nil {
 		return fmt.Errorf("invalid artefact: %w", err)

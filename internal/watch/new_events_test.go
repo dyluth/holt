@@ -89,7 +89,8 @@ func TestNewWorkflowEvents(t *testing.T) {
 			buf := &bytes.Buffer{}
 			formatter := &defaultFormatter{writer: buf}
 
-			err := formatter.FormatWorkflow(tt.event)
+			// Pass 0 for timestamp to use current time (test doesn't care about exact timestamp)
+			err := formatter.FormatWorkflow(tt.event, 0)
 			assert.NoError(t, err)
 
 			output := buf.String()
