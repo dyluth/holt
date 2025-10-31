@@ -35,6 +35,7 @@ Displays historical events matching filters, then streams live events as they oc
 Output Formats:
   default - Human-readable output with timestamps and emojis
   jsonl   - Line-delimited JSON, one event per line (streamable)
+  json    - Alias for jsonl (streaming data is always line-delimited)
 
 Time Filters:
   --since  - Show events after this time
@@ -66,7 +67,7 @@ Examples:
 
 func init() {
 	watchCmd.Flags().StringVarP(&watchInstanceName, "name", "n", "", "Target instance name (auto-inferred if omitted)")
-	watchCmd.Flags().StringVarP(&watchOutputFormat, "output", "o", "default", "Output format (default or jsonl)")
+	watchCmd.Flags().StringVarP(&watchOutputFormat, "output", "o", "default", "Output format (default, jsonl, or json)")
 
 	// Time-based filters
 	watchCmd.Flags().StringVar(&watchSince, "since", "", "Show events after time (duration or RFC3339)")
@@ -90,13 +91,13 @@ func runWatch(cmd *cobra.Command, args []string) error {
 	switch watchOutputFormat {
 	case "default":
 		outputFormat = watch.OutputFormatDefault
-	case "jsonl":
+	case "jsonl", "json": // Accept both jsonl and json (they're the same for streaming)
 		outputFormat = watch.OutputFormatJSONL
 	default:
 		return printer.Error(
 			"invalid output format",
 			fmt.Sprintf("Unknown format: %s", watchOutputFormat),
-			[]string{"Valid formats: default, jsonl"},
+			[]string{"Valid formats: default, jsonl, json"},
 		)
 	}
 
